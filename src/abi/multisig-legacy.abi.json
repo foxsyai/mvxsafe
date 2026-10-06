@@ -18,163 +18,359 @@
       "name": "getQuorum",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "u32" }]
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "getNumBoardMembers",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "u32" }]
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "getNumProposers",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "u32" }]
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "getActionLastIndex",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "u32" }]
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "getAllBoardMembers",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "variadic<Address>", "multi_result": true }]
+      "outputs": [
+        {
+          "type": "variadic<Address>",
+          "multi_result": true
+        }
+      ]
     },
     {
       "name": "getAllProposers",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "variadic<Address>", "multi_result": true }]
+      "outputs": [
+        {
+          "type": "variadic<Address>",
+          "multi_result": true
+        }
+      ]
     },
     {
       "name": "userRole",
       "mutability": "readonly",
-      "inputs": [{ "name": "user", "type": "Address" }],
-      "outputs": [{ "type": "UserRole" }]
+      "inputs": [
+        {
+          "name": "user",
+          "type": "Address"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "UserRole"
+        }
+      ]
     },
     {
       "name": "quorumReached",
       "mutability": "readonly",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
-      "outputs": [{ "type": "bool" }]
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool"
+        }
+      ]
     },
     {
       "name": "signed",
       "mutability": "readonly",
       "inputs": [
-        { "name": "user", "type": "Address" },
-        { "name": "action_id", "type": "u32" }
+        {
+          "name": "user",
+          "type": "Address"
+        },
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
       ],
-      "outputs": [{ "type": "bool" }]
+      "outputs": [
+        {
+          "type": "bool"
+        }
+      ]
     },
     {
       "name": "getActionData",
       "mutability": "readonly",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
-      "outputs": [{ "type": "Action" }]
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "Action"
+        }
+      ]
     },
     {
       "name": "getActionSigners",
       "mutability": "readonly",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
-      "outputs": [{ "type": "List<Address>" }]
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "List<Address>"
+        }
+      ]
     },
     {
       "name": "getActionSignerCount",
       "mutability": "readonly",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
-      "outputs": [{ "type": "u32" }]
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "getActionValidSignerCount",
       "mutability": "readonly",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
-      "outputs": [{ "type": "u32" }]
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "getPendingActionFullInfo",
       "mutability": "readonly",
       "inputs": [],
-      "outputs": [{ "type": "variadic<ActionFullInfo>", "multi_result": true }]
+      "outputs": [
+        {
+          "type": "variadic<ActionFullInfo>",
+          "multi_result": true
+        }
+      ]
     },
     {
       "name": "sign",
       "mutability": "mutable",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
       "outputs": []
     },
     {
       "name": "unsign",
       "mutability": "mutable",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
       "outputs": []
     },
     {
       "name": "performAction",
       "mutability": "mutable",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
-      "outputs": [{ "type": "optional<Address>", "multi_result": true }]
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "optional<Address>",
+          "multi_result": true
+        }
+      ]
     },
     {
       "name": "discardAction",
       "mutability": "mutable",
-      "inputs": [{ "name": "action_id", "type": "u32" }],
+      "inputs": [
+        {
+          "name": "action_id",
+          "type": "u32"
+        }
+      ],
       "outputs": []
     },
     {
       "name": "proposeAddBoardMember",
       "mutability": "mutable",
-      "inputs": [{ "name": "board_member_address", "type": "Address" }],
-      "outputs": [{ "type": "u32" }]
+      "inputs": [
+        {
+          "name": "board_member_address",
+          "type": "Address"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "proposeAddProposer",
       "mutability": "mutable",
-      "inputs": [{ "name": "proposer_address", "type": "Address" }],
-      "outputs": [{ "type": "u32" }]
+      "inputs": [
+        {
+          "name": "proposer_address",
+          "type": "Address"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "proposeRemoveUser",
       "mutability": "mutable",
-      "inputs": [{ "name": "user_address", "type": "Address" }],
-      "outputs": [{ "type": "u32" }]
+      "inputs": [
+        {
+          "name": "user_address",
+          "type": "Address"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "proposeChangeQuorum",
       "mutability": "mutable",
-      "inputs": [{ "name": "new_quorum", "type": "u32" }],
-      "outputs": [{ "type": "u32" }]
+      "inputs": [
+        {
+          "name": "new_quorum",
+          "type": "u32"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "proposeTransferExecute",
       "mutability": "mutable",
       "inputs": [
-        { "name": "to", "type": "Address" },
-        { "name": "egld_amount", "type": "BigUint" },
-        { "name": "opt_function", "type": "optional<bytes>", "multi_arg": true },
-        { "name": "arguments", "type": "variadic<bytes>", "multi_arg": true }
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "egld_amount",
+          "type": "BigUint"
+        },
+        {
+          "name": "function_and_arguments",
+          "type": "variadic<bytes>",
+          "multi_arg": true
+        }
       ],
-      "outputs": [{ "type": "u32" }]
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ],
+      "docs": [
+        "On the wire this is: to, egld_amount, then a list of buffers whose FIRST entry is",
+        "the function name when there is one. The contract's Rust signature splits that into",
+        "opt_function and arguments, but the encoding is identical, and one variadic is what",
+        "the SDK can actually build."
+      ]
     },
     {
       "name": "proposeAsyncCall",
       "mutability": "mutable",
       "inputs": [
-        { "name": "to", "type": "Address" },
-        { "name": "egld_amount", "type": "BigUint" },
-        { "name": "opt_function", "type": "optional<bytes>", "multi_arg": true },
-        { "name": "arguments", "type": "variadic<bytes>", "multi_arg": true }
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "egld_amount",
+          "type": "BigUint"
+        },
+        {
+          "name": "function_and_arguments",
+          "type": "variadic<bytes>",
+          "multi_arg": true
+        }
       ],
-      "outputs": [{ "type": "u32" }]
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ],
+      "docs": [
+        "On the wire this is: to, egld_amount, then a list of buffers whose FIRST entry is",
+        "the function name when there is one. The contract's Rust signature splits that into",
+        "opt_function and arguments, but the encoding is identical, and one variadic is what",
+        "the SDK can actually build."
+      ]
     },
     {
       "name": "deposit",
       "mutability": "mutable",
-      "payableInTokens": ["*"],
+      "payableInTokens": [
+        "*"
+      ],
       "inputs": [],
       "outputs": []
     }
@@ -183,73 +379,154 @@
     "ActionFullInfo": {
       "type": "struct",
       "fields": [
-        { "name": "action_id", "type": "u32" },
-        { "name": "action_data", "type": "Action" },
-        { "name": "signers", "type": "List<Address>" }
+        {
+          "name": "action_id",
+          "type": "u32"
+        },
+        {
+          "name": "action_data",
+          "type": "Action"
+        },
+        {
+          "name": "signers",
+          "type": "List<Address>"
+        }
       ]
     },
     "CallActionData": {
       "type": "struct",
       "fields": [
-        { "name": "to", "type": "Address" },
-        { "name": "egld_amount", "type": "BigUint" },
-        { "name": "endpoint_name", "type": "bytes" },
-        { "name": "arguments", "type": "List<bytes>" }
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "egld_amount",
+          "type": "BigUint"
+        },
+        {
+          "name": "endpoint_name",
+          "type": "bytes"
+        },
+        {
+          "name": "arguments",
+          "type": "List<bytes>"
+        }
       ]
     },
     "Action": {
       "type": "enum",
       "variants": [
-        { "name": "Nothing", "discriminant": 0 },
+        {
+          "name": "Nothing",
+          "discriminant": 0
+        },
         {
           "name": "AddBoardMember",
           "discriminant": 1,
-          "fields": [{ "name": "0", "type": "Address" }]
+          "fields": [
+            {
+              "name": "0",
+              "type": "Address"
+            }
+          ]
         },
         {
           "name": "AddProposer",
           "discriminant": 2,
-          "fields": [{ "name": "0", "type": "Address" }]
+          "fields": [
+            {
+              "name": "0",
+              "type": "Address"
+            }
+          ]
         },
         {
           "name": "RemoveUser",
           "discriminant": 3,
-          "fields": [{ "name": "0", "type": "Address" }]
+          "fields": [
+            {
+              "name": "0",
+              "type": "Address"
+            }
+          ]
         },
         {
           "name": "ChangeQuorum",
           "discriminant": 4,
-          "fields": [{ "name": "0", "type": "u32" }]
+          "fields": [
+            {
+              "name": "0",
+              "type": "u32"
+            }
+          ]
         },
         {
           "name": "SendTransferExecute",
           "discriminant": 5,
-          "fields": [{ "name": "0", "type": "CallActionData" }]
+          "fields": [
+            {
+              "name": "0",
+              "type": "CallActionData"
+            }
+          ]
         },
         {
           "name": "SendAsyncCall",
           "discriminant": 6,
-          "fields": [{ "name": "0", "type": "CallActionData" }]
+          "fields": [
+            {
+              "name": "0",
+              "type": "CallActionData"
+            }
+          ]
         },
         {
           "name": "SCDeployFromSource",
           "discriminant": 7,
           "fields": [
-            { "name": "amount", "type": "BigUint" },
-            { "name": "source", "type": "Address" },
-            { "name": "code_metadata", "type": "CodeMetadata" },
-            { "name": "arguments", "type": "List<bytes>" }
+            {
+              "name": "amount",
+              "type": "BigUint"
+            },
+            {
+              "name": "source",
+              "type": "Address"
+            },
+            {
+              "name": "code_metadata",
+              "type": "CodeMetadata"
+            },
+            {
+              "name": "arguments",
+              "type": "List<bytes>"
+            }
           ]
         },
         {
           "name": "SCUpgradeFromSource",
           "discriminant": 8,
           "fields": [
-            { "name": "sc_address", "type": "Address" },
-            { "name": "amount", "type": "BigUint" },
-            { "name": "source", "type": "Address" },
-            { "name": "code_metadata", "type": "CodeMetadata" },
-            { "name": "arguments", "type": "List<bytes>" }
+            {
+              "name": "sc_address",
+              "type": "Address"
+            },
+            {
+              "name": "amount",
+              "type": "BigUint"
+            },
+            {
+              "name": "source",
+              "type": "Address"
+            },
+            {
+              "name": "code_metadata",
+              "type": "CodeMetadata"
+            },
+            {
+              "name": "arguments",
+              "type": "List<bytes>"
+            }
           ]
         }
       ]
@@ -257,9 +534,18 @@
     "UserRole": {
       "type": "enum",
       "variants": [
-        { "name": "None", "discriminant": 0 },
-        { "name": "Proposer", "discriminant": 1 },
-        { "name": "BoardMember", "discriminant": 2 }
+        {
+          "name": "None",
+          "discriminant": 0
+        },
+        {
+          "name": "Proposer",
+          "discriminant": 1
+        },
+        {
+          "name": "BoardMember",
+          "discriminant": 2
+        }
       ]
     }
   }

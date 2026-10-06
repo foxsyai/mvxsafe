@@ -15,10 +15,12 @@ import {
   Abi,
   Address,
   BigUIntValue,
+  BytesType,
   BytesValue,
   SmartContractTransactionsFactory,
   TransactionsFactoryConfig,
-  U32Value
+  U32Value,
+  VariadicValue
 } from '@multiversx/sdk-core';
 import legacyAbiJson from '../abi/multisig-legacy.abi.json' with { type: 'json' };
 
@@ -74,6 +76,18 @@ export const toRawAmount = (amount, decimals) => {
   return BigInt(`${whole || '0'}${padded}`);
 };
 
+/** Top encoding of an amount, which is how a BigUint travels as an argument. */
+const amountBytes = (raw) => {
+  let hex = raw.toString(16);
+  if (hex.length % 2) hex = '0' + hex;
+  return BytesValue.fromHex(hex === '00' ? '' : hex);
+};
+
+// fromItems, NOT fromItemsCounted: the counted form writes the number of items
+// as an extra argument, which the contract then stored as the function name. The
+// proposal looked fine and the transfer quietly did nothing when performed.
+const variadic = (items) => VariadicValue.fromItems(...items);
+
 /** EGLD out of the safe, optionally calling a function on the receiving side. */
 export const buildProposeEgld = (context, { to, amount, functionName, functionArgs = [] }) =>
   call({
@@ -82,9 +96,14 @@ export const buildProposeEgld = (context, { to, amount, functionName, functionAr
     args: [
       new Address(to),
       new BigUIntValue(toRawAmount(amount, 18)),
-      ...(functionName
-        ? [BytesValue.fromUTF8(functionName), ...functionArgs.map((a) => BytesValue.fromUTF8(String(a)))]
-        : [])
+      variadic(
+        functionName
+          ? [
+              BytesValue.fromUTF8(functionName),
+              ...functionArgs.map((argument) => BytesValue.fromUTF8(String(argument)))
+            ]
+          : []
+      )
     ]
   });
 
@@ -101,9 +120,11 @@ export const buildProposeToken = (context, { to, tokenIdentifier, amount, decima
     args: [
       new Address(to),
       new BigUIntValue(0n),
-      BytesValue.fromUTF8('ESDTTransfer'),
-      BytesValue.fromUTF8(tokenIdentifier),
-      new BigUIntValue(toRawAmount(amount, decimals))
+      variadic([
+        BytesValue.fromUTF8('ESDTTransfer'),
+        BytesValue.fromUTF8(tokenIdentifier),
+        amountBytes(toRawAmount(amount, decimals))
+      ])
     ]
   });
 

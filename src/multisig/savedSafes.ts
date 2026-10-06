@@ -54,3 +54,39 @@ export const nameFor = (address: string) =>
 
 export const isValidSafeAddress = (address: string) =>
   /^erd1[0-9a-z]{58}$/.test(address.trim());
+
+/**
+ * The list as a file, so it can move to another browser or another machine.
+ * Plain JSON, name and address, readable and editable by hand: there is no
+ * server to keep it on and nothing here is secret.
+ */
+export const exportSafes = (): string =>
+  JSON.stringify({ app: 'mvxsafe', safes: getAllSafes() }, null, 2);
+
+export const importSafes = (text: string): { added: number; skipped: number } => {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('That file is not JSON.');
+  }
+  const incoming = Array.isArray(parsed) ? parsed : parsed?.safes;
+  if (!Array.isArray(incoming)) {
+    throw new Error('That file holds no list of safes.');
+  }
+
+  let added = 0;
+  let skipped = 0;
+  for (const entry of incoming) {
+    const address = String(entry?.address ?? '').trim();
+    if (!isValidSafeAddress(address)) {
+      skipped++;
+      continue;
+    }
+    const before = getAllSafes().length;
+    addSafe({ name: String(entry?.name ?? 'Safe').slice(0, 60), address });
+    if (getAllSafes().length > before) added++;
+    else skipped++;
+  }
+  return { added, skipped };
+};

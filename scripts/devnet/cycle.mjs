@@ -93,8 +93,46 @@ const context = async (signer, safe) => ({
   safe
 });
 
-/** The id of the action a propose transaction created, read from its result. */
-const actionIdOf = async (safe) => num(await view(safe, 'getActionLastIndex'));
+/**
+ * The id of the action a propose transaction created, read from the contract's
+ * own answer ("@ok@<id>"). Asking getActionLastIndex straight afterwards can
+ * still return the previous value, which once sent a signature to an action
+ * that had already been carried out.
+ */
+const actionIdFrom = (onNetwork) => {
+  for (const result of onNetwork.smartContractResults ?? []) {
+    const data = typeof result.data === 'string' ? result.data : '';
+    const parts = data.split('@').filter(Boolean);
+    if (parts[0] === '6f6b' && parts[1]) return parseInt(parts[1], 16);
+  }
+  for (const event of onNetwork.logs?.events ?? []) {
+    const data = event.data instanceof Uint8Array ? Buffer.from(event.data).toString() : '';
+    const parts = data.split('@').filter(Boolean);
+    if (parts[0] === '6f6b' && parts[1]) return parseInt(parts[1], 16);
+  }
+  return 0;
+};
+
+/**
+ * Collects signatures until the quorum is met, then carries the action out.
+ * Written against whatever the quorum happens to be, so a run that left it at 3
+ * does not break the next one.
+ */
+const approveAndPerform = async (safe, actionId, others, label) => {
+  const quorum = num(await view(safe, 'getQuorum'));
+  const signatures = () =>
+    view(safe, 'getActionSignerCount', [new U32Value(actionId)]).then(num);
+  for (const [who, name] of others) {
+    if ((await signatures()) >= quorum) break;
+    await send(await buildSign(await context(who, safe), actionId), who, `${name} signs ${label}`);
+  }
+  const performer = others[0][0];
+  await send(
+    await buildPerform(await context(performer, safe), actionId),
+    performer,
+    `carry out ${label}`
+  );
+};
 
 const balanceOf = async (who) => (await api.getAccount(who.address)).balance;
 const tokensOf = async (address) => api.getFungibleTokensOfAccount(address);
@@ -196,7 +234,7 @@ const run = async () => {
 
   // 1. EGLD out: propose, second signature, carry out.
   const carolBefore = await balanceOf(carol);
-  await send(
+  const egldProposed = await send(
     await buildProposeEgld(await context(alice, safe), {
       to: carol.address.toBech32(),
       amount: '0.1'
@@ -204,7 +242,7 @@ const run = async () => {
     alice,
     'alice proposes sending 0.1 xEGLD to carol'
   );
-  const actionId = await actionIdOf(safe);
+  const actionId = actionIdFrom(egldProposed);
   console.log(
     '  action',
     actionId,
@@ -212,17 +250,12 @@ const run = async () => {
     num(await view(safe, 'getActionSignerCount', [new U32Value(actionId)]))
   );
 
-  await send(await buildSign(await context(bob, safe), actionId), bob, 'bob signs it');
-  console.log(
-    '  quorum reached:',
-    String(await view(safe, 'quorumReached', [new U32Value(actionId)]))
-  );
-  await send(await buildPerform(await context(bob, safe), actionId), bob, 'bob carries it out');
+  await approveAndPerform(safe, actionId, [[bob, 'bob'], [carol, 'carol']], 'the EGLD transfer');
   console.log(`  carol: ${egld(carolBefore)} -> ${egld(await balanceOf(carol))} xEGLD`);
 
   // 2. A token out, which on this build travels as an async ESDTTransfer.
   const tokensBefore = await tokenAmount(carol.address);
-  await send(
+  const tokenProposed = await send(
     await buildProposeToken(await context(alice, safe), {
       to: carol.address.toBech32(),
       tokenIdentifier: TOKEN,
@@ -232,41 +265,36 @@ const run = async () => {
     alice,
     'alice proposes sending 0.5 WEGLD to carol'
   );
-  const tokenAction = await actionIdOf(safe);
-  await send(
-    await buildSign(await context(bob, safe), tokenAction),
-    bob,
-    'bob signs the token transfer'
-  );
-  await send(
-    await buildPerform(await context(bob, safe), tokenAction),
-    bob,
-    'bob carries out the token transfer'
-  );
+  const tokenAction = actionIdFrom(tokenProposed);
+  await approveAndPerform(safe, tokenAction, [[bob, 'bob'], [carol, 'carol']], 'the token transfer');
   console.log(
     `  carol ${TOKEN}: ${egld(tokensBefore)} -> ${egld(await tokenAmount(carol.address))}`
   );
 
-  // 3. Change the quorum, and change it back.
+  // 3. Change the quorum, and change it back. Raising it to 3 means the change
+  //    BACK needs three signatures, which is the rule working as intended.
   for (const target of [3, 2]) {
-    await send(
+    const quorumProposed = await send(
       await buildProposeChangeQuorum(await context(alice, safe), target),
       alice,
       `alice proposes quorum ${target}`
     );
-    const id = await actionIdOf(safe);
-    await send(await buildSign(await context(bob, safe), id), bob, 'bob signs');
-    await send(await buildPerform(await context(carol, safe), id), carol, 'carol carries it out');
+    await approveAndPerform(
+      safe,
+      actionIdFrom(quorumProposed),
+      [[bob, 'bob'], [carol, 'carol']],
+      `quorum ${target}`
+    );
     console.log('  quorum now:', num(await view(safe, 'getQuorum')));
   }
 
   // 4. Unsign, then discard: the two ways an action ends without happening.
-  await send(
+  const removeProposed = await send(
     await buildProposeRemoveUser(await context(alice, safe), carol.address.toBech32()),
     alice,
     'alice proposes removing carol'
   );
-  const removeId = await actionIdOf(safe);
+  const removeId = actionIdFrom(removeProposed);
   await send(
     await buildUnsign(await context(alice, safe), removeId),
     alice,

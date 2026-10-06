@@ -8,7 +8,9 @@ import { clearCache } from 'multisig/network';
 import { formatAmount, readOverview, shortAddress, SafeOverview } from 'multisig/reads';
 import {
   addSafe,
+  exportSafes,
   getAllSafes,
+  importSafes,
   isValidSafeAddress,
   removeSafe
 } from 'multisig/savedSafes';
@@ -92,6 +94,31 @@ export const Safes = () => {
     setSafes(getAllSafes());
   };
 
+  const handleExport = () => {
+    const blob = new Blob([exportSafes()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mvxsafe-safes.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (file?: File) => {
+    if (!file) return;
+    try {
+      const { added, skipped } = importSafes(await file.text());
+      setSafes(getAllSafes());
+      setError(
+        added === 0 && skipped === 0
+          ? 'That file held nothing to add.'
+          : `Added ${added}${skipped ? `, skipped ${skipped} already here or invalid` : ''}.`
+      );
+    } catch (failure: any) {
+      setError(failure?.message ?? 'That file could not be read.');
+    }
+  };
+
   const handleRefresh = () => {
     clearCache();
     setOverviews({});
@@ -111,13 +138,32 @@ export const Safes = () => {
             you sit on the board of become yours to act on.
           </p>
         </div>
-        <button
-          type='button'
-          onClick={handleRefresh}
-          className='rounded-lg border border-[#2A2A32] px-4 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
-        >
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
+        <div className='flex items-center gap-2'>
+          <button
+            type='button'
+            onClick={handleExport}
+            disabled={safes.length === 0}
+            className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40'
+          >
+            Export
+          </button>
+          <label className='cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'>
+            Import
+            <input
+              type='file'
+              accept='application/json,.json'
+              className='hidden'
+              onChange={(event) => handleImport(event.target.files?.[0])}
+            />
+          </label>
+          <button
+            type='button'
+            onClick={handleRefresh}
+            className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {safes.length === 0 && (

@@ -17,18 +17,37 @@ Built because xsafe.io stopped working and the Foxsy AI Foundation needs its own
 
 ## State
 
-Read-only: balances, board members, quorum, pending actions with signature counts, and history.
-Proposing and signing come next, developed against a devnet test safe.
+Reading and acting. Connect a wallet and, on a safe whose board you sit on, you can propose
+(tokens, EGLD, add or remove a member, change the quorum), sign, remove your signature, carry
+an action out once the quorum is reached, and discard one. The whole cycle is proven on devnet
+by `scripts/devnet/cycle.mjs`, which uses the same builders the app ships.
 
-## The contracts
+Still to come: creating a new safe from the interface, and screenshots in the guide and the
+signer PDF.
 
-The Foundation's safes run the **plain** multisig build, which has no groups and no batches:
-`getNumGroups` does not exist on them. The UI must never offer `proposeBatch`, `signBatch`,
-`performBatch` or `discardBatch`. Verified read-only on 6 October 2026 against all seven, which
-share one code hash and are quorum 2 of 3 with three board members and no proposers.
+## The contracts, and why the SDK's multisig helper is not used
 
-`src/abi/multisig-full.abi.json` is the ABI from `mx-sdk-js-core` testdata. It carries more
-endpoints than our contracts have, which is harmless as long as the rule above holds.
+The Foundation's safes, and most multisigs deployed before 2025, run an **older multisig build**.
+Read out of the deployed bytecode, its endpoints are: `deposit`, `sign`, `unsign`,
+`performAction`, `discardAction`, `proposeAddBoardMember`, `proposeAddProposer`,
+`proposeRemoveUser`, `proposeChangeQuorum`, `proposeTransferExecute`, `proposeAsyncCall`,
+`proposeSCDeployFromSource`, `proposeSCUpgradeFromSource`, plus views. There is **no**
+`proposeTransferExecuteEsdt`, and there are no groups or batches.
+
+That has three consequences, each found the hard way on devnet against a copy of their exact
+bytecode (6 October 2026):
+
+1. **`MultisigController` from the SDK builds for a newer contract.** Its propose calls carry an
+   extra gas argument, which shifts everything along: a token transfer ends up with an empty
+   endpoint name and `ESDTTransfer` sitting in the argument list. The proposal is accepted and
+   then fails at perform, after signatures have been collected. We build the transactions
+   ourselves in `src/multisig/legacyCalls.js`.
+2. **The SDK's multisig ABI cannot decode a pending action here** and throws while reading one.
+   `src/abi/multisig-legacy.abi.json` is written by hand to match the deployed contract.
+3. **Tokens leave the safe as an async call** that spells out `ESDTTransfer`, the token and the
+   amount. There is no ESDT-specific endpoint to use.
+
+Both the app and the devnet test import the same builders, so what is proven is what ships.
 
 ## Running it
 
