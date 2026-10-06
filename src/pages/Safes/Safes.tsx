@@ -146,9 +146,9 @@ export const Safes = () => {
   return (
     <div className='mx-auto w-full max-w-5xl px-4 py-10'>
       <div className='flex flex-wrap items-end justify-between gap-4'>
-        {/* The intro is capped so the buttons keep their room, and the reading
-            count never wraps inside its own button. */}
-        <div className='max-w-md'>
+        {/* The intro runs the full width of the cards underneath; the buttons
+            keep their own row and all three share one width. */}
+        <div className='min-w-[18rem] flex-1'>
           <p className='text-xs font-semibold tracking-[0.25em] text-[#FF6E0A]'>
             MULTIVERSX MULTISIG
           </p>
@@ -164,13 +164,13 @@ export const Safes = () => {
               type='button'
               onClick={handleExport}
               disabled={safes.length === 0}
-              className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40'
+              className='min-w-[9.5rem] rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40'
             >
               Export
             </button>
           </Tip>
           <Tip text='Reads a list back, on another browser or another machine. Safes already here are left alone.'>
-            <label className='cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'>
+            <label className='min-w-[9.5rem] cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'>
               Import
               <input
                 type='file'
