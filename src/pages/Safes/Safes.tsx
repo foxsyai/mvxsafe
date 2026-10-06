@@ -221,7 +221,7 @@ export const Safes = () => {
                   navigate(`/safe/${safe.address}`);
                 }
               }}
-              className={`cursor-pointer ${
+              className={`relative cursor-pointer ${
                 roles[safe.address] === 'BoardMember' || roles[safe.address] === 'Proposer'
                   ? panelMine
                   : panel
@@ -232,19 +232,30 @@ export const Safes = () => {
                   <h2 className='text-lg font-semibold text-white'>{safe.name}</h2>
                   <AddressLine address={safe.address} className='mt-1 text-xs text-[#6B7280]' />
                 </div>
-                <div className='flex flex-col items-end gap-2'>
+                <div className='flex flex-col items-end gap-2 pr-7'>
                   <RoleBadge role={roles[safe.address] ?? 'Unknown'} />
-                  <button
-                    type='button'
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleRemove(safe.address);
-                    }}
-                    className='text-xs text-[#6B7280] hover:text-[#FF6E0A]'
-                  >
-                    remove
-                  </button>
                 </div>
+
+                {/* Top right, like closing a window. */}
+                <button
+                  type='button'
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleRemove(safe.address);
+                  }}
+                  title='Take this safe out of your list. The safe itself is untouched.'
+                  aria-label='Remove this safe from the list'
+                  className='absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded text-[#6B7280] hover:bg-[#FF6E0A]/10 hover:text-[#FF6E0A]'
+                >
+                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' aria-hidden>
+                    <path
+                      d='M6 6l12 12M18 6L6 18'
+                      stroke='currentColor'
+                      strokeWidth='2.2'
+                      strokeLinecap='round'
+                    />
+                  </svg>
+                </button>
               </div>
 
               <dl className='mt-4 flex items-start justify-between gap-6 text-sm'>
