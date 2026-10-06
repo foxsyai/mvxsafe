@@ -106,7 +106,12 @@ export const ProposePanel = ({
       setQuorum('');
       onProposed();
     } catch (failure: any) {
-      setError(failure?.message ?? 'That could not be proposed.');
+      const message = String(failure?.message ?? failure ?? '');
+      setError(
+        /cancel|reject|closed|denied/i.test(message)
+          ? 'Cancelled in your wallet, nothing was sent.'
+          : `That could not be proposed: ${message.slice(0, 200)}`
+      );
     }
     setBusy(false);
   };

@@ -36,6 +36,7 @@ export const Safe = () => {
   const [failed, setFailed] = useState(false);
   const [role, setRole] = useState('None');
   const [working, setWorking] = useState(0);
+  const [problem, setProblem] = useState('');
 
   const isLoggedIn = useGetIsLoggedIn();
   const account = useGetAccount();
@@ -58,14 +59,22 @@ export const Safe = () => {
   }, [address, isLoggedIn, account.address]);
 
   // Every one of these ends in the visitor's wallet asking them to confirm.
+  // Whatever goes wrong is shown: this used to swallow failures, so a signed
+  // transaction that the node refused looked exactly like nothing happening.
   const run = async (actionId: number, work: () => Promise<unknown>) => {
     setWorking(actionId);
+    setProblem('');
     try {
       await work();
       clearCache();
       await load();
-    } catch {
-      // The wallet was closed or the transaction was refused: nothing happened.
+    } catch (failure: any) {
+      const message = String(failure?.message ?? failure ?? '');
+      setProblem(
+        /cancel|reject|closed|denied/i.test(message)
+          ? 'Cancelled in your wallet, nothing was sent.'
+          : `That did not go through: ${message.slice(0, 200)}`
+      );
     }
     setWorking(0);
   };
@@ -120,6 +129,12 @@ export const Safe = () => {
       {failed && (
         <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
           This address could not be read from the network.
+        </p>
+      )}
+
+      {problem && (
+        <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+          {problem}
         </p>
       )}
 
@@ -247,10 +262,16 @@ export const Safe = () => {
                       </button></Tip>
                     )}
 
-                    <Tip text='Throws the action away without doing it. Nothing moves and nothing is spent.'>
+                    <Tip
+                      text={
+                        action.signerCount > 0
+                          ? 'Cannot be discarded while it carries signatures. The contract refuses it. Everyone who signed has to remove their signature first.'
+                          : 'Throws the action away without doing it. Nothing moves and nothing is spent.'
+                      }
+                    >
                       <button
                         type='button'
-                        disabled={working === action.actionId}
+                        disabled={working === action.actionId || action.signerCount > 0}
                         onClick={() =>
                           run(action.actionId, () =>
                             discardAction(signer, address, action.actionId)
