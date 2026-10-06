@@ -227,12 +227,14 @@ export const Safes = () => {
                   : panel
               }`}
             >
-              <div className='flex items-start justify-between gap-3'>
-                <div>
-                  <h2 className='text-lg font-semibold text-white'>{safe.name}</h2>
-                  <AddressLine address={safe.address} className='mt-1 text-xs text-[#6B7280]' />
-                </div>
-                <div className='flex flex-col items-end gap-2 pr-7'>
+              <div>
+                <h2 className='pr-7 text-lg font-semibold text-white'>{safe.name}</h2>
+
+                {/* The badge sits on the address line, hard against the right
+                    edge, so the X can live in the corner without pushing it out
+                    of alignment. */}
+                <div className='mt-1 flex flex-wrap items-center justify-between gap-2'>
+                  <AddressLine address={safe.address} className='text-xs text-[#6B7280]' />
                   <RoleBadge role={roles[safe.address] ?? 'Unknown'} />
                 </div>
 
@@ -245,7 +247,7 @@ export const Safes = () => {
                   }}
                   title='Take this safe out of your list. The safe itself is untouched.'
                   aria-label='Remove this safe from the list'
-                  className='absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded text-[#6B7280] hover:bg-[#FF6E0A]/10 hover:text-[#FF6E0A]'
+                  className='absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded text-[#6B7280] hover:bg-[#FF6E0A]/10 hover:text-[#FF6E0A]'
                 >
                   <svg width='13' height='13' viewBox='0 0 24 24' fill='none' aria-hidden>
                     <path
