@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 
 // The public walkthrough. Written for someone who has never used a multisig, so
 // it explains the idea before the buttons, and shows the real interface rather
-// than describing it. The pictures are taken on the test network, which is why
-// they carry the orange DEVNET badge and play money.
+// than describing it. The pictures are photographs of the live site operating a
+// real safe; the board members carry the names they were given in that browser,
+// which is the feature step 4 explains.
 
 const heading = 'text-xl font-semibold text-white';
 const body = 'mt-3 text-sm leading-relaxed text-[#9AA0A6]';
@@ -66,17 +67,9 @@ export const Guide = () => (
       transactions that you sign yourself.
     </p>
     <p className='mt-3 text-xs text-[#6B7280]'>
-      The pictures below are taken on the test network, so they carry an orange DEVNET
-      badge and the money in them is play money. You can try all of it yourself at{' '}
-      <a
-        href='https://devnet.mvxsafe.io'
-        target='_blank'
-        rel='noreferrer'
-        className='text-[#FF6E0A] hover:underline'
-      >
-        devnet.mvxsafe.io
-      </a>
-      .
+      The pictures below are of this site operating a real safe. The board members appear
+      as Alice, Bob and Carol because they were given those names in that browser, which
+      is what step 4 is about.
     </p>
 
     <div className='mt-10'>
@@ -88,14 +81,14 @@ export const Guide = () => (
         signatures it needs. The list is kept in your browser alone: no account, nothing
         sent anywhere. Export writes it to a file and Import reads one back, so it can move
         to another browser or another machine.
-        <Shot src='/shots/01-empty.jpg' caption='Before anything is added.' />
+        <Shot src='/shots/08-empty.jpg' caption='Before anything is added.' />
         <Shot
-          src='/shots/02-add.jpg'
+          src='/shots/09-add.jpg'
           caption='A name, the contract address, and Add. Watching a safe gives you no rights over it.'
         />
         <Shot
-          src='/shots/03-list.jpg'
-          caption='The safe in the list. The eye means you are only watching it.'
+          src='/shots/10-list-watching.jpg'
+          caption='Seven safes in the list. The eye on each one means you are only watching.'
         />
       </Step>
 
@@ -104,19 +97,24 @@ export const Guide = () => (
         action is a separate transaction that your wallet has to sign. xPortal, the browser
         extension, a Ledger and the web wallet all work.
         <Shot
-          src='/shots/04-connect.jpg'
-          caption='The wallet chooser. Pick whichever you normally use.'
+          src='/shots/11-connect-chooser.jpg'
+          caption='Connecting with xPortal: the app on your phone scans the code. The other wallets ask for whatever they need instead.'
         />
         Once connected, any safe whose board you sit on changes from the eye to the team
-        icon, and its buttons appear. Nothing else about the page changes.
+        icon. Nothing else about the page changes.
+        <Shot
+          src='/shots/12-list-board-member.jpg'
+          caption='The same list, connected. The team icon marks the safes you can act on.'
+        />
       </Step>
 
       <Step number={3} title='Read the safe'>
-        The quorum, what the safe holds, which actions are waiting, who has signed them,
-        the board, and the full history, each transaction linking to the explorer.
+        Opening a safe shows the quorum, what it holds, which actions are waiting, who has
+        signed them, and whether you are on the board. Everything on this page is read from
+        the contract itself.
         <Shot
-          src='/shots/05-safe-top.jpg'
-          caption='A safe with actions waiting. Each one is written in plain words, with the signatures it has so far.'
+          src='/shots/13-safe-overview.jpg'
+          caption='A safe seen by one of its board members. Two signatures out of three move anything.'
         />
       </Step>
 
@@ -124,10 +122,11 @@ export const Guide = () => (
         An address tells you nothing about whose it is, so each one can carry a name. If the
         account has a herotag, it is shown automatically. Otherwise the pencil lets you name
         it yourself, and that name follows the address everywhere in the app and travels in
-        your export file.
+        your export file. Below the board, the holdings are listed with their value in
+        dollars, and under them the full history, each line linking to the explorer.
         <Shot
-          src='/shots/06-board.jpg'
-          caption='The board of a safe. Two of these have herotags, the third was named by hand.'
+          src='/shots/14-board-and-holdings.jpg'
+          caption='The board, named by hand, and what the safe holds. The names live in your browser, never on the chain.'
         />
       </Step>
 
@@ -136,12 +135,26 @@ export const Guide = () => (
         costs a small network fee and changes nothing on its own: it puts the request in
         front of the board, where it waits. The person who proposes has signed it by doing
         so.
+        <Shot
+          src='/shots/15-propose-form.jpg'
+          caption='Proposing a token payment: which token, to whom, how much.'
+        />
       </Step>
 
       <Step number={6} title='Read it, then sign'>
         Every pending action is written in plain words before you sign: which token, how
-        much, to which address. Signing is approval, not execution. You can also remove your
-        signature while an action is still waiting, if you change your mind.
+        much, to which address. Check it against what you were told, and refuse anything the
+        interface says it cannot read. Signing is approval, not execution.
+        <Shot
+          src='/shots/17-action-to-sign.jpg'
+          caption='An action waiting for you. It needs two signatures and has none yet.'
+        />
+        You can also take your signature back while the action is still waiting, if you
+        change your mind. The card then shows who has signed so far.
+        <Shot
+          src='/shots/16-pending-action.jpg'
+          caption='The same action after one signature. Discard is greyed out, because what others have approved cannot be thrown away.'
+        />
       </Step>
 
       <Step number={7} title='Carry it out'>
@@ -189,13 +202,17 @@ export const Guide = () => (
           Keep a little EGLD in your wallet. Proposing, signing and carrying out are
           transactions, and each costs a small network fee.
         </li>
+        <li>
+          A guarded wallet works here. If your account has a guardian switched on, every
+          transaction carries it, and your wallet asks for the second factor as usual.
+        </li>
       </ul>
     </div>
 
     <div className='mt-12 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
       <h2 className='text-base font-semibold text-white'>If you only have to sign</h2>
       <p className='mt-2 text-sm text-[#9AA0A6]'>
-        Someone else proposes and you approve. That is four steps, on one page:{' '}
+        Someone else proposes and you approve. That is four steps, with a picture of each:{' '}
         <a
           href='/mvxsafe-for-signers.pdf'
           target='_blank'
