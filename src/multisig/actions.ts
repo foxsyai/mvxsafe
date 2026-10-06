@@ -2,9 +2,9 @@
 // builders in legacyCalls.js, hands it to the connected wallet to sign, and
 // tracks it. Nothing here holds a key.
 
-import { Address } from '@multiversx/sdk-core';
+import { Address, TransactionComputer } from '@multiversx/sdk-core';
 import { signAndSendTransactions } from 'helpers/signAndSendTransactions';
-import { chainId, networkProvider } from './network';
+import { api, chainId, networkProvider } from './network';
 import {
   buildDiscard,
   buildPerform,
@@ -40,8 +40,37 @@ const contextOf = async (signer: Signer, safe: string) => {
   return { chainId, sender: signer.address, nonce, safe };
 };
 
-const send = async (transaction: any, label: string) =>
-  signAndSendTransactions({
+/**
+ * The guardian of an account, if it has one switched on. A guarded account is
+ * one where a second service has to co-sign everything, which is how a treasury
+ * wallet should be held, and the Foundation's are.
+ */
+const guardianOf = async (address: string): Promise<string> => {
+  try {
+    const account = await api<{ isGuarded?: boolean; activeGuardianAddress?: string }>(
+      `/accounts/${address}?withGuardianInfo=true`
+    );
+    return account?.isGuarded ? (account.activeGuardianAddress ?? '') : '';
+  } catch {
+    // Unknown, so send it unguarded. A guarded account will simply refuse it,
+    // which is safe: nothing moves.
+    return '';
+  }
+};
+
+const send = async (transaction: any, label: string) => {
+  // A guarded account can only send transactions that name their guardian and
+  // carry its signature. Without these three fields the wallet has nothing it
+  // can co-sign, and the attempt dies as if it had been cancelled, which is
+  // exactly how it looked (Sebastian, 6 Oct 2026). applyGuardian sets the
+  // guardian, version 2 and the guarded option; the wallet, or the web wallet's
+  // two factor page, adds the second signature.
+  const guardian = await guardianOf(transaction.sender.toBech32());
+  if (guardian) {
+    new TransactionComputer().applyGuardian(transaction, new Address(guardian));
+  }
+
+  return signAndSendTransactions({
     transactions: [transaction],
     transactionsDisplayInfo: {
       processingMessage: `${label}...`,
@@ -49,6 +78,7 @@ const send = async (transaction: any, label: string) =>
       successMessage: `${label} done`
     }
   });
+};
 
 export const signAction = async (signer: Signer, safe: string, actionId: number) =>
   send(await buildSign(await contextOf(signer, safe), actionId), `Signing action ${actionId}`);

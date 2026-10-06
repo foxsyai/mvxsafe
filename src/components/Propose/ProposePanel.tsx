@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   proposeAddBoardMember,
   proposeAddProposer,
@@ -8,6 +8,7 @@ import {
   proposeSendToken,
   Signer
 } from 'multisig/actions';
+import { explainWalletFailure } from 'multisig/walletFailure';
 import { Info, Tip } from 'components/Info';
 import { TokenBalance } from 'multisig/reads';
 
@@ -67,7 +68,21 @@ export const ProposePanel = ({
   const [tokenId, setTokenId] = useState(tokens[0]?.identifier ?? '');
   const [quorum, setQuorum] = useState('');
   const [busy, setBusy] = useState(false);
+  const [stuck, setStuck] = useState(false);
   const [error, setError] = useState('');
+
+  // An xPortal request dismissed on the phone never comes back as a refusal, so
+  // the button would say "Waiting for your wallet" until the page is reloaded.
+  // After a while the panel offers a way out, without claiming anything about
+  // what the wallet did (Sebastian, 6 Oct 2026).
+  useEffect(() => {
+    if (!busy) {
+      setStuck(false);
+      return;
+    }
+    const timer = setTimeout(() => setStuck(true), 25000);
+    return () => clearTimeout(timer);
+  }, [busy]);
 
   const token = tokens.find((candidate) => candidate.identifier === tokenId);
 
@@ -105,13 +120,8 @@ export const ProposePanel = ({
       setAmount('');
       setQuorum('');
       onProposed();
-    } catch (failure: any) {
-      const message = String(failure?.message ?? failure ?? '');
-      setError(
-        /cancel|reject|closed|denied/i.test(message)
-          ? 'Cancelled in your wallet, nothing was sent.'
-          : `That could not be proposed: ${message.slice(0, 200)}`
-      );
+    } catch (failure: unknown) {
+      setError(explainWalletFailure(failure, 'The proposal'));
     }
     setBusy(false);
   };
@@ -234,6 +244,19 @@ export const ProposePanel = ({
             {busy ? 'Waiting for your wallet...' : 'Propose'}
           </button>
         </Tip>
+        {busy && stuck && (
+          <p className='mt-3 text-xs text-[#6B7280]'>
+            Your wallet has not answered. If you dismissed the request,{' '}
+            <button
+              type='button'
+              onClick={() => setBusy(false)}
+              className='text-[#FF6E0A] hover:underline'
+            >
+              start over
+            </button>
+            . If you did sign it, it is on its way and will appear above by itself.
+          </p>
+        )}
       </div>
     </section>
   );

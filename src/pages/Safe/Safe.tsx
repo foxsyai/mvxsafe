@@ -12,6 +12,7 @@ import {
 } from 'multisig/actions';
 import { PRIMARY_TOKEN } from 'config/safes';
 import { clearCache, explorerUrl } from 'multisig/network';
+import { explainWalletFailure } from 'multisig/walletFailure';
 import {
   formatUsd,
   HistoryEntry,
@@ -37,6 +38,7 @@ export const Safe = () => {
   const [failed, setFailed] = useState(false);
   const [role, setRole] = useState('None');
   const [working, setWorking] = useState(0);
+  const [stuck, setStuck] = useState(false);
   const [problem, setProblem] = useState('');
 
   const isLoggedIn = useGetIsLoggedIn();
@@ -69,19 +71,50 @@ export const Safe = () => {
       await work();
       clearCache();
       await load();
-    } catch (failure: any) {
-      const message = String(failure?.message ?? failure ?? '');
-      setProblem(
-        /cancel|reject|closed|denied/i.test(message)
-          ? 'Cancelled in your wallet, nothing was sent.'
-          : `That did not go through: ${message.slice(0, 200)}`
-      );
+      readAgainShortly();
+    } catch (failure: unknown) {
+      setProblem(explainWalletFailure(failure, 'That'));
     }
     setWorking(0);
   };
 
+  // A wallet that never answers, an xPortal request dismissed on the phone for
+  // example, would leave the buttons disabled until the page is reloaded.
+  useEffect(() => {
+    if (!working) {
+      setStuck(false);
+      return;
+    }
+    const timer = setTimeout(() => setStuck(true), 25000);
+    return () => clearTimeout(timer);
+  }, [working]);
+
   useEffect(() => {
     load();
+  }, [load]);
+
+  // A transaction sent from this page lands seconds after the wallet returns, so
+  // the page reads everything again at that moment rather than waiting for the
+  // visitor to press Refresh.
+  useEffect(() => {
+    const again = () => {
+      clearCache();
+      load();
+    };
+    window.addEventListener('mvxsafe:settled', again);
+    return () => window.removeEventListener('mvxsafe:settled', again);
+  }, [load]);
+
+  // The event above comes from a socket the SDK opens, which a strict content
+  // policy can block, ours did. So the page also reads again a few times after
+  // anything is sent, and then it no longer depends on that socket at all.
+  const readAgainShortly = useCallback(() => {
+    [4000, 10000, 20000].forEach((delay) =>
+      setTimeout(() => {
+        clearCache();
+        load();
+      }, delay)
+    );
   }, [load]);
 
   const title = nameFor(address) || 'Safe';
@@ -136,6 +169,20 @@ export const Safe = () => {
       {problem && (
         <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
           {problem}
+        </p>
+      )}
+
+      {working > 0 && stuck && (
+        <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
+          Your wallet has not answered. If you dismissed the request,{' '}
+          <button
+            type='button'
+            onClick={() => setWorking(0)}
+            className='text-[#FF6E0A] hover:underline'
+          >
+            start over
+          </button>
+          . If you did sign it, it is on its way and this page will show it by itself.
         </p>
       )}
 
@@ -307,6 +354,7 @@ export const Safe = () => {
           onProposed={() => {
             clearCache();
             load();
+            readAgainShortly();
           }}
         />
       )}
