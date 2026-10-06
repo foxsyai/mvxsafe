@@ -26,7 +26,11 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # src/config/index.ts is generated per network and is not in git, so it
+      # has to exist before anything typechecks.
+      - name: Choose the network config
+        run: pnpm copy-mainnet-config
       - name: Typecheck
         run: npx tsc --noEmit
-      - name: Build (mainnet)
-        run: pnpm build-mainnet
+      - name: Build
+        run: npx vite build
