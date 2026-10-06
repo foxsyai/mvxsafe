@@ -66,8 +66,14 @@ The network is chosen at build time: each `copy-*-config` script copies
 ## Deploying
 
 ```bash
-./deploy.sh             # builds mainnet and rsyncs ./build to the droplet
+./deploy.sh             # mainnet -> https://mvxsafe.io
+./deploy.sh devnet      # devnet  -> https://devnet.mvxsafe.io
 ```
+
+**https://devnet.mvxsafe.io** is the same app built against the MultiversX devnet, so the whole
+cycle can be tried with play money before anything touches a real safe. It carries `noindex` so
+it is never mistaken for the live site in search results. Its test safe and the throwaway keys
+behind it are described in `scripts/devnet/`.
 
 Static, served by nginx on the websites droplet (`web@134.209.228.52`) from
 `/var/www/mvxsafe.io`, with a Let's Encrypt certificate that renews itself. The vhost is

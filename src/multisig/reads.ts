@@ -267,7 +267,9 @@ export const describeAction = (action: any): string => {
           egldAmount > 0n ? ` with ${formatRaw(egldAmount, 18)} EGLD` : ''
         }`;
       }
-      return `Send to ${to}`;
+      // No function, no amount: the action does nothing readable. Say so rather
+      // than dressing it up, because a signer should refuse what cannot be read.
+      return `Unreadable call to ${to}, do not sign without checking the explorer`;
     }
     case 'SCDeployFromSource':
       return 'Deploy a smart contract';

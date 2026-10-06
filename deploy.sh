@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds and ships mvxsafe.io to the websites droplet.
 #
-#   ./deploy.sh            # mainnet build, the live site
-#   ./deploy.sh devnet     # devnet build, for testing against a throwaway safe
+#   ./deploy.sh            # mainnet build  -> https://mvxsafe.io
+#   ./deploy.sh devnet     # devnet build   -> https://devnet.mvxsafe.io
 #
 # The droplet serves nine other sites from the same nginx. This script only
 # writes /var/www/mvxsafe.io and never touches the nginx config; that file is
@@ -24,16 +24,21 @@ cd "$HERE"
 echo "Building for $NETWORK..."
 pnpm "build-$NETWORK"
 
-if [ "$NETWORK" != "mainnet" ]; then
-  echo
-  echo "Refusing to publish a $NETWORK build to the live site."
-  echo "The build is in ./build if you want to serve it somewhere else."
-  exit 0
-fi
+# devnet goes to its own host, which exists so the whole cycle can be tried with
+# play money; testnet is built but not published anywhere.
+case "$NETWORK" in
+  mainnet) DIR="$REMOTE_DIR"; URL="https://mvxsafe.io/" ;;
+  devnet)  DIR="/var/www/devnet.mvxsafe.io"; URL="https://devnet.mvxsafe.io/" ;;
+  *)
+    echo
+    echo "Built for $NETWORK. There is no host for it: the build is in ./build."
+    exit 0
+    ;;
+esac
 
-echo "Shipping to $REMOTE:$REMOTE_DIR ..."
-rsync -a --delete build/ "$REMOTE:$REMOTE_DIR/"
+echo "Shipping to $REMOTE:$DIR ..."
+rsync -a --delete build/ "$REMOTE:$DIR/"
 
-code=$(curl -s -o /dev/null -w '%{http_code}' https://mvxsafe.io/)
-echo "https://mvxsafe.io/ -> HTTP $code"
+code=$(curl -s -o /dev/null -w '%{http_code}' "$URL")
+echo "$URL -> HTTP $code"
 [ "$code" = "200" ] || { echo "The site did not answer 200."; exit 1; }
