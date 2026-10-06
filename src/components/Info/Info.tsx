@@ -1,4 +1,4 @@
-import { PropsWithChildren, useEffect, useRef, useState } from 'react';
+import { PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 // Two ways to explain a control.
 //
@@ -32,7 +32,12 @@ export const Info = ({ text }: { text: string }) => {
   return (
     <span
       ref={holder}
-      className='relative ml-1 inline-flex translate-y-[0.5px] items-center align-middle'
+      // The holder is lifted while open. Without it the bubble paints under the
+      // elements that come after it in the page, which showed their text
+      // through it (Sebastian, 6 Oct 2026).
+      className={`relative ml-1 inline-flex translate-y-[0.5px] items-center align-middle ${
+        open ? 'z-50' : ''
+      }`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
@@ -46,7 +51,7 @@ export const Info = ({ text }: { text: string }) => {
         i
       </button>
       {open && (
-        <span className='absolute top-5 left-0 z-30 w-64 rounded-lg border border-[#2A2A32] bg-[#15151C] p-3 text-xs leading-relaxed font-normal text-[#C9CDD2] shadow-lg'>
+        <span className='absolute top-5 left-0 z-50 w-64 rounded-lg border border-[#3A3A44] bg-[#15151C] p-3 text-xs leading-relaxed font-normal text-[#C9CDD2] shadow-[0_8px_24px_rgba(0,0,0,0.6)]'>
           {text}
         </span>
       )}
@@ -62,10 +67,28 @@ export const Info = ({ text }: { text: string }) => {
  */
 export const Tip = ({ text, children }: PropsWithChildren<{ text: string }>) => {
   const [shown, setShown] = useState(false);
+  const [shift, setShift] = useState(0);
+  const bubble = useRef<HTMLSpanElement>(null);
+
+  // A tip under a button on the right edge used to run off the screen, so it is
+  // nudged back inside after it is measured.
+  useLayoutEffect(() => {
+    if (!shown || !bubble.current) {
+      setShift(0);
+      return;
+    }
+    const box = bubble.current.getBoundingClientRect();
+    const margin = 12;
+    if (box.right > window.innerWidth - margin) {
+      setShift(-(box.right - window.innerWidth + margin));
+    } else if (box.left < margin) {
+      setShift(margin - box.left);
+    }
+  }, [shown, text]);
 
   return (
     <span
-      className='relative inline-flex'
+      className={`relative inline-flex ${shown ? 'z-50' : ''}`}
       onMouseEnter={() => setShown(true)}
       onMouseLeave={() => setShown(false)}
       onFocus={() => setShown(true)}
@@ -74,8 +97,10 @@ export const Tip = ({ text, children }: PropsWithChildren<{ text: string }>) => 
       {children}
       {shown && (
         <span
+          ref={bubble}
           role='tooltip'
-          className='pointer-events-none absolute top-full left-1/2 z-30 mt-2 w-max max-w-xs -translate-x-1/2 rounded-lg border border-[#2A2A32] bg-[#15151C] px-3 py-2 text-xs leading-snug font-normal whitespace-normal text-[#C9CDD2] shadow-lg'
+          style={{ marginLeft: shift }}
+          className='pointer-events-none absolute top-full left-1/2 z-50 mt-2 w-max max-w-xs -translate-x-1/2 rounded-lg border border-[#3A3A44] bg-[#15151C] px-3 py-2 text-xs leading-snug font-normal whitespace-normal text-[#C9CDD2] shadow-[0_8px_24px_rgba(0,0,0,0.6)]'
         >
           {text}
         </span>
