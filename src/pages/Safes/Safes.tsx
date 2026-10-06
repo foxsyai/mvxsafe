@@ -53,28 +53,37 @@ export const Safes = () => {
     async (list: KnownSafe[], connectedAddress: string) => {
       setLoading(true);
       setDone(0);
-      for (const safe of list) {
-        try {
-          const card = await readCard(safe.address);
-          setCards((current) => {
-            const next = { ...current, [safe.address]: card };
-            try {
-              window.sessionStorage.setItem('mvxsafe.cards', JSON.stringify(next));
-            } catch {
-              // A browser that refuses storage simply does not remember.
+
+      // Three safes at a time. The queue underneath paces the individual
+      // requests, so this only decides how many conversations run at once.
+      const pending = [...list];
+      const worker = async () => {
+        for (;;) {
+          const safe = pending.shift();
+          if (!safe) return;
+          try {
+            const card = await readCard(safe.address);
+            setCards((current) => {
+              const next = { ...current, [safe.address]: card };
+              try {
+                window.sessionStorage.setItem('mvxsafe.cards', JSON.stringify(next));
+              } catch {
+                // A browser that refuses storage simply does not remember.
+              }
+              return next;
+            });
+            if (connectedAddress) {
+              const role = (await readUserRole(safe.address, connectedAddress)) as Role;
+              setRoles((current) => ({ ...current, [safe.address]: role }));
             }
-            return next;
-          });
-          if (connectedAddress) {
-            const role = (await readUserRole(safe.address, connectedAddress)) as Role;
-            setRoles((current) => ({ ...current, [safe.address]: role }));
+          } catch {
+            // A safe that cannot be read is shown without numbers rather than
+            // breaking the page for the others.
           }
-        } catch {
-          // A safe that cannot be read is shown without numbers rather than
-          // breaking the page for the others.
+          setDone((count) => count + 1);
         }
-        setDone((count) => count + 1);
-      }
+      };
+      await Promise.all([worker(), worker(), worker()]);
       setLoading(false);
     },
     []
@@ -136,8 +145,10 @@ export const Safes = () => {
 
   return (
     <div className='mx-auto w-full max-w-5xl px-4 py-10'>
-      <div className='flex items-end justify-between gap-4'>
-        <div>
+      <div className='flex flex-wrap items-end justify-between gap-4'>
+        {/* The intro is capped so the buttons keep their room, and the reading
+            count never wraps inside its own button. */}
+        <div className='max-w-md'>
           <p className='text-xs font-semibold tracking-[0.25em] text-[#FF6E0A]'>
             MULTIVERSX MULTISIG
           </p>
@@ -147,7 +158,7 @@ export const Safes = () => {
             you sit on the board of become yours to act on.
           </p>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex shrink-0 items-center gap-2'>
           <Tip text='Writes your list to a file: names and addresses only, nothing secret.'>
             <button
               type='button'
@@ -173,7 +184,7 @@ export const Safes = () => {
             <button
               type='button'
               onClick={handleRefresh}
-              className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
+              className='min-w-[9.5rem] rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm whitespace-nowrap text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
             >
               {loading ? `Reading ${done} of ${safes.length}...` : 'Refresh'}
             </button>
