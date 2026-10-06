@@ -1,22 +1,14 @@
 import { PropsWithChildren } from 'react';
-import { AuthRedirectWrapper } from 'wrappers';
 import { Footer } from '../Footer';
 import { Header } from '../Header';
 
-// prettier-ignore
-const styles = {
-  layoutContainer: 'layout-container flex min-h-screen flex-col bg-accent transition-all duration-200 ease-out',
-  mainContainer: 'main-container flex flex-grow items-stretch justify-center'
-} satisfies Record<string, string>;
-
+// The template wrapped this in AuthRedirectWrapper, which sends a logged-in
+// visitor to a dashboard route. There is no login in this milestone and every
+// page is public, so the wrapper would only get in the way.
 export const Layout = ({ children }: PropsWithChildren) => (
-  <div className={styles.layoutContainer}>
+  <div className='flex min-h-screen flex-col bg-[#0E0E12]'>
     <Header />
-
-    <main className={styles.mainContainer}>
-      <AuthRedirectWrapper>{children}</AuthRedirectWrapper>
-    </main>
-
+    <main className='flex flex-grow items-stretch justify-center'>{children}</main>
     <Footer />
   </div>
 );

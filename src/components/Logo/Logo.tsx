@@ -1,13 +1,11 @@
 import classNames from 'classnames';
 
-// prettier-ignore
+// The mark: the FoxLeague fox head, hollow, with a check inside. Inline rather
+// than an <img> so it inherits colour and never flashes while loading.
 const styles = {
-  logo: 'logo flex items-center justify-center gap-3 cursor-pointer hover:opacity-75',
-  logoIcon: 'logo-icon relative -bottom-0.75',
-  logoIconEmpty: 'logo-icon-empty w-4 h-4 bg-accent border-2 border-logo z-1 relative transition-all duration-200 ease-in-out',
-  logoIconFilled: 'logo-icon-filled w-4 h-4 bg-logo-primary absolute left-0.75 bottom-0.75 transition-all duration-200 ease-in-out',
-  logoText: 'logo-text text-xl lg:text-2xl font-medium flex text-primary relative -top-0.5 leading-none transition-all duration-200 ease-in-out lg:top-0',
-  logoTextHidden: 'logo-text-hidden hidden lg:!flex'
+  logo: 'logo flex items-center gap-3',
+  text: 'text-lg font-semibold tracking-tight text-white',
+  textHidden: 'hidden sm:flex'
 } satisfies Record<string, string>;
 
 interface LogoPropsType {
@@ -16,17 +14,24 @@ interface LogoPropsType {
 
 export const Logo = ({ hideTextOnMobile }: LogoPropsType) => (
   <div className={styles.logo}>
-    <div className={styles.logoIcon}>
-      <div className={styles.logoIconEmpty} />
-      <div className={styles.logoIconFilled} />
-    </div>
-
-    <div
-      className={classNames(styles.logoText, {
-        [styles.logoTextHidden]: hideTextOnMobile
-      })}
-    >
-      dApp Template
-    </div>
+    <svg width='30' height='30' viewBox='0 0 512 512' fill='none' aria-hidden>
+      <path
+        d='M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z'
+        stroke='#FF6E0A'
+        strokeWidth='24'
+        strokeLinejoin='round'
+        strokeLinecap='round'
+      />
+      <path
+        d='M 178 296 L 232 350 L 334 244'
+        stroke='#F5F5F5'
+        strokeWidth='26'
+        strokeLinejoin='round'
+        strokeLinecap='round'
+      />
+    </svg>
+    <span className={classNames(styles.text, { [styles.textHidden]: hideTextOnMobile })}>
+      mvxsafe
+    </span>
   </div>
 );

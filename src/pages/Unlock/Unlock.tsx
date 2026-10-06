@@ -9,7 +9,7 @@ export const Unlock = () => {
 
   const unlockPanelManager = UnlockPanelManager.init({
     loginHandler: () => {
-      navigate(RouteNamesEnum.dashboard);
+      navigate(RouteNamesEnum.home);
     },
     onClose: async () => {
       navigate(RouteNamesEnum.home);
@@ -22,7 +22,7 @@ export const Unlock = () => {
 
   useEffect(() => {
     if (isLoggedIn) {
-      navigate(RouteNamesEnum.dashboard);
+      navigate(RouteNamesEnum.home);
       return;
     }
 

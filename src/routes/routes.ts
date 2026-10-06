@@ -1,8 +1,6 @@
 import { RouteNamesEnum } from 'localConstants';
-import { Dashboard } from 'pages/Dashboard/Dashboard';
-import { Disclaimer } from 'pages/Disclaimer/Disclaimer';
-import { Home } from 'pages/Home/Home';
-import { Unlock } from 'pages/Unlock/Unlock';
+import { Safe } from 'pages/Safe/Safe';
+import { Safes } from 'pages/Safes/Safes';
 import { RouteType } from 'types';
 
 interface RouteWithTitleType extends RouteType {
@@ -11,28 +9,18 @@ interface RouteWithTitleType extends RouteType {
   children?: RouteWithTitleType[];
 }
 
+// Both routes are public: this milestone only reads the chain. Signing arrives
+// with the wallet milestone, and the routes that need a connected board member
+// will be marked authenticatedRoute then.
 export const routes: RouteWithTitleType[] = [
   {
     path: RouteNamesEnum.home,
-    title: 'Home',
-    component: Home,
-    children: [
-      {
-        path: RouteNamesEnum.unlock,
-        title: 'Unlock',
-        component: Unlock
-      }
-    ]
+    title: 'Safes',
+    component: Safes
   },
   {
-    path: RouteNamesEnum.dashboard,
-    title: 'Dashboard',
-    component: Dashboard,
-    authenticatedRoute: true
-  },
-  {
-    path: RouteNamesEnum.disclaimer,
-    title: 'Disclaimer',
-    component: Disclaimer
+    path: RouteNamesEnum.safe,
+    title: 'Safe',
+    component: Safe
   }
 ];

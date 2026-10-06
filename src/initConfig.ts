@@ -24,7 +24,7 @@ const providers: ICustomProvider[] = [
 export const config: InitAppType = {
   storage: { getStorageCallback: () => sessionStorage },
   dAppConfig: {
-    nativeAuth: true,
+    nativeAuth: false,
     environment: environment,
     theme: 'mvx:dark-theme',
     providers: {
