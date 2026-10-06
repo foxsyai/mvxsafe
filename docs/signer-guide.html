@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>mvxsafe, a guide for board members</title>
+<!-- Source for public/mvxsafe-for-signers.pdf. Rendered with:
+     node scripts/make-signer-pdf.js
+     Printed on white on purpose: this is emailed and sometimes printed. -->
+<style>
+  @page { size: A4; margin: 13mm 14mm 11mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: #15151A; background: #fff;
+    font: 10.5pt/1.45 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  }
+  header { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 3px solid #FF6E0A; }
+  header h1 { margin: 0; font-size: 19pt; letter-spacing: -0.01em; }
+  header p { margin: 2px 0 0; color: #6B7280; font-size: 10pt; }
+  .intro { margin: 14px 0 4px; font-size: 11pt; }
+  .intro strong { color: #15151A; }
+  .step { display: flex; gap: 12px; margin-top: 14px; break-inside: avoid; }
+  .num {
+    flex: 0 0 34px; height: 34px; border-radius: 50%; background: #FF6E0A; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13pt;
+  }
+  .num.optional { background: #fff; color: #FF6E0A; border: 2px solid #FF6E0A; }
+  .step h2 { margin: 4px 0 4px; font-size: 13pt; }
+  .step p { margin: 0 0 6px; }
+  .step ul { margin: 6px 0 0; padding-left: 18px; }
+  .step li { margin-bottom: 3px; }
+  .muted { color: #6B7280; }
+  .callout {
+    margin-top: 16px; padding: 12px 14px; border-left: 4px solid #FF6E0A; background: #FFF6EF;
+    font-size: 10.5pt; break-inside: avoid;
+  }
+  footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 9.5pt; }
+  .fox { width: 40px; height: 40px; }
+</style>
+</head>
+<body>
+  <header>
+    <svg class="fox" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+      <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z"
+            stroke="#FF6E0A" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M 178 296 L 232 350 L 334 244" stroke="#15151A" stroke-width="32"
+            stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>Approving a payment at mvxsafe.io</h1>
+      <p>A guide for board members of the Foxsy AI Foundation safes</p>
+    </div>
+  </header>
+
+  <p class="intro">
+    The Foundation's tokens sit in safes that <strong>no single person can move</strong>.
+    Each safe needs <strong>two signatures out of three</strong>. Somebody proposes a
+    payment, you look at it, and if you agree you sign. Nothing happens until two of you do.
+  </p>
+  <p class="muted">Your part takes about a minute, and it is the same every time.</p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div>
+      <h2>Open the safe and connect your wallet</h2>
+      <p>Go to <strong>mvxsafe.io</strong>, open the safe named in the email, and press <strong>Connect</strong>.</p>
+      <ul>
+        <li>Choose how you sign: <strong>xPortal</strong> (scan the code with your phone), the
+          <strong>DeFi Wallet</strong> browser extension, a <strong>Ledger</strong>, or the <strong>web wallet</strong>.</li>
+        <li>Connecting only proves who you are, it cannot move anything.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div>
+      <h2>Read what you are approving</h2>
+      <p>The pending action is written in plain words, for example:
+        <em>Send 1,000,000 FOXSY to erd1abc...xyz</em>.</p>
+      <ul>
+        <li>Check the <strong>amount</strong>, the <strong>token</strong> and the
+          <strong>address</strong> against what you were told.</li>
+        <li>If anything is different, <strong>do not sign</strong>. Close the page and call Sebastian.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div>
+      <h2>Sign</h2>
+      <p>Press <strong>Sign</strong>, confirm in your wallet, and you are done.</p>
+      <ul>
+        <li>Your signature is one of the two the safe needs.</li>
+        <li>It costs a tiny network fee, so keep a little EGLD in your wallet, around 0.05 is plenty.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num optional">4</div>
+    <div>
+      <h2>Optional: carry it out</h2>
+      <p>If your signature is the one that completes the two, a <strong>Perform</strong> button appears.
+        Pressing it is what actually sends the tokens.</p>
+      <ul>
+        <li>You do not have to. <strong>Any board member can press it later</strong>, and the result is identical.</li>
+        <li>If you prefer to stop after signing, simply close the page and tell Sebastian.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Three things that are always true.</strong>
+    Your keys never leave your wallet, and mvxsafe.io never sees them.
+    Signing approves one specific action, nothing else, and it can be undone while the action is still waiting.
+    Everything is recorded publicly on the MultiversX blockchain, so any signature can be checked afterwards.
+  </div>
+
+  <footer>
+    Questions, or something that does not look right: contact Sebastian Marian,
+    sebastian.marian@foxsy.ai. The interface is open source at github.com/foxsyai/mvxsafe.
+  </footer>
+</body>
+</html>

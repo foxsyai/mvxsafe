@@ -10,9 +10,14 @@ export const Header = () => (
       <Link to='/'>
         <Logo />
       </Link>
-      <span className='rounded-full border border-[#2A2A32] px-3 py-1 text-xs tracking-widest text-[#9AA0A6] uppercase'>
-        {networkName}
-      </span>
+      <div className='flex items-center gap-5'>
+        <Link to='/guide' className='text-sm text-[#9AA0A6] hover:text-white'>
+          How it works
+        </Link>
+        <span className='rounded-full border border-[#2A2A32] px-3 py-1 text-xs tracking-widest text-[#9AA0A6] uppercase'>
+          {networkName}
+        </span>
+      </div>
     </div>
   </header>
 );
