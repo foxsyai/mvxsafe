@@ -247,7 +247,7 @@ export const Safes = () => {
                 </div>
               </div>
 
-              <dl className='mt-4 grid grid-cols-3 gap-3 text-sm'>
+              <dl className='mt-4 flex items-start justify-between gap-6 text-sm'>
                 <div>
                   <dt className='text-xs text-[#6B7280]'>
                     {primary ? primary.ticker : 'EGLD'}
@@ -267,16 +267,10 @@ export const Safes = () => {
                     ) : null}
                   </dd>
                 </div>
-                <div>
+                <div className='text-right'>
                   <dt className='text-xs text-[#6B7280]'>Signatures needed</dt>
                   <dd className='mt-1 text-white'>
                     {card ? (card.quorum ? card.quorum : 'not a multisig') : '...'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className='text-xs text-[#6B7280]'>Worth</dt>
-                  <dd className='mt-1 text-white'>
-                    {card ? formatUsd(card.worthUsd) || 'unpriced' : '...'}
                   </dd>
                 </div>
               </dl>

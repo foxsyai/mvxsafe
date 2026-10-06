@@ -168,13 +168,8 @@ export const Safe = () => {
               </span>
             ) : null}
           </p>
-          <p className='mt-2 text-xs text-[#6B7280]'>
-            {overview
-              ? `${overview.egld.toFixed(4)} EGLD${
-                  overview.worthUsd ? `, ${formatUsd(overview.worthUsd)} in total` : ''
-                }`
-              : ''}
-          </p>
+          {/* No subtotal here: the holdings card below already lists EGLD and
+              the total, and repeating it made the tile say the same thing twice. */}
         </div>
         <div className={card}>
           <p className={label + ' flex items-center'}>
