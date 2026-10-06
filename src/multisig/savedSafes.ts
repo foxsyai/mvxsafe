@@ -3,6 +3,7 @@
 // else belongs to whoever typed it and never leaves their machine.
 
 import { FOUNDATION_SAFES, KnownSafe } from 'config/safes';
+import { getLabels, mergeLabels } from './addressBook';
 
 const STORAGE_KEY = 'mvxsafe.savedSafes';
 
@@ -61,7 +62,11 @@ export const isValidSafeAddress = (address: string) =>
  * server to keep it on and nothing here is secret.
  */
 export const exportSafes = (): string =>
-  JSON.stringify({ app: 'mvxsafe', safes: getAllSafes() }, null, 2);
+  JSON.stringify(
+    { app: 'mvxsafe', safes: getAllSafes(), labels: getLabels() },
+    null,
+    2
+  );
 
 export const importSafes = (text: string): { added: number; skipped: number } => {
   let parsed: any;
@@ -74,6 +79,10 @@ export const importSafes = (text: string): { added: number; skipped: number } =>
   if (!Array.isArray(incoming)) {
     throw new Error('That file holds no list of safes.');
   }
+
+  // Names for addresses travel with the safes: they are the only thing in this
+  // app a person actually writes.
+  mergeLabels(parsed?.labels);
 
   let added = 0;
   let skipped = 0;

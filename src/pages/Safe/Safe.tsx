@@ -211,9 +211,12 @@ export const Safe = () => {
                   </span>
                 </div>
                 {action.signers.length > 0 && (
-                  <p className='mt-2 font-mono text-xs text-[#6B7280]'>
-                    signed by {action.signers.map((s) => shortAddress(s)).join(', ')}
-                  </p>
+                  <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
+                    <span>signed by</span>
+                    {action.signers.map((who) => (
+                      <AddressLine key={who} address={who} className='text-xs text-[#6B7280]' />
+                    ))}
+                  </div>
                 )}
 
                 {isLoggedIn && (canSign || canPropose) && (
@@ -307,12 +310,12 @@ export const Safe = () => {
         <section className={card}>
           <h2 className='flex items-center text-lg font-semibold text-white'>
             Board
-            <Info text='The addresses that may sign. A proposer, if there is one, can suggest actions but not approve them.' />
+            <Info text='The addresses that may sign. A proposer, if there is one, can suggest actions but not approve them. The pencil gives an address a name, kept in this browser and carried in the export file.' />
           </h2>
           <ul className='mt-3 space-y-2'>
             {(overview?.boardMembers ?? []).map((member) => (
               <li key={member} className='flex items-center justify-between gap-2'>
-                <AddressLine address={member} className='text-xs text-[#9AA0A6]' />
+                <AddressLine address={member} nameable className='text-xs text-[#9AA0A6]' />
                 {member === account.address && (
                   <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>you</span>
                 )}
