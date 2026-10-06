@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PRIMARY_TOKEN } from 'config/safes';
+import { AddressLine } from 'components/Address';
+import { Info, Tip } from 'components/Info';
 import { RoleBadge, Role } from 'components/RoleBadge';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
-import { readUserRole } from 'multisig/reads';
 import { clearCache } from 'multisig/network';
-import { formatAmount, readOverview, shortAddress, SafeOverview } from 'multisig/reads';
+import { readCard, readUserRole, SafeCard, shortAddress } from 'multisig/reads';
 import {
   addSafe,
   exportSafes,
@@ -24,7 +25,17 @@ const panelMine = panel.replace('border-[#2A2A32]', 'border-[#FF6E0A]/50');
 
 export const Safes = () => {
   const [safes, setSafes] = useState<KnownSafe[]>(getAllSafes());
-  const [overviews, setOverviews] = useState<Record<string, SafeOverview>>({});
+  // The last numbers we saw, kept for this browser session only, so coming back
+  // to the list shows something at once instead of seven rows of dots while the
+  // API is asked again at two requests a second.
+  const [cards, setCards] = useState<Record<string, SafeCard>>(() => {
+    try {
+      return JSON.parse(window.sessionStorage.getItem('mvxsafe.cards') ?? '{}');
+    } catch {
+      return {};
+    }
+  });
+  const [done, setDone] = useState(0);
   const [newAddress, setNewAddress] = useState('');
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
@@ -34,47 +45,43 @@ export const Safes = () => {
   const isLoggedIn = useGetIsLoggedIn();
   const { address: connected } = useGetAccount();
 
-  const load = useCallback(async (list: KnownSafe[]) => {
-    setLoading(true);
-    // One after another on purpose: the public API allows about two requests a
-    // second per visitor, and a burst of seven safes would be throttled.
-    for (const safe of list) {
-      try {
-        const overview = await readOverview(safe.address);
-        setOverviews((current) => ({ ...current, [safe.address]: overview }));
-      } catch {
-        // A safe that cannot be read is shown without numbers rather than
-        // breaking the page for the others.
+  // One pass over the list: each safe's numbers and, when a wallet is connected,
+  // what that wallet may do with it. Sequential on purpose, the public API
+  // allows about two requests a second per visitor.
+  const load = useCallback(
+    async (list: KnownSafe[], connectedAddress: string) => {
+      setLoading(true);
+      setDone(0);
+      for (const safe of list) {
+        try {
+          const card = await readCard(safe.address);
+          setCards((current) => {
+            const next = { ...current, [safe.address]: card };
+            try {
+              window.sessionStorage.setItem('mvxsafe.cards', JSON.stringify(next));
+            } catch {
+              // A browser that refuses storage simply does not remember.
+            }
+            return next;
+          });
+          if (connectedAddress) {
+            const role = (await readUserRole(safe.address, connectedAddress)) as Role;
+            setRoles((current) => ({ ...current, [safe.address]: role }));
+          }
+        } catch {
+          // A safe that cannot be read is shown without numbers rather than
+          // breaking the page for the others.
+        }
+        setDone((count) => count + 1);
       }
-    }
-    setLoading(false);
-  }, []);
+      setLoading(false);
+    },
+    []
+  );
 
   useEffect(() => {
-    load(safes);
-  }, [safes, load]);
-
-  // Safes are the ones you added: a wallet that was added to a board but has
-  // never touched it leaves no trace on chain, so there is nothing to discover
-  // (Sebastian, 6 Oct 2026). Connecting does not change the list, it changes
-  // what you may do with each entry, which is what the badge shows.
-  useEffect(() => {
-    if (!isLoggedIn || !connected) {
-      setRoles({});
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      for (const safe of safes) {
-        const role = (await readUserRole(safe.address, connected)) as Role;
-        if (cancelled) return;
-        setRoles((current) => ({ ...current, [safe.address]: role }));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoggedIn, connected, safes]);
+    load(safes, isLoggedIn ? connected : '');
+  }, [safes, isLoggedIn, connected, load]);
 
   const handleAdd = () => {
     const address = newAddress.trim();
@@ -121,8 +128,9 @@ export const Safes = () => {
 
   const handleRefresh = () => {
     clearCache();
-    setOverviews({});
-    load(safes);
+    setCards({});
+    setRoles({});
+    load(safes, isLoggedIn ? connected : '');
   };
 
   return (
@@ -139,30 +147,36 @@ export const Safes = () => {
           </p>
         </div>
         <div className='flex items-center gap-2'>
-          <button
-            type='button'
-            onClick={handleExport}
-            disabled={safes.length === 0}
-            className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40'
-          >
-            Export
-          </button>
-          <label className='cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'>
-            Import
-            <input
-              type='file'
-              accept='application/json,.json'
-              className='hidden'
-              onChange={(event) => handleImport(event.target.files?.[0])}
-            />
-          </label>
-          <button
-            type='button'
-            onClick={handleRefresh}
-            className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
-          >
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
+          <Tip text='Writes your list to a file: names and addresses only, nothing secret.'>
+            <button
+              type='button'
+              onClick={handleExport}
+              disabled={safes.length === 0}
+              className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40'
+            >
+              Export
+            </button>
+          </Tip>
+          <Tip text='Reads a list back, on another browser or another machine. Safes already here are left alone.'>
+            <label className='cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'>
+              Import
+              <input
+                type='file'
+                accept='application/json,.json'
+                className='hidden'
+                onChange={(event) => handleImport(event.target.files?.[0])}
+              />
+            </label>
+          </Tip>
+          <Tip text='Reads every safe from the chain again, ignoring what was remembered.'>
+            <button
+              type='button'
+              onClick={handleRefresh}
+              className='rounded-lg border border-[#2A2A32] px-3 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
+            >
+              {loading ? `Reading ${done} of ${safes.length}...` : 'Refresh'}
+            </button>
+          </Tip>
         </div>
       </div>
 
@@ -178,10 +192,10 @@ export const Safes = () => {
 
       <div className='mt-8 grid gap-4 sm:grid-cols-2'>
         {safes.map((safe) => {
-          const overview = overviews[safe.address];
-          const primary = overview?.tokens.find(
-            (token) => token.identifier === PRIMARY_TOKEN
-          );
+          const card = cards[safe.address];
+          const primary =
+            card?.tokens.find((token) => token.identifier === PRIMARY_TOKEN) ??
+            card?.tokens[0];
 
           return (
             <div
@@ -197,9 +211,7 @@ export const Safes = () => {
                   <h2 className='text-lg font-semibold text-white group-hover:text-[#FF6E0A]'>
                     {safe.name}
                   </h2>
-                  <p className='mt-1 font-mono text-xs text-[#6B7280]'>
-                    {shortAddress(safe.address, 12, 8)}
-                  </p>
+                  <AddressLine address={safe.address} className='mt-1 text-xs text-[#6B7280]' />
                 </Link>
                 <div className='flex flex-col items-end gap-2'>
                   <RoleBadge role={roles[safe.address] ?? 'Unknown'} />
@@ -216,32 +228,22 @@ export const Safes = () => {
               <dl className='mt-4 grid grid-cols-3 gap-3 text-sm'>
                 <div>
                   <dt className='text-xs text-[#6B7280]'>
-                    {primary ? primary.ticker : 'Tokens'}
+                    {primary ? primary.ticker : 'EGLD'}
                   </dt>
                   <dd className='mt-1 text-white'>
-                    {overview
+                    {card
                       ? primary
                         ? primary.amount.toLocaleString('en-US', {
                             maximumFractionDigits: 0
                           })
-                        : overview.tokens.length
+                        : card.egld.toFixed(2)
                       : '...'}
                   </dd>
                 </div>
-                <div>
-                  <dt className='text-xs text-[#6B7280]'>Quorum</dt>
+                <div className='col-span-2'>
+                  <dt className='text-xs text-[#6B7280]'>Signatures needed</dt>
                   <dd className='mt-1 text-white'>
-                    {overview?.quorum
-                      ? `${overview.quorum} of ${overview.boardMembers.length}`
-                      : overview
-                        ? 'not a safe'
-                        : '...'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className='text-xs text-[#6B7280]'>Pending</dt>
-                  <dd className='mt-1 text-white'>
-                    {overview ? overview.pendingCount : '...'}
+                    {card ? (card.quorum ? card.quorum : 'not a multisig') : '...'}
                   </dd>
                 </div>
               </dl>
@@ -258,7 +260,10 @@ export const Safes = () => {
       </div>
 
       <div className='mt-10 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
-        <h2 className='text-sm font-semibold text-white'>Add a safe</h2>
+        <h2 className='flex items-center text-sm font-semibold text-white'>
+          Add a safe
+          <Info text='The contract address of a multisig, starting with erd1qqq. Adding it only puts it in your list, it gives you no rights over it.' />
+        </h2>
         <p className='mt-1 text-xs text-[#6B7280]'>
           Any MultiversX multisig address. It is kept in this browser only.
         </p>
@@ -275,13 +280,15 @@ export const Safes = () => {
             placeholder='erd1...'
             className='w-full flex-1 rounded-lg border border-[#2A2A32] bg-[#0E0E12] px-3 py-2 font-mono text-sm text-white placeholder-[#4B5563]'
           />
-          <button
-            type='button'
-            onClick={handleAdd}
-            className='rounded-lg bg-[#FF6E0A] px-5 py-2 text-sm font-semibold text-black hover:bg-[#ff8534]'
-          >
-            Add
-          </button>
+          <Tip text='Puts this safe in your list. Watching costs nothing and gives you no rights over it.'>
+            <button
+              type='button'
+              onClick={handleAdd}
+              className='rounded-lg bg-[#FF6E0A] px-5 py-2 text-sm font-semibold text-black hover:bg-[#ff8534]'
+            >
+              Add
+            </button>
+          </Tip>
         </div>
         {error && <p className='mt-2 text-xs text-[#F87171]'>{error}</p>}
       </div>

@@ -120,11 +120,11 @@ interface TokenResponse {
 }
 
 /** What the safe holds. */
-export const readBalances = async (address: string) => {
+export const readBalances = async (address: string, withNfts = true) => {
   const [account, tokens, nftCount] = await Promise.all([
     api<AccountResponse>(`/accounts/${address}`),
     api<TokenResponse[]>(`/accounts/${address}/tokens?size=50`),
-    api<number>(`/accounts/${address}/nfts/count`).catch(() => 0)
+    withNfts ? api<number>(`/accounts/${address}/nfts/count`).catch(() => 0) : Promise.resolve(0)
   ]);
 
   return {
@@ -164,6 +164,31 @@ export const readMultisigState = async (address: string) => {
   } catch {
     return { quorum: null, boardMembers: [], proposerCount: 0, actionCount: 0 };
   }
+};
+
+export interface SafeCard {
+  address: string;
+  tokens: TokenBalance[];
+  egld: number;
+  /** Null when the address is not a multisig we can read. */
+  quorum: number | null;
+}
+
+/**
+ * Just enough for one row of the list: what it holds and how many signatures it
+ * needs. Three requests instead of the eight a full overview costs, which
+ * matters because the public API allows about two a second per visitor and the
+ * list asks for every safe at once.
+ */
+export const readCard = async (address: string): Promise<SafeCard> => {
+  const balances = await readBalances(address, false);
+  let quorum: number | null = null;
+  try {
+    quorum = asNumber(await cached(`quorum:${address}`, () => query<any>(address, 'getQuorum')));
+  } catch {
+    quorum = null;
+  }
+  return { address, tokens: balances.tokens, egld: balances.egld, quorum };
 };
 
 export const readOverview = async (address: string): Promise<SafeOverview> => {

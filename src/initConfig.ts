@@ -3,23 +3,13 @@ import './styles/style.css';
 
 import { config as fontAwesomeConfig } from '@fortawesome/fontawesome-svg-core';
 import { environment, walletConnectV2ProjectId } from 'config';
-import { ICustomProvider, InitAppType } from './lib';
-import { InMemoryProvider } from './provider/inMemoryProvider';
+import { InitAppType } from './lib';
 
 fontAwesomeConfig.autoAddCss = false;
 
-const providers: ICustomProvider[] = [
-  {
-    name: 'In Memory Provider',
-    type: 'inMemoryProvider',
-    iconUrl: `${window.location.origin}/multiversx-white.svg`,
-    constructor: async (options) => new InMemoryProvider(options)
-  }
-];
-
-(window as any).multiversx = {};
-// Option 1: Add providers using the `window.providers` array
-(window as any).multiversx.providers = providers;
+// The template also registered an "In Memory Provider", which asks for a
+// private key in the browser. A multisig interface must never offer that, so it
+// is gone along with its login modal.
 
 export const config: InitAppType = {
   storage: { getStorageCallback: () => sessionStorage },

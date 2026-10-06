@@ -13,7 +13,15 @@ export const Header = () => (
         <Link to='/guide' className='text-sm text-[#9AA0A6] hover:text-white'>
           How it works
         </Link>
-        <span className='hidden rounded-full border border-[#2A2A32] px-3 py-1 text-xs tracking-widest text-[#9AA0A6] uppercase sm:inline'>
+        {/* Quiet on mainnet, loud anywhere else: nobody should mistake the
+            devnet copy, where the money is play money, for the real one. */}
+        <span
+          className={
+            networkName === 'mainnet'
+              ? 'hidden rounded-full border border-[#2A2A32] px-3 py-1 text-xs tracking-widest text-[#9AA0A6] uppercase sm:inline'
+              : 'rounded-full bg-[#FF6E0A] px-3 py-1 text-xs font-semibold tracking-widest text-black uppercase'
+          }
+        >
           {networkName}
         </span>
         <ConnectButton />

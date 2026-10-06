@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { AddressLine } from 'components/Address';
+import { Info, Tip } from 'components/Info';
 import { ProposePanel } from 'components/Propose';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import {
@@ -86,14 +88,7 @@ export const Safe = () => {
       <div className='mt-4 flex flex-wrap items-end justify-between gap-4'>
         <div>
           <h1 className='text-3xl font-semibold text-white'>{title}</h1>
-          <a
-            href={`${explorerUrl}/accounts/${address}`}
-            target='_blank'
-            rel='noreferrer'
-            className='mt-2 inline-block font-mono text-xs text-[#6B7280] hover:text-[#FF6E0A]'
-          >
-            {address}
-          </a>
+          <AddressLine address={address} short={false} className='mt-2 text-xs text-[#6B7280]' />
           {isLoggedIn && (
             <p className='mt-2 text-xs text-[#6B7280]'>
               You are{' '}
@@ -108,16 +103,18 @@ export const Safe = () => {
             </p>
           )}
         </div>
-        <button
-          type='button'
-          onClick={() => {
-            clearCache();
-            load();
-          }}
-          className='rounded-lg border border-[#2A2A32] px-4 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
-        >
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
+        <Tip text='Reads everything from the chain again, ignoring what was remembered.'>
+          <button
+            type='button'
+            onClick={() => {
+              clearCache();
+              load();
+            }}
+            className='rounded-lg border border-[#2A2A32] px-4 py-2 text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </Tip>
       </div>
 
       {failed && (
@@ -128,7 +125,10 @@ export const Safe = () => {
 
       <div className='mt-6 grid gap-4 md:grid-cols-3'>
         <div className={card}>
-          <p className={label}>Quorum</p>
+          <p className={label + ' flex items-center'}>
+            Quorum
+            <Info text='How many of the board members have to sign before an action can be carried out.' />
+          </p>
           <p className='mt-1 text-2xl font-semibold text-white'>
             {overview?.quorum
               ? `${overview.quorum} of ${overview.boardMembers.length}`
@@ -152,7 +152,10 @@ export const Safe = () => {
           </p>
         </div>
         <div className={card}>
-          <p className={label}>Actions</p>
+          <p className={label + ' flex items-center'}>
+            Actions
+            <Info text='Waiting for signatures right now. The number underneath counts every action ever proposed, carried out or discarded.' />
+          </p>
           <p className='mt-1 text-2xl font-semibold text-white'>
             {overview ? overview.pendingCount : '...'}
           </p>
@@ -163,7 +166,10 @@ export const Safe = () => {
       </div>
 
       <section className='mt-8'>
-        <h2 className='text-lg font-semibold text-white'>Pending actions</h2>
+        <h2 className='flex items-center text-lg font-semibold text-white'>
+          Pending actions
+          <Info text='Each one is written in plain words. Read it before signing: this is what the safe will do.' />
+        </h2>
         {pending.length === 0 ? (
           <p className='mt-3 text-sm text-[#6B7280]'>
             {loading ? 'Loading...' : 'Nothing is waiting for a signature.'}
@@ -196,10 +202,10 @@ export const Safe = () => {
                 )}
 
                 {isLoggedIn && (canSign || canPropose) && (
-                  <div className='mt-3 flex flex-wrap gap-2'>
+                  <div className='mt-3 flex flex-wrap items-center gap-2'>
                     {canSign &&
                       (action.signers.includes(account.address) ? (
-                        <button
+                        <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'><button
                           type='button'
                           disabled={working === action.actionId}
                           onClick={() =>
@@ -210,9 +216,9 @@ export const Safe = () => {
                           className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
                         >
                           Remove my signature
-                        </button>
+                        </button></Tip>
                       ) : (
-                        <button
+                        <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'><button
                           type='button'
                           disabled={working === action.actionId}
                           onClick={() =>
@@ -223,11 +229,11 @@ export const Safe = () => {
                           className='rounded-lg bg-[#FF6E0A] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
                         >
                           Sign
-                        </button>
+                        </button></Tip>
                       ))}
 
                     {action.quorumReached && (
-                      <button
+                      <Tip text='Makes it happen. Enough signatures are in, and any board member may press this.'><button
                         type='button'
                         disabled={working === action.actionId}
                         onClick={() =>
@@ -238,21 +244,23 @@ export const Safe = () => {
                         className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
                       >
                         Carry it out
-                      </button>
+                      </button></Tip>
                     )}
 
-                    <button
-                      type='button'
-                      disabled={working === action.actionId}
-                      onClick={() =>
-                        run(action.actionId, () =>
-                          discardAction(signer, address, action.actionId)
-                        )
-                      }
-                      className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
-                    >
-                      Discard
-                    </button>
+                    <Tip text='Throws the action away without doing it. Nothing moves and nothing is spent.'>
+                      <button
+                        type='button'
+                        disabled={working === action.actionId}
+                        onClick={() =>
+                          run(action.actionId, () =>
+                            discardAction(signer, address, action.actionId)
+                          )
+                        }
+                        className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
+                      >
+                        Discard
+                      </button>
+                    </Tip>
                   </div>
                 )}
               </div>
@@ -276,18 +284,17 @@ export const Safe = () => {
 
       <div className='mt-8 grid gap-4 md:grid-cols-2'>
         <section className={card}>
-          <h2 className='text-lg font-semibold text-white'>Board</h2>
+          <h2 className='flex items-center text-lg font-semibold text-white'>
+            Board
+            <Info text='The addresses that may sign. A proposer, if there is one, can suggest actions but not approve them.' />
+          </h2>
           <ul className='mt-3 space-y-2'>
             {(overview?.boardMembers ?? []).map((member) => (
-              <li key={member}>
-                <a
-                  href={`${explorerUrl}/accounts/${member}`}
-                  target='_blank'
-                  rel='noreferrer'
-                  className='font-mono text-xs text-[#9AA0A6] hover:text-[#FF6E0A]'
-                >
-                  {shortAddress(member, 14, 10)}
-                </a>
+              <li key={member} className='flex items-center justify-between gap-2'>
+                <AddressLine address={member} className='text-xs text-[#9AA0A6]' />
+                {member === account.address && (
+                  <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>you</span>
+                )}
               </li>
             ))}
             {!loading && (overview?.boardMembers.length ?? 0) === 0 && (
