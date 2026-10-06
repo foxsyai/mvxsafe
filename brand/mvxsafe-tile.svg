@@ -1,0 +1,11 @@
+<!-- Fallback favicon for browsers that ignore SVG favicons: a dark rounded tile
+     carries the mark, which reads on any tab colour. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#0E0E12"/>
+  <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z"
+        stroke="#FF6E0A" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"
+        transform="translate(0 6) scale(0.94) translate(16 10)"/>
+  <path d="M 178 296 L 232 350 L 334 244" stroke="#F5F5F5" stroke-width="32"
+        stroke-linejoin="round" stroke-linecap="round"
+        transform="translate(0 6) scale(0.94) translate(16 10)"/>
+</svg>

@@ -76,7 +76,8 @@ export const Safes = () => {
           </p>
           <h1 className='mt-2 text-3xl font-semibold text-white'>Safes</h1>
           <p className='mt-1 text-sm text-[#9AA0A6]'>
-            Read-only for now: balances, board members and pending actions.
+            Any MultiversX multisig. Read-only for now: balances, board members and
+            pending actions.
           </p>
         </div>
         <button
@@ -87,6 +88,16 @@ export const Safes = () => {
           {loading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
+
+      {safes.length === 0 && (
+        <div className='mt-8 rounded-xl border border-dashed border-[#2A2A32] bg-[#121218] p-8 text-center'>
+          <p className='text-white'>No safes yet.</p>
+          <p className='mx-auto mt-2 max-w-md text-sm text-[#6B7280]'>
+            Add a multisig contract address below and it appears here, stored in this
+            browser only. Nothing is sent anywhere and no account is needed.
+          </p>
+        </div>
+      )}
 
       <div className='mt-8 grid gap-4 sm:grid-cols-2'>
         {safes.map((safe) => {

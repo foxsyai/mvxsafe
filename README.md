@@ -10,7 +10,7 @@ Built because xsafe.io stopped working and the Foxsy AI Foundation needs its own
 
 - **No backend and no database.** The browser reads the public MultiversX API directly.
 - **No custody.** Keys stay in your wallet. The app builds transactions, your wallet signs them.
-- **Saved safes live in your browser.** The Foundation's seven are compiled in; anything you add
+- **Saved safes live in your browser.** Nothing is preloaded: anything you add
   is kept in local storage and goes nowhere else.
 - **No analytics and no third party scripts.** The content policy on the server allows the
   MultiversX API and the WalletConnect relays, nothing else.

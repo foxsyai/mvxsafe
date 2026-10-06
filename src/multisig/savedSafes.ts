@@ -28,12 +28,13 @@ const write = (safes: KnownSafe[]) => {
 
 export const getSavedSafes = (): KnownSafe[] => read();
 
-export const getAllSafes = (): KnownSafe[] => {
-  const saved = read().filter(
-    (safe) => !FOUNDATION_SAFES.some((known) => known.address === safe.address)
-  );
-  return [...FOUNDATION_SAFES, ...saved];
-};
+/**
+ * Every visitor starts empty and adds their own safes: this is a tool for
+ * anyone on MultiversX, not a page about the Foundation (Sebastian, 6 Oct 2026).
+ * FOUNDATION_SAFES stays in the code for the next milestone, where connecting a
+ * wallet shows the safes whose board the connected address sits on.
+ */
+export const getAllSafes = (): KnownSafe[] => read();
 
 export const addSafe = (safe: KnownSafe) => {
   const saved = read();
