@@ -1,0 +1,55 @@
+name: deploy-next
+
+on:
+  repository_dispatch:
+    types: deploy-next
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fix permissions
+        run: |
+          sudo chown -R $USER:$USER ${{ github.workspace }}
+          sudo chmod -R 755 ${{ github.workspace }}
+        continue-on-error: true
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          clean: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Setup pnpm
+        run: npm install -g pnpm
+      - name: Install Dependencies
+        uses: nick-fields/retry@v4
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+        with:
+          timeout_minutes: 120
+          retry_on: error
+          max_attempts: 2
+          command: pnpm install
+      - run: pnpm run build-devnet
+        env:
+          CI: false
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: 'us-east-1'
+      - name: Deploy to S3 bucket
+        run: aws s3 sync ./build/ s3://${{ secrets.AWS_S3_BUCKET_NEXT }} --delete
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@master
+        env:
+          SLACK_ICON_EMOJI: ':nerd_face:'
+          SLACK_USERNAME: ${{ secrets.AWS_S3_BUCKET_NEXT }}
+          SLACK_MESSAGE: ${{ secrets.AWS_S3_BUCKET_NEXT }}
+          SLACK_FOOTER: ''
+          MSG_MINIMAL: true
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
