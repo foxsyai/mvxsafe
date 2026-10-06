@@ -13,6 +13,7 @@ import {
 import { PRIMARY_TOKEN } from 'config/safes';
 import { clearCache, explorerUrl } from 'multisig/network';
 import {
+  formatUsd,
   HistoryEntry,
   PendingAction,
   readHistory,
@@ -161,9 +162,18 @@ export const Safe = () => {
             {primary
               ? primary.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })
               : tokens.length}
+            {primary?.valueUsd ? (
+              <span className='ml-2 text-sm font-normal text-[#6B7280]'>
+                {formatUsd(primary.valueUsd)}
+              </span>
+            ) : null}
           </p>
           <p className='mt-2 text-xs text-[#6B7280]'>
-            {overview ? `${overview.egld.toFixed(4)} EGLD` : ''}
+            {overview
+              ? `${overview.egld.toFixed(4)} EGLD${
+                  overview.worthUsd ? `, ${formatUsd(overview.worthUsd)} in total` : ''
+                }`
+              : ''}
           </p>
         </div>
         <div className={card}>
@@ -328,28 +338,41 @@ export const Safe = () => {
         </section>
 
         <section className={card}>
-          <h2 className='text-lg font-semibold text-white'>Holdings</h2>
+          <h2 className='flex items-center text-lg font-semibold text-white'>
+            Holdings
+            <Info text='Dollar values come from the same MultiversX API as the balances, and only exist for tokens that have a market price.' />
+          </h2>
           <ul className='mt-3 space-y-2 text-sm'>
             <li className='flex justify-between'>
               <span className='text-[#9AA0A6]'>EGLD</span>
-              <span className='text-white'>{(overview?.egld ?? 0).toFixed(4)}</span>
+              <span className='text-white'>
+                {(overview?.egld ?? 0).toFixed(4)}
+                {overview?.egldPrice && overview.egld > 0 ? (
+                  <span className='ml-2 text-xs text-[#6B7280]'>
+                    {formatUsd(overview.egld * overview.egldPrice)}
+                  </span>
+                ) : null}
+              </span>
             </li>
-            {primary && (
-              <li className='flex justify-between'>
-                <span className='text-[#9AA0A6]'>{primary.ticker}</span>
-                <span className='text-white'>
-                  {primary.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                </span>
-              </li>
-            )}
-            {others.map((token) => (
+            {[primary, ...others].filter(Boolean).map((token: any) => (
               <li key={token.identifier} className='flex justify-between'>
                 <span className='text-[#9AA0A6]'>{token.ticker}</span>
                 <span className='text-white'>
                   {token.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                  {token.valueUsd ? (
+                    <span className='ml-2 text-xs text-[#6B7280]'>
+                      {formatUsd(token.valueUsd)}
+                    </span>
+                  ) : null}
                 </span>
               </li>
             ))}
+            {overview && overview.worthUsd > 0 && (
+              <li className='flex justify-between border-t border-[#2A2A32] pt-2'>
+                <span className='text-[#9AA0A6]'>Total</span>
+                <span className='text-white'>{formatUsd(overview.worthUsd)}</span>
+              </li>
+            )}
             {overview && overview.nftCount > 0 && (
               <li className='flex justify-between'>
                 <span className='text-[#9AA0A6]'>NFTs</span>

@@ -6,7 +6,7 @@ import { Info, Tip } from 'components/Info';
 import { RoleBadge, Role } from 'components/RoleBadge';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import { clearCache } from 'multisig/network';
-import { readCard, readUserRole, SafeCard, shortAddress } from 'multisig/reads';
+import { formatUsd, readCard, readUserRole, SafeCard, shortAddress } from 'multisig/reads';
 import {
   addSafe,
   exportSafes,
@@ -260,12 +260,23 @@ export const Safes = () => {
                           })
                         : card.egld.toFixed(2)
                       : '...'}
+                    {primary?.valueUsd ? (
+                      <span className='ml-1.5 text-xs text-[#6B7280]'>
+                        {formatUsd(primary.valueUsd)}
+                      </span>
+                    ) : null}
                   </dd>
                 </div>
-                <div className='col-span-2'>
+                <div>
                   <dt className='text-xs text-[#6B7280]'>Signatures needed</dt>
                   <dd className='mt-1 text-white'>
                     {card ? (card.quorum ? card.quorum : 'not a multisig') : '...'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-xs text-[#6B7280]'>Worth</dt>
+                  <dd className='mt-1 text-white'>
+                    {card ? formatUsd(card.worthUsd) || 'unpriced' : '...'}
                   </dd>
                 </div>
               </dl>

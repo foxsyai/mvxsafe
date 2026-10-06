@@ -33,11 +33,15 @@ export interface TokenBalance {
   decimals: number;
   /** The balance as a human number, already divided by the decimals. */
   amount: number;
+  /** What the API says it is worth, when the token has a market price. */
+  valueUsd?: number;
 }
 
 export interface SafeOverview {
   address: string;
   egld: number;
+  egldPrice: number;
+  worthUsd: number;
   tokens: TokenBalance[];
   nftCount: number;
   /** Null when the address is not a multisig we can read. */
@@ -117,7 +121,23 @@ interface TokenResponse {
   name?: string;
   balance: string;
   decimals?: number;
+  valueUsd?: number;
 }
+
+/**
+ * The EGLD price, from the same API as everything else. Read once and kept for
+ * the usual minute, like any other answer.
+ */
+export const readEgldPrice = async (): Promise<number> => {
+  try {
+    const economics = await cached('economics', () =>
+      api<{ price?: number }>('/economics')
+    );
+    return Number(economics?.price ?? 0);
+  } catch {
+    return 0;
+  }
+};
 
 /** What the safe holds. */
 export const readBalances = async (address: string, withNfts = true) => {
@@ -136,9 +156,22 @@ export const readBalances = async (address: string, withNfts = true) => {
       name: token.name ?? token.identifier,
       balance: token.balance,
       decimals: token.decimals ?? 18,
-      amount: toNumber(token.balance, token.decimals ?? 18)
+      amount: toNumber(token.balance, token.decimals ?? 18),
+      valueUsd: typeof token.valueUsd === 'number' ? token.valueUsd : undefined
     }))
   };
+};
+
+/** Everything a safe holds, in dollars, as far as the API knows prices. */
+export const worthOf = (egld: number, tokens: TokenBalance[], egldPrice: number) =>
+  egld * egldPrice + tokens.reduce((total, token) => total + (token.valueUsd ?? 0), 0);
+
+/** $1,234 for real money, $0.42 for small change, nothing when unknown. */
+export const formatUsd = (value?: number): string => {
+  if (!value || !Number.isFinite(value)) return '';
+  if (value >= 1000) return `$${Math.round(value).toLocaleString('en-US')}`;
+  if (value >= 1) return `$${value.toFixed(2)}`;
+  return `$${value.toFixed(4)}`;
 };
 
 /**
@@ -172,6 +205,8 @@ export interface SafeCard {
   egld: number;
   /** Null when the address is not a multisig we can read. */
   quorum: number | null;
+  /** What the whole safe is worth, when the API knows the prices. */
+  worthUsd: number;
 }
 
 /**
@@ -181,27 +216,39 @@ export interface SafeCard {
  * list asks for every safe at once.
  */
 export const readCard = async (address: string): Promise<SafeCard> => {
-  const balances = await readBalances(address, false);
+  const [balances, egldPrice] = await Promise.all([
+    readBalances(address, false),
+    readEgldPrice()
+  ]);
   let quorum: number | null = null;
   try {
     quorum = asNumber(await cached(`quorum:${address}`, () => query<any>(address, 'getQuorum')));
   } catch {
     quorum = null;
   }
-  return { address, tokens: balances.tokens, egld: balances.egld, quorum };
+  return {
+    address,
+    tokens: balances.tokens,
+    egld: balances.egld,
+    quorum,
+    worthUsd: worthOf(balances.egld, balances.tokens, egldPrice)
+  };
 };
 
 export const readOverview = async (address: string): Promise<SafeOverview> => {
-  const [balances, state, pending] = await Promise.all([
+  const [balances, state, pending, egldPrice] = await Promise.all([
     readBalances(address),
     readMultisigState(address),
-    readPendingActions(address)
+    readPendingActions(address),
+    readEgldPrice()
   ]);
 
   return {
     address,
     ...balances,
     ...state,
+    egldPrice,
+    worthUsd: worthOf(balances.egld, balances.tokens, egldPrice),
     pendingCount: pending.length
   };
 };
