@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PRIMARY_TOKEN } from 'config/safes';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
@@ -36,6 +36,7 @@ export const Safes = () => {
     }
   });
   const [done, setDone] = useState(0);
+  const navigate = useNavigate();
   const [newAddress, setNewAddress] = useState('');
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
@@ -200,24 +201,34 @@ export const Safes = () => {
           return (
             <div
               key={safe.address}
-              className={
+              role='link'
+              tabIndex={0}
+              onClick={() => navigate(`/safe/${safe.address}`)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  navigate(`/safe/${safe.address}`);
+                }
+              }}
+              className={`cursor-pointer ${
                 roles[safe.address] === 'BoardMember' || roles[safe.address] === 'Proposer'
                   ? panelMine
                   : panel
-              }
+              }`}
             >
               <div className='flex items-start justify-between gap-3'>
-                <Link to={`/safe/${safe.address}`} className='group'>
-                  <h2 className='text-lg font-semibold text-white group-hover:text-[#FF6E0A]'>
-                    {safe.name}
-                  </h2>
+                <div>
+                  <h2 className='text-lg font-semibold text-white'>{safe.name}</h2>
                   <AddressLine address={safe.address} className='mt-1 text-xs text-[#6B7280]' />
-                </Link>
+                </div>
                 <div className='flex flex-col items-end gap-2'>
                   <RoleBadge role={roles[safe.address] ?? 'Unknown'} />
                   <button
                     type='button'
-                    onClick={() => handleRemove(safe.address)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRemove(safe.address);
+                    }}
                     className='text-xs text-[#6B7280] hover:text-[#FF6E0A]'
                   >
                     remove
@@ -248,12 +259,6 @@ export const Safes = () => {
                 </div>
               </dl>
 
-              <Link
-                to={`/safe/${safe.address}`}
-                className='mt-4 inline-block text-sm text-[#FF6E0A] hover:underline'
-              >
-                Open
-              </Link>
             </div>
           );
         })}

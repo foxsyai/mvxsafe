@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { MouseEvent, useState } from 'react';
 import { explorerUrl } from 'multisig/network';
 import { shortAddress } from 'multisig/reads';
 
@@ -14,7 +14,10 @@ interface AddressLineProps {
 export const AddressLine = ({ address, short = true, className = '' }: AddressLineProps) => {
   const [copied, setCopied] = useState(false);
 
-  const copy = async () => {
+  const copy = async (event: MouseEvent) => {
+    // The card around this is a link. Copying is not opening it.
+    event.stopPropagation();
+    event.preventDefault();
     try {
       await navigator.clipboard.writeText(address);
       setCopied(true);
@@ -30,6 +33,7 @@ export const AddressLine = ({ address, short = true, className = '' }: AddressLi
         href={`${explorerUrl}/accounts/${address}`}
         target='_blank'
         rel='noreferrer'
+        onClick={(event) => event.stopPropagation()}
         title='Open in the MultiversX explorer'
         className='font-mono hover:text-[#FF6E0A]'
       >
