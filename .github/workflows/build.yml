@@ -1,0 +1,32 @@
+# The only workflow this project needs: does it typecheck and build?
+#
+# The template we forked shipped deploy-mainnet, deploy-devnet, deploy-testnet,
+# deploy-next, deploy-integration and two e2e workflows, all aimed at
+# MultiversX's own infrastructure. They failed on every push here, by design,
+# because the secrets and the target are theirs. Deployment of this site is
+# ./deploy.sh to our own droplet.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build (mainnet)
+        run: pnpm build-mainnet

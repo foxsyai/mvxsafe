@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PRIMARY_TOKEN } from 'config/safes';
+import { RoleBadge, Role } from 'components/RoleBadge';
+import { useGetAccount, useGetIsLoggedIn } from 'lib';
+import { readUserRole } from 'multisig/reads';
 import { clearCache } from 'multisig/network';
 import { formatAmount, readOverview, shortAddress, SafeOverview } from 'multisig/reads';
 import {
   addSafe,
   getAllSafes,
-  isFoundationSafe,
   isValidSafeAddress,
   removeSafe
 } from 'multisig/savedSafes';
@@ -14,6 +16,9 @@ import { KnownSafe } from 'config/safes';
 
 const panel =
   'rounded-xl border border-[#2A2A32] bg-[#121218] p-5 transition-colors hover:border-[#FF6E0A]/70';
+// A safe you sit on the board of is outlined, so your own safes stand out in a
+// list that may also hold ones you are only watching.
+const panelMine = panel.replace('border-[#2A2A32]', 'border-[#FF6E0A]/50');
 
 export const Safes = () => {
   const [safes, setSafes] = useState<KnownSafe[]>(getAllSafes());
@@ -22,6 +27,10 @@ export const Safes = () => {
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [roles, setRoles] = useState<Record<string, Role>>({});
+
+  const isLoggedIn = useGetIsLoggedIn();
+  const { address: connected } = useGetAccount();
 
   const load = useCallback(async (list: KnownSafe[]) => {
     setLoading(true);
@@ -42,6 +51,28 @@ export const Safes = () => {
   useEffect(() => {
     load(safes);
   }, [safes, load]);
+
+  // Safes are the ones you added: a wallet that was added to a board but has
+  // never touched it leaves no trace on chain, so there is nothing to discover
+  // (Sebastian, 6 Oct 2026). Connecting does not change the list, it changes
+  // what you may do with each entry, which is what the badge shows.
+  useEffect(() => {
+    if (!isLoggedIn || !connected) {
+      setRoles({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      for (const safe of safes) {
+        const role = (await readUserRole(safe.address, connected)) as Role;
+        if (cancelled) return;
+        setRoles((current) => ({ ...current, [safe.address]: role }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, connected, safes]);
 
   const handleAdd = () => {
     const address = newAddress.trim();
@@ -76,8 +107,8 @@ export const Safes = () => {
           </p>
           <h1 className='mt-2 text-3xl font-semibold text-white'>Safes</h1>
           <p className='mt-1 text-sm text-[#9AA0A6]'>
-            Any MultiversX multisig. Read-only for now: balances, board members and
-            pending actions.
+            Add any MultiversX multisig to watch it. Connect your wallet and the ones
+            you sit on the board of become yours to act on.
           </p>
         </div>
         <button
@@ -90,7 +121,7 @@ export const Safes = () => {
       </div>
 
       {safes.length === 0 && (
-        <div className='mt-8 rounded-xl border border-dashed border-[#2A2A32] bg-[#121218] p-8 text-center'>
+        <div className='mt-6 rounded-xl border border-dashed border-[#2A2A32] bg-[#121218] p-8 text-center'>
           <p className='text-white'>No safes yet.</p>
           <p className='mx-auto mt-2 max-w-md text-sm text-[#6B7280]'>
             Add a multisig contract address below and it appears here, stored in this
@@ -107,7 +138,14 @@ export const Safes = () => {
           );
 
           return (
-            <div key={safe.address} className={panel}>
+            <div
+              key={safe.address}
+              className={
+                roles[safe.address] === 'BoardMember' || roles[safe.address] === 'Proposer'
+                  ? panelMine
+                  : panel
+              }
+            >
               <div className='flex items-start justify-between gap-3'>
                 <Link to={`/safe/${safe.address}`} className='group'>
                   <h2 className='text-lg font-semibold text-white group-hover:text-[#FF6E0A]'>
@@ -117,7 +155,8 @@ export const Safes = () => {
                     {shortAddress(safe.address, 12, 8)}
                   </p>
                 </Link>
-                {!isFoundationSafe(safe.address) && (
+                <div className='flex flex-col items-end gap-2'>
+                  <RoleBadge role={roles[safe.address] ?? 'Unknown'} />
                   <button
                     type='button'
                     onClick={() => handleRemove(safe.address)}
@@ -125,7 +164,7 @@ export const Safes = () => {
                   >
                     remove
                   </button>
-                )}
+                </div>
               </div>
 
               <dl className='mt-4 grid grid-cols-3 gap-3 text-sm'>

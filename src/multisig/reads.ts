@@ -1,7 +1,29 @@
 // Reading a safe. Nothing here signs or sends anything: every call below is a
 // view on the contract or a GET on the public API.
+//
+// Queries go through the legacy ABI (src/abi/multisig-legacy.abi.json), which
+// matches the contract our safes, and most multisigs deployed before 2025, run.
+// The SDK's own multisig ABI describes a newer build and CRASHES while decoding
+// a pending action on ours, which is how this was found (devnet, 6 Oct 2026).
 
-import { api, cached, multisig } from './network';
+import { Address, SmartContractController } from '@multiversx/sdk-core';
+import { legacyAbi } from './legacyCalls';
+import { api, cached, chainId, networkProvider } from './network';
+
+const contracts = new SmartContractController({
+  chainID: chainId,
+  networkProvider,
+  abi: legacyAbi
+});
+
+const query = async <T>(safe: string, fn: string, args: any[] = []): Promise<T> => {
+  const [value] = await contracts.query({
+    contract: Address.newFromBech32(safe),
+    function: fn,
+    arguments: args
+  });
+  return value as T;
+};
 
 export interface TokenBalance {
   identifier: string;
@@ -45,9 +67,48 @@ export interface HistoryEntry {
 const toNumber = (balance: string, decimals: number) =>
   Number(balance) / Math.pow(10, decimals);
 
+const asNumber = (value: any) => Number(value?.toString?.() ?? value ?? 0);
+
+const asAddress = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value.toBech32 === 'function') return value.toBech32();
+  if (value.bech32) return String(value.bech32);
+  return String(value);
+};
+
+const bytesOf = (value: any): Uint8Array | null => {
+  if (!value) return null;
+  if (value instanceof Uint8Array) return value;
+  if (value.type === 'Buffer' && Array.isArray(value.data)) return new Uint8Array(value.data);
+  return null;
+};
+
+const asText = (value: any): string => {
+  if (typeof value === 'string') return value;
+  const bytes = bytesOf(value);
+  return bytes ? new TextDecoder().decode(bytes) : '';
+};
+
+/** A decoded buffer read as a number, which is how amounts arrive in arguments. */
+const asRaw = (value: any): bigint => {
+  const bytes = bytesOf(value);
+  if (!bytes || bytes.length === 0) return 0n;
+  let result = 0n;
+  for (const byte of bytes) result = (result << 8n) + BigInt(byte);
+  return result;
+};
+
+const asBigInt = (value: any): bigint => {
+  try {
+    return BigInt(value?.toString?.() ?? value ?? 0);
+  } catch {
+    return 0n;
+  }
+};
+
 interface AccountResponse {
   balance: string;
-  codeHash?: string;
 }
 
 interface TokenResponse {
@@ -58,7 +119,7 @@ interface TokenResponse {
   decimals?: number;
 }
 
-/** The numbers behind one safe, enough for a card in the list. */
+/** What the safe holds. */
 export const readBalances = async (address: string) => {
   const [account, tokens, nftCount] = await Promise.all([
     api<AccountResponse>(`/accounts/${address}`),
@@ -82,33 +143,23 @@ export const readBalances = async (address: string) => {
 
 /**
  * The multisig side: who is on the board, how many signatures an action needs
- * and how many actions are waiting. A plain address that is not a multisig
- * answers with an error, which is reported as quorum null rather than a crash.
+ * and how many actions there have been. An address that is not a multisig
+ * answers with an error, reported as quorum null rather than as a crash.
  */
 export const readMultisigState = async (address: string) => {
   try {
-    const [quorum, boardMembers, proposerCount, actionCount] = await Promise.all([
-      cached(`quorum:${address}`, () => multisig.getQuorum({ multisigAddress: address })),
-      cached(`board:${address}`, () =>
-        multisig.getAllBoardMembers({ multisigAddress: address })
-      ),
-      cached(`proposers:${address}`, () =>
-        multisig.getNumProposers({ multisigAddress: address })
-      ),
-      cached(`actions:${address}`, () =>
-        multisig.getActionLastIndex({ multisigAddress: address })
-      )
+    const [quorum, board, proposers, actionCount] = await Promise.all([
+      cached(`quorum:${address}`, () => query<any>(address, 'getQuorum')),
+      cached(`board:${address}`, () => query<any>(address, 'getAllBoardMembers')),
+      cached(`proposers:${address}`, () => query<any>(address, 'getNumProposers')),
+      cached(`actions:${address}`, () => query<any>(address, 'getActionLastIndex'))
     ]);
 
     return {
-      quorum: Number(quorum),
-      // The typings say string[], the runtime hands back Address objects.
-      // Accept both rather than trusting either.
-      boardMembers: boardMembers.map((member: any) =>
-        typeof member?.toBech32 === 'function' ? member.toBech32() : String(member)
-      ),
-      proposerCount: Number(proposerCount),
-      actionCount: Number(actionCount)
+      quorum: asNumber(quorum),
+      boardMembers: (Array.isArray(board) ? board : [board]).map(asAddress).filter(Boolean),
+      proposerCount: asNumber(proposers),
+      actionCount: asNumber(actionCount)
     };
   } catch {
     return { quorum: null, boardMembers: [], proposerCount: 0, actionCount: 0 };
@@ -130,29 +181,41 @@ export const readOverview = async (address: string): Promise<SafeOverview> => {
   };
 };
 
+/** What the connected address may do here: BoardMember, Proposer or None. */
+export const readUserRole = async (safe: string, user: string): Promise<string> => {
+  if (!user) return 'None';
+  try {
+    const role = await cached(`role:${safe}:${user}`, () =>
+      query<any>(safe, 'userRole', [Address.newFromBech32(user)])
+    );
+    return String(role?.name ?? role ?? 'None');
+  } catch {
+    return 'None';
+  }
+};
+
 /**
- * Actions still waiting for signatures. The contract returns them decoded by
- * the ABI; turning each one into a readable sentence is the signer's only
- * defence against approving something they did not expect, so it happens here
- * rather than in the view.
+ * Actions still waiting for signatures, each turned into a sentence. A signer's
+ * only defence against approving something unexpected is reading it in words,
+ * so the decoding happens here rather than in a view.
  */
 export const readPendingActions = async (address: string): Promise<PendingAction[]> => {
   try {
-    const pending = await cached(`pending:${address}`, () =>
-      multisig.getPendingActionFullInfo({ multisigAddress: address })
-    );
+    const [pending, state] = await Promise.all([
+      cached(`pending:${address}`, () => query<any>(address, 'getPendingActionFullInfo')),
+      readMultisigState(address)
+    ]);
+    const list = Array.isArray(pending) ? pending : pending ? [pending] : [];
+    const quorum = state.quorum ?? Number.MAX_SAFE_INTEGER;
 
-    return pending.map((action: any) => {
-      const signers: string[] = (action.signers ?? []).map((signer: any) =>
-        typeof signer?.toBech32 === 'function' ? signer.toBech32() : String(signer)
-      );
-
+    return list.filter(Boolean).map((action: any) => {
+      const signers: string[] = (action.signers ?? []).map(asAddress);
       return {
-        actionId: Number(action.actionId ?? action.action_id ?? 0),
-        description: describeAction(action.actionData ?? action.action_data ?? action),
+        actionId: asNumber(action.action_id ?? action.actionId),
+        description: describeAction(action.action_data ?? action.actionData),
         signerCount: signers.length,
         signers,
-        quorumReached: Boolean(action.quorumReached)
+        quorumReached: signers.length >= quorum
       };
     });
   } catch {
@@ -161,51 +224,67 @@ export const readPendingActions = async (address: string): Promise<PendingAction
 };
 
 /**
- * Plain language for one action. The ABI gives typed data, not sentences, and a
- * signer should never have to read hex to know what they are approving.
- * Anything this function does not recognise is reported as unknown rather than
- * guessed at, which is the safe failure.
+ * Plain language for one action, from the decoded enum. Anything unrecognised
+ * is reported as unknown rather than guessed at, which is the safe failure: a
+ * signer who cannot read what an action does should not sign it.
  */
 export const describeAction = (action: any): string => {
-  if (!action || typeof action !== 'object') return 'Unknown action';
-  const type = String(action.type ?? action.name ?? 'Unknown');
+  if (!action) return 'Unknown action';
+  const name = String(action.name ?? action.type ?? 'Unknown');
+  const fields = action.fields ?? [];
+  const first = fields[0];
 
-  switch (type) {
-    case 'AddBoardMember':
-      return `Add ${shortAddress(asAddress(action.address))} to the board`;
-    case 'AddProposer':
-      return `Add ${shortAddress(asAddress(action.address))} as a proposer`;
-    case 'RemoveUser':
-      return `Remove ${shortAddress(asAddress(action.address))}`;
-    case 'ChangeQuorum':
-      return `Change the quorum to ${Number(action.newQuorum ?? action.quorum ?? 0)}`;
-    case 'SendTransferExecuteEgld':
-      return `Send ${formatAmount(action.data?.egldAmount ?? action.egldAmount, 18)} EGLD to ${shortAddress(
-        asAddress(action.data?.to ?? action.to)
-      )}`;
-    case 'SendTransferExecuteEsdt':
-      return `Send tokens to ${shortAddress(asAddress(action.data?.to ?? action.to))}`;
-    case 'SendAsyncCall':
-      return `Call a contract at ${shortAddress(asAddress(action.data?.to ?? action.to))}`;
+  switch (name) {
     case 'Nothing':
       return 'Already carried out or discarded';
+    case 'AddBoardMember':
+      return `Add ${shortAddress(asAddress(first))} to the board`;
+    case 'AddProposer':
+      return `Add ${shortAddress(asAddress(first))} as a proposer`;
+    case 'RemoveUser':
+      return `Remove ${shortAddress(asAddress(first))}`;
+    case 'ChangeQuorum':
+      return `Change the quorum to ${asNumber(first)}`;
+    case 'SendTransferExecute':
+    case 'SendAsyncCall': {
+      const data = first ?? {};
+      const to = shortAddress(asAddress(data.to));
+      const egldAmount = asBigInt(data.egld_amount);
+      const endpoint = asText(data.endpoint_name);
+      const rawArgs = data.arguments ?? [];
+
+      // How a token transfer looks on this build: an async call asking the
+      // recipient to run ESDTTransfer with the token and the amount.
+      if (endpoint === 'ESDTTransfer' && rawArgs.length >= 2) {
+        const token = asText(rawArgs[0]);
+        return `Send ${formatRaw(asRaw(rawArgs[1]), 18)} ${token.split('-')[0]} to ${to}`;
+      }
+      if (egldAmount > 0n && !endpoint) {
+        return `Send ${formatRaw(egldAmount, 18)} EGLD to ${to}`;
+      }
+      if (endpoint) {
+        return `Call ${endpoint} on ${to}${
+          egldAmount > 0n ? ` with ${formatRaw(egldAmount, 18)} EGLD` : ''
+        }`;
+      }
+      return `Send to ${to}`;
+    }
+    case 'SCDeployFromSource':
+      return 'Deploy a smart contract';
+    case 'SCUpgradeFromSource':
+      return 'Upgrade a smart contract';
     default:
-      return `Unknown action (${type})`;
+      return `Unknown action (${name})`;
   }
 };
 
-const asAddress = (value: any): string => {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value.toBech32 === 'function') return value.toBech32();
-  return String(value);
-};
-
-export const formatAmount = (value: unknown, decimals = 18, maximumFractionDigits = 4) => {
-  const raw = typeof value === 'bigint' ? value : BigInt(String(value ?? 0));
+export const formatRaw = (raw: bigint, decimals = 18, maximumFractionDigits = 4) => {
   const amount = Number(raw) / Math.pow(10, decimals);
   return amount.toLocaleString('en-US', { maximumFractionDigits });
 };
+
+export const formatAmount = (value: unknown, decimals = 18, maximumFractionDigits = 4) =>
+  formatRaw(asBigInt(value), decimals, maximumFractionDigits);
 
 export const shortAddress = (address: string, lead = 8, tail = 6) =>
   !address ? '' : `${address.slice(0, lead)}...${address.slice(-tail)}`;

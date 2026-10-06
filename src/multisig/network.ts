@@ -7,8 +7,7 @@
 // 2. Reads are cheap but not free. Anything already fetched in the last minute
 //    is reused, which makes moving between the list and a safe feel instant.
 
-import multisigAbiJson from 'abi/multisig-full.abi.json';
-import { Abi, ApiNetworkProvider, MultisigController } from '@multiversx/sdk-core';
+import { ApiNetworkProvider } from '@multiversx/sdk-core';
 import { environment } from 'config';
 
 const API_BY_NETWORK: Record<string, string> = {
@@ -31,17 +30,9 @@ export const explorerUrl =
     ? 'https://explorer.multiversx.com'
     : `https://${networkName}-explorer.multiversx.com`;
 
-export const multisigAbi = Abi.create(multisigAbiJson);
-
-const networkProvider = new ApiNetworkProvider(apiUrl, {
+export const networkProvider = new ApiNetworkProvider(apiUrl, {
   clientName: 'mvxsafe.io',
   timeout: 15000
-});
-
-export const multisig = new MultisigController({
-  chainID: chainId,
-  networkProvider,
-  abi: multisigAbi
 });
 
 // --- the queue and the cache -------------------------------------------------

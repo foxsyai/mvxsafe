@@ -1,7 +1,0 @@
-<!-- mvxsafe.io mark: the FoxLeague fox head, hollow, with a check inside.
-     One path for the head, one for the check, so it scales to any size.
-     Head #FF6E0A (the Foxsy orange). Drawn 6 Oct 2026. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" role="img" aria-label="mvxsafe">
-  <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z" stroke="#FF6E0A" stroke-width="24" stroke-linejoin="round" stroke-linecap="round"/>
-  <path d="M 178 296 L 232 350 L 334 244" stroke="#F5F5F5" stroke-width="26" stroke-linejoin="round" stroke-linecap="round"/>
-</svg>

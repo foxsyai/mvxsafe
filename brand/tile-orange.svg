@@ -1,0 +1,8 @@
+<!-- mvxsafe mark. Orange tile with a black head and white check, for app stores and avatars. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#FF6E0A"/>
+  <g transform="translate(26 24) scale(0.9)">
+    <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z" stroke="#09090D" stroke-width="32" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M 178 296 L 232 350 L 334 244" stroke="#F5F5F5" stroke-width="34" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>

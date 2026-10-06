@@ -41,3 +41,6 @@ node_modules/
 
 # secrets (local only)
 tests/support/wallets/
+# Devnet test keys live in ~/.mvxsafe-devnet, never here.
+*.pem
+*.mnemonic

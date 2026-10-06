@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ProposePanel } from 'components/Propose';
+import { useGetAccount, useGetIsLoggedIn } from 'lib';
+import {
+  discardAction,
+  performAction,
+  signAction,
+  unsignAction
+} from 'multisig/actions';
 import { PRIMARY_TOKEN } from 'config/safes';
 import { clearCache, explorerUrl } from 'multisig/network';
 import {
@@ -8,6 +16,7 @@ import {
   readHistory,
   readOverview,
   readPendingActions,
+  readUserRole,
   SafeOverview,
   shortAddress
 } from 'multisig/reads';
@@ -23,6 +32,14 @@ export const Safe = () => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [role, setRole] = useState('None');
+  const [working, setWorking] = useState(0);
+
+  const isLoggedIn = useGetIsLoggedIn();
+  const account = useGetAccount();
+  const signer = { address: account.address, nonce: Number(account.nonce ?? 0) };
+  const canPropose = role === 'BoardMember' || role === 'Proposer';
+  const canSign = role === 'BoardMember';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -31,11 +48,25 @@ export const Safe = () => {
       setOverview(await readOverview(address));
       setPending(await readPendingActions(address));
       setHistory(await readHistory(address));
+      setRole(isLoggedIn ? await readUserRole(address, account.address) : 'None');
     } catch {
       setFailed(true);
     }
     setLoading(false);
-  }, [address]);
+  }, [address, isLoggedIn, account.address]);
+
+  // Every one of these ends in the visitor's wallet asking them to confirm.
+  const run = async (actionId: number, work: () => Promise<unknown>) => {
+    setWorking(actionId);
+    try {
+      await work();
+      clearCache();
+      await load();
+    } catch {
+      // The wallet was closed or the transaction was refused: nothing happened.
+    }
+    setWorking(0);
+  };
 
   useEffect(() => {
     load();
@@ -63,6 +94,19 @@ export const Safe = () => {
           >
             {address}
           </a>
+          {isLoggedIn && (
+            <p className='mt-2 text-xs text-[#6B7280]'>
+              You are{' '}
+              <span className='text-[#9AA0A6]'>
+                {role === 'BoardMember'
+                  ? 'a board member here: you can propose, sign and carry out actions'
+                  : role === 'Proposer'
+                    ? 'a proposer here: you can propose, but not sign'
+                    : 'not on this board, so you can only look'}
+              </span>
+              .
+            </p>
+          )}
         </div>
         <button
           type='button'
@@ -150,11 +194,85 @@ export const Safe = () => {
                     signed by {action.signers.map((s) => shortAddress(s)).join(', ')}
                   </p>
                 )}
+
+                {isLoggedIn && (canSign || canPropose) && (
+                  <div className='mt-3 flex flex-wrap gap-2'>
+                    {canSign &&
+                      (action.signers.includes(account.address) ? (
+                        <button
+                          type='button'
+                          disabled={working === action.actionId}
+                          onClick={() =>
+                            run(action.actionId, () =>
+                              unsignAction(signer, address, action.actionId)
+                            )
+                          }
+                          className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
+                        >
+                          Remove my signature
+                        </button>
+                      ) : (
+                        <button
+                          type='button'
+                          disabled={working === action.actionId}
+                          onClick={() =>
+                            run(action.actionId, () =>
+                              signAction(signer, address, action.actionId)
+                            )
+                          }
+                          className='rounded-lg bg-[#FF6E0A] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
+                        >
+                          Sign
+                        </button>
+                      ))}
+
+                    {action.quorumReached && (
+                      <button
+                        type='button'
+                        disabled={working === action.actionId}
+                        onClick={() =>
+                          run(action.actionId, () =>
+                            performAction(signer, address, action.actionId)
+                          )
+                        }
+                        className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
+                      >
+                        Carry it out
+                      </button>
+                    )}
+
+                    <button
+                      type='button'
+                      disabled={working === action.actionId}
+                      onClick={() =>
+                        run(action.actionId, () =>
+                          discardAction(signer, address, action.actionId)
+                        )
+                      }
+                      className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
+                    >
+                      Discard
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {isLoggedIn && canPropose && overview && (
+        <ProposePanel
+          safe={address}
+          signer={signer}
+          tokens={overview.tokens}
+          boardSize={overview.boardMembers.length}
+          onProposed={() => {
+            clearCache();
+            load();
+          }}
+        />
+      )}
 
       <div className='mt-8 grid gap-4 md:grid-cols-2'>
         <section className={card}>

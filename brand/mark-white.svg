@@ -1,0 +1,7 @@
+<!-- mvxsafe mark. One colour, white. On photographs and strong colours. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <g>
+    <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z" stroke="#F5F5F5" stroke-width="24" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M 178 296 L 232 350 L 334 244" stroke="#F5F5F5" stroke-width="26" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>
