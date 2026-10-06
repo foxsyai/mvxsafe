@@ -5,8 +5,16 @@ One path for the head, one for the check, so it scales to any size and stays sha
 
 Orange is `#FF6E0A`, ink `#09090D`, chalk `#F5F5F5`.
 
+**The mark in use since 6 October 2026 is `solid-ink-check.svg`**: the head filled in orange
+with a thick black check. Black carries about three times the contrast of white on that orange,
+which is what keeps it readable at 16 pixels. It is the favicon, the app icons, the header logo
+and the header of the signer PDF. `solid-white-check.svg` is the same shape with a white check,
+kept for large uses where the softer look is wanted.
+
 | File | Use |
 |---|---|
+| `solid-ink-check.svg` | **The mark.** Filled orange head, thick black check. |
+| `solid-white-check.svg` | The same with a white check, for large sizes only. |
 | `mark-on-dark.svg` | Dark backgrounds. Orange head, white check. The app header uses this. |
 | `mark-on-light.svg` | White or light backgrounds. Orange head, black check, because white vanishes there. |
 | `mark-on-orange.svg` | On the brand orange. Black head, white check. |
