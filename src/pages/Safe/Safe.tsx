@@ -30,7 +30,7 @@ import {
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
 
 const card = 'rounded-xl border border-[#2A2A32] bg-[#121218] p-5';
-const pendingCard = 'rounded-xl border border-[#FF6E0A]/60 bg-[#121218] p-5';
+const pendingCard = 'rounded-xl border-2 border-[#FF6E0A] bg-[#FF6E0A]/[0.06] p-5';
 const label = 'text-xs text-[#6B7280]';
 
 /**
