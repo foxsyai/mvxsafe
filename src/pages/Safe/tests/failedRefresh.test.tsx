@@ -32,7 +32,7 @@ jest.mock('multisig/reads', () => ({
 
 const good = {
   address: SAFE, egld: 1, egldRaw: '1000000000000000000', egldPrice: 4, worthUsd: 4, tokens: [], nftCount: 0,
-  quorum: 2, boardMembers: [ME, COO], proposerCount: 0, actionCount: 2, pendingCount: 1
+  quorum: 2, boardMembers: [ME, COO], proposers: [], proposerCount: 0, actionCount: 2, pendingCount: 1
 };
 const action = { actionId: 2, description: 'Send 0.1 EGLD to someone', signerCount: 1, signers: [COO], formerSigners: [], quorumReached: false };
 const refused = () => Promise.reject(new Error('Request failed with status code 429'));

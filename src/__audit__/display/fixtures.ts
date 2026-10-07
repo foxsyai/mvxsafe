@@ -132,6 +132,8 @@ export interface ChainState {
   quorum: number;
   board: string[];
   proposers?: number;
+  /** The proposers' addresses, for getAllProposers (added 7 Oct 2026). */
+  proposerList?: string[];
   lastActionIndex?: number;
   pending: PendingSpec[];
   /** userRole answers by address, as discriminants: 0 none, 1 proposer, 2 board member. */
@@ -151,6 +153,8 @@ export const queryAnswer = (state: ChainState, fn: string, args: Uint8Array[] = 
       return [bigBytes(BigInt(state.lastActionIndex ?? Math.max(0, ...state.pending.map((p) => p.id))))];
     case 'getAllBoardMembers':
       return state.board.map(addressBytes);
+    case 'getAllProposers':
+      return (state.proposerList ?? []).map(addressBytes);
     case 'getPendingActionFullInfo':
       return state.pending.map(encodeActionFullInfo);
     case 'userRole': {
@@ -208,6 +212,12 @@ export const networkMock = {
   chainId: 'D',
   explorerUrl: 'https://devnet-explorer.multiversx.com',
   clearCache: () => {},
+  forget: () => {},
+  // Mirrors multisig/network: a refused or lost read, as opposed to an answer.
+  isTransient: (error: any) =>
+    /\b(429|502|503|504)\b|Too Many Requests|timeout|timed out|Network|Failed to fetch/i.test(
+      String(error?.message ?? error ?? '')
+    ),
   cached: async <T>(_key: string, work: () => Promise<T>) => work(),
   api: async (path: string) => {
     const collection = path.match(/^\/collections\/([^/?]+)/);

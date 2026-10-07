@@ -49,6 +49,8 @@ export interface SafeOverview {
   /** Null when the address is not a multisig we can read. */
   quorum: number | null;
   boardMembers: string[];
+  /** Who may propose without signing. Empty when there are none. */
+  proposers: string[];
   proposerCount: number;
   actionCount: number;
   /** Null when the pending actions could not be read. */
@@ -174,17 +176,29 @@ export const readMultisigState = async (address: string) => {
       cached(`actions:${address}`, () => query<any>(address, 'getActionLastIndex'))
     ]);
 
+    // The list of proposers, read on its own: a contract without the view is
+    // still a safe, a refused read is still an error.
+    let proposerList: string[] | null = null;
+    try {
+      const list = await cached(`proposerList:${address}`, () =>
+        query<any>(address, 'getAllProposers')
+      );
+      proposerList = (Array.isArray(list) ? list : list ? [list] : []).map(asAddress).filter(Boolean);
+    } catch (error) {
+      if (isTransient(error)) throw error;
+    }
     return {
       quorum: asNumber(quorum),
       boardMembers: (Array.isArray(board) ? board : [board]).map(asAddress).filter(Boolean),
-      proposerCount: asNumber(proposers),
+      proposers: proposerList ?? [],
+      proposerCount: proposerList ? proposerList.length : asNumber(proposers),
       actionCount: asNumber(actionCount)
     };
   } catch (error) {
     // A refused or lost read is not an answer: the caller keeps what it had.
     // Anything else (no such function) means this is not a multisig we read.
     if (isTransient(error)) throw error;
-    return { quorum: null, boardMembers: [], proposerCount: 0, actionCount: 0 };
+    return { quorum: null, boardMembers: [], proposers: [], proposerCount: 0, actionCount: 0 };
   }
 };
 
@@ -310,6 +324,47 @@ export const readUserRole = async (safe: string, user: string): Promise<string> 
 };
 
 /**
+ * What a membership action really does to that address today. One address
+ * holds one role: adding a proposer to the board promotes them, adding a
+ * board member as a proposer demotes them, removing takes away whatever role
+ * they have. And the contract refuses to carry out anything that would leave
+ * fewer board members than the signatures needed.
+ */
+export const membershipNote = (
+  action: any,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
+): string => {
+  const name = String(action?.name ?? '');
+  const who = asAddress(action?.fields?.[0]);
+  if (!who) return '';
+  const onBoard = state.boardMembers.includes(who);
+  const proposer = state.proposers.includes(who);
+  const quorum = state.quorum ?? 0;
+  const left = state.boardMembers.length - 1;
+  const refused = (what: string) =>
+    ` (on the board today: ${what} would leave ${left} board member${left === 1 ? '' : 's'} for the ${quorum} signatures needed, so the contract will refuse to carry it out)`;
+
+  switch (name) {
+    case 'AddBoardMember':
+      if (onBoard) return ' (already on the board: this changes nothing)';
+      if (proposer) return ' (a proposer today: the board seat replaces that role)';
+      return '';
+    case 'AddProposer':
+      if (proposer) return ' (already a proposer: this changes nothing)';
+      if (onBoard) {
+        return left < quorum ? refused('taking them off it') : ' (on the board today: this takes them off the board)';
+      }
+      return '';
+    case 'RemoveUser':
+      if (onBoard) return left < quorum ? refused('removing them') : ' (on the board today)';
+      if (proposer) return ' (a proposer today)';
+      return ' (holds no role today: this changes nothing)';
+    default:
+      return '';
+  }
+};
+
+/**
  * Actions still waiting for signatures, each turned into a sentence. A signer's
  * only defence against approving something unexpected is reading it in words,
  * so the decoding happens here, in describe.ts, rather than in a view.
@@ -339,7 +394,9 @@ export const readPendingActions = async (address: string): Promise<PendingAction
       const signers = everyone.filter((signer) => board.has(signer));
       return {
         actionId: asNumber(action.action_id ?? action.actionId),
-        description: await describeAction(action.action_data ?? action.actionData, address),
+        description:
+          (await describeAction(action.action_data ?? action.actionData, address)) +
+          membershipNote(action.action_data ?? action.actionData, state as any),
         signerCount: signers.length,
         signers,
         formerSigners: everyone.filter((signer) => !board.has(signer)),

@@ -409,7 +409,9 @@ const SafeView = ({ address }: { address: string }) => {
                 : 'unknown'}
           </p>
           <p className='mt-2 text-xs text-[#6B7280]'>
-            {overview ? `${overview.proposerCount} proposers` : ''}
+            {overview
+              ? `${overview.proposerCount} proposer${overview.proposerCount === 1 ? '' : 's'}`
+              : ''}
           </p>
         </div>
         <div className={card}>
@@ -585,12 +587,15 @@ const SafeView = ({ address }: { address: string }) => {
         />
       )}
 
-      <div className='mt-8 grid gap-4 md:grid-cols-2'>
+      {/* items-start: each card takes its own height, so a long list of
+          proposers does not stretch the holdings beside it. */}
+      <div className='mt-8 grid items-start gap-4 md:grid-cols-2'>
         <section className={card}>
           <h2 className='flex items-center text-lg font-semibold text-white'>
-            Board
-            <Info text='The addresses that may sign. A proposer, if there is one, can suggest actions but not approve them. The pencil gives an address a name, kept in this browser and carried in the export file.' />
+            Board and proposers
+            <Info text='Board members propose, sign and carry out actions. Proposers can only propose: their actions still need the board. The pencil gives an address a name, kept in this browser and carried in the export file.' />
           </h2>
+          <p className='mt-3 text-xs tracking-wider text-[#6B7280] uppercase'>Board</p>
           <ul className='mt-3 space-y-2'>
             {(overview?.boardMembers ?? []).map((member) => (
               <li key={member} className='flex items-center justify-between gap-2'>
@@ -602,6 +607,22 @@ const SafeView = ({ address }: { address: string }) => {
             ))}
             {!loading && (overview?.boardMembers.length ?? 0) === 0 && (
               <li className='text-sm text-[#6B7280]'>No board members found.</li>
+            )}
+          </ul>
+
+          <p className='mt-5 text-xs tracking-wider text-[#6B7280] uppercase'>Proposers</p>
+          <p className='mt-1 text-xs text-[#6B7280]'>Can propose, cannot sign.</p>
+          <ul className='mt-2 space-y-2'>
+            {(overview?.proposers ?? []).map((proposer) => (
+              <li key={proposer} className='flex items-center justify-between gap-2'>
+                <AddressLine address={proposer} nameable className='text-xs text-[#9AA0A6]' />
+                {proposer === account.address && (
+                  <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>you</span>
+                )}
+              </li>
+            ))}
+            {overview && (overview.proposers ?? []).length === 0 && (
+              <li className='text-sm text-[#6B7280]'>No proposers.</li>
             )}
           </ul>
         </section>
