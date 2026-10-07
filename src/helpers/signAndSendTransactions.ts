@@ -48,6 +48,11 @@ export const signAndSendTransactions = async ({
     onSuccess: settled,
     onFail: settled
   });
+  // And twice more on a clock, which does not depend on the SDK's socket or on
+  // the page that sent it still being open: a block takes about six seconds,
+  // a cross-shard result a little longer.
+  setTimeout(settled, 7000);
+  setTimeout(settled, 16000);
 
   return sessionId;
 };

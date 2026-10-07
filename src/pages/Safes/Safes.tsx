@@ -114,6 +114,17 @@ export const Safes = () => {
     load(safes, isLoggedIn ? connected : '');
   }, [safes, isLoggedIn, connected, load]);
 
+  // A transaction sent from any page lands seconds later. The list reads
+  // again when it has, instead of showing a count from before it landed.
+  useEffect(() => {
+    const again = () => {
+      clearCache();
+      load(safes, isLoggedIn ? connected : '');
+    };
+    window.addEventListener('mvxsafe:settled', again);
+    return () => window.removeEventListener('mvxsafe:settled', again);
+  }, [safes, isLoggedIn, connected, load]);
+
   const handleAdd = () => {
     const address = newAddress.trim();
     if (!isValidSafeAddress(address)) {
@@ -254,7 +265,7 @@ export const Safes = () => {
                     of alignment. */}
                 <div className='mt-1 flex flex-wrap items-center justify-between gap-2'>
                   <AddressLine address={safe.address} className='text-xs text-[#6B7280]' />
-                  <RoleBadge role={roles[safe.address] ?? 'Unknown'} />
+                  <RoleBadge role={isLoggedIn ? (roles[safe.address] ?? 'Unknown') : 'None'} />
                 </div>
 
                 {/* Top right, like closing a window. */}
@@ -317,11 +328,17 @@ export const Safes = () => {
               {card?.quorum ? (
                 <dl className='mt-3 flex items-start justify-between gap-6 border-t border-[#2A2A32] pt-3 text-sm'>
                   <div>
-                    <dt className='text-xs text-[#6B7280]'>Waiting for signatures</dt>
-                    <dd className='mt-1 flex items-baseline gap-2'>
+                    <dt className='text-xs text-[#6B7280]'>Pending actions</dt>
+                    <dd className='mt-1 flex flex-wrap items-baseline gap-x-2'>
+                      {/* Orange while something still needs signatures, green when
+                          all that is pending only waits to be carried out. */}
                       <span
                         className={
-                          (card.pendingCount ?? 0) > 0 ? 'font-semibold text-[#FF6E0A]' : 'text-white'
+                          (card.pendingCount ?? 0) > (card.readyCount ?? 0)
+                            ? 'font-semibold text-[#FF6E0A]'
+                            : (card.pendingCount ?? 0) > 0
+                              ? 'font-semibold text-[#4ADE80]'
+                              : 'text-white'
                         }
                       >
                         {card.pendingCount ?? '...'}
@@ -333,6 +350,11 @@ export const Safes = () => {
                             {card.needsViewer} need{card.needsViewer === 1 ? 's' : ''} you
                           </span>
                         )}
+                      {(card.readyCount ?? 0) > 0 && (
+                        <span className='text-xs text-[#4ADE80]'>
+                          {card.readyCount} ready to carry out
+                        </span>
+                      )}
                     </dd>
                   </div>
                   <div className='text-right'>

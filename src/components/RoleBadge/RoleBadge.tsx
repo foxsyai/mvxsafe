@@ -34,6 +34,11 @@ const TeamIcon = () => (
 );
 
 export const RoleBadge = ({ role }: { role: Role }) => {
+  // Still being read for the connected wallet: say nothing rather than claim
+  // "read only" to a board member for the second it takes (7 Oct 2026).
+  if (role === 'Unknown') {
+    return <span className='inline-block h-[26px]' aria-hidden />;
+  }
   if (role === 'BoardMember' || role === 'Proposer') {
     return (
       <span className='inline-flex items-center gap-1.5 rounded-full bg-[#FF6E0A]/15 px-2.5 py-1 text-xs text-[#FF6E0A]'>

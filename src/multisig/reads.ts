@@ -202,6 +202,8 @@ export interface SafeCard {
   viewer?: string;
   /** Pending actions the viewer, a board member, has not signed and that still need signatures. */
   needsViewer?: number | null;
+  /** Pending actions with enough signatures, waiting only to be carried out. */
+  readyCount?: number | null;
 }
 
 /**
@@ -232,7 +234,8 @@ export const readCard = async (address: string, viewer = ''): Promise<SafeCard> 
     pendingCount: null,
     actionCount: null,
     viewer,
-    needsViewer: null
+    needsViewer: null,
+    readyCount: null
   };
   if (quorum === null) return card;
 
@@ -252,6 +255,13 @@ export const readCard = async (address: string, viewer = ''): Promise<SafeCard> 
       Array.isArray(pending.value) ? pending.value : pending.value ? [pending.value] : []
     ).filter(Boolean);
     card.pendingCount = list.length;
+    const validSigners = (action: any) =>
+      ((action.signers ?? []).map(asAddress) as string[]).filter((signer) =>
+        members?.includes(signer)
+      ).length;
+    if (members) {
+      card.readyCount = list.filter((action: any) => validSigners(action) >= (quorum ?? Infinity)).length;
+    }
     // Only for a board member, and only signatures that count, as on the safe page.
     if (viewer && members?.includes(viewer)) {
       card.needsViewer = list.filter((action: any) => {
