@@ -43,8 +43,14 @@ export const signAndSendTransactions = async ({
   // Which safes changed: the receivers (a safe for every multisig call, the
   // new safe for a handover), so pages re-read those and nothing else.
   const addresses = [...new Set(transactions.map((transaction) => transaction.receiver.toBech32()))];
+  let settledAt = 0;
   const settled = async () => {
+    settledAt = Date.now();
     window.dispatchEvent(new CustomEvent('mvxsafe:settled', { detail: { addresses } }));
+  };
+  // The clock is a safety net: skipped when the SDK reported it moments ago.
+  const settledOnClock = () => {
+    if (Date.now() - settledAt > 5000) settled();
   };
   const sessionId = await txManager.track(sentTransactions, {
     transactionsDisplayInfo,
@@ -54,8 +60,8 @@ export const signAndSendTransactions = async ({
   // And twice more on a clock, which does not depend on the SDK's socket or on
   // the page that sent it still being open: a block takes about six seconds,
   // a cross-shard result a little longer.
-  setTimeout(settled, 7000);
-  setTimeout(settled, 16000);
+  setTimeout(settledOnClock, 7000);
+  setTimeout(settledOnClock, 16000);
 
   return sessionId;
 };

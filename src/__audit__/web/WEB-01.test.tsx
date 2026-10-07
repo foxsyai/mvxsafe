@@ -169,7 +169,12 @@ test('a re-read timer armed on Treasury does not replace the Team list seconds l
   // Treasury's loader.
   fireEvent.click(screen.getByRole('button', { name: 'Sign' }));
   await waitFor(() => expect(signAction).toHaveBeenCalledWith(expect.anything(), TREASURY, 3));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Sign' })).not.toBeDisabled());
+  // The send is over: before 7 Oct 2026 the buttons came back at once, since
+  // then they wait for the network behind a "Sent." notice. Either will do.
+  await waitFor(() => {
+    const sign = screen.queryByRole('button', { name: 'Sign' }) as HTMLButtonElement | null;
+    expect(Boolean(screen.queryByText(/^Sent\./)) || Boolean(sign && !sign.disabled)).toBe(true);
+  });
 
   fireEvent.click(screen.getByText('open Team'));
   teamPending.resolve([teamAction]);

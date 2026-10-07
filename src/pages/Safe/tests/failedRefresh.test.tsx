@@ -81,3 +81,29 @@ test('a refresh that fails keeps what was read, says so, and blocks signing unti
   expect(screen.getByText(/did not answer/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Sign' })).toBeDisabled();
 });
+
+test('a page left stale by a refused read becomes fresh again by itself', async () => {
+  open();
+  await screen.findByText('Send 0.1 EGLD to someone');
+
+  (readOverview as jest.Mock).mockImplementation(refused);
+  (readPendingActions as jest.Mock).mockImplementation(refused);
+  await act(async () => { screen.getByRole('button', { name: 'Refresh' }).click(); });
+  await screen.findByText(/did not answer/);
+
+  // The network answers again; nobody presses anything.
+  (readOverview as jest.Mock).mockResolvedValue(good);
+  (readPendingActions as jest.Mock).mockResolvedValue([{ ...action, signerCount: 0, signers: [] }]);
+  await waitFor(() => expect(screen.queryByText(/did not answer/)).toBeNull(), { timeout: 9000, interval: 250 });
+  expect(screen.getByRole('button', { name: 'Sign' })).not.toBeDisabled();
+}, 15000);
+
+test('a refused history alone does not block signing', async () => {
+  (readHistory as jest.Mock).mockImplementation(refused);
+  open();
+  await screen.findByText('Send 0.1 EGLD to someone');
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+  expect(screen.queryByText(/did not answer/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Sign' })).not.toBeDisabled();
+});
+

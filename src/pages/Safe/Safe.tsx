@@ -75,6 +75,8 @@ const SafeView = ({ address }: { address: string }) => {
   const [proposing, setProposing] = useState(false);
   // True when the last read was refused and the page shows the one before.
   const [stale, setStale] = useState(false);
+  // True between a successful send and the read that shows its result.
+  const [awaiting, setAwaiting] = useState(false);
 
   // Set by the create page: the deploy was just sent, so for a little while an
   // address that cannot be read yet is expected, not a failure.
@@ -101,11 +103,14 @@ const SafeView = ({ address }: { address: string }) => {
   // Each part is read on its own, and a part the network refused keeps what
   // was read before: a failed refresh used to replace a safe with "unknown",
   // "No board members found" and "not on this board" (7 Oct 2026). Only a
-  // first read that fails is shown as a failure. While anything is out of
-  // date, nothing can be signed or carried out.
+  // first read that fails is shown as a failure. Only the safe's own state,
+  // its board, quorum and pending actions, can leave the page stale, and while
+  // it is stale nothing can be signed and the page retries by itself.
   const readBefore = useRef({ overview: false, pending: false });
-  const load = useCallback(async () => {
-    if (!alive.current) return;
+  const staleRetries = useRef(0);
+  const loadRef = useRef<() => Promise<boolean>>(async () => false);
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!alive.current) return false;
     setLoading(true);
     let fresh = true;
     readContractInfo(address)
@@ -126,21 +131,34 @@ const SafeView = ({ address }: { address: string }) => {
       fresh = false;
       if (!readBefore.current.pending) setPending(null);
     }
-    try {
-      setHistory(await readHistory(address));
-    } catch {
-      fresh = false;
-    }
+    // History and role keep their last value when refused, without blocking.
+    readHistory(address)
+      .then((entries) => alive.current && setHistory(entries))
+      .catch(() => undefined);
     try {
       setRole(isLoggedIn ? await readUserRole(address, account.address) : 'None');
     } catch {
-      fresh = false;
+      // Unknown stays unknown: never "not on this board" for a refused read.
     }
-    if (alive.current) {
-      setStale(!fresh && (readBefore.current.overview || readBefore.current.pending));
-      setLoading(false);
+    if (!alive.current) return fresh;
+    const isStale = !fresh && (readBefore.current.overview || readBefore.current.pending);
+    setStale(isStale);
+    setLoading(false);
+    if (isStale) {
+      // 5 s, 10 s, then every 30 s, until the network answers.
+      const delay = Math.min(30000, 5000 * Math.pow(2, staleRetries.current++));
+      timers.current.push(
+        setTimeout(() => {
+          forget(address);
+          loadRef.current();
+        }, delay)
+      );
+    } else if (fresh) {
+      staleRetries.current = 0;
     }
+    return fresh;
   }, [address, isLoggedIn, account.address]);
+  loadRef.current = load;
 
   // A different safe or a different wallet: what was known about the role no
   // longer applies until it has been read again.
@@ -154,20 +172,27 @@ const SafeView = ({ address }: { address: string }) => {
   const run = async (actionId: number, work: () => Promise<unknown>) => {
     // One wallet prompt at a time: every action button is disabled while this
     // runs, or a second transaction could be built on the same nonce (WEB-08).
-    if (working !== 0 || proposing) return;
+    if (working !== 0 || proposing || awaiting) return;
     setWorking(actionId);
     setProblem('');
+    let sent = false;
     try {
       await work();
+      sent = true;
     } catch (failure: unknown) {
       setProblem(explainWalletFailure(failure, 'That'));
     }
-    // Success or not, read the chain again: a send whose answer was lost may
-    // have gone through, and only the chain can say (WEB-07).
     setWorking(0);
-    forget(address);
-    await load();
-    readAgainShortly();
+    if (sent) {
+      // Sent: the network needs a few seconds. The buttons wait for the
+      // processed signal, so the same action is not sent twice meanwhile.
+      awaitNetwork();
+    } else {
+      // A send whose answer was lost may have gone through, and only the
+      // chain can say (WEB-07).
+      forget(address);
+      await load();
+    }
   };
 
   // A wallet that never answers, an xPortal request dismissed on the phone for
@@ -210,7 +235,7 @@ const SafeView = ({ address }: { address: string }) => {
       setProblem(explainWalletFailure(failure, 'The handover'));
     }
     setHandingOver(false);
-    readAgainShortly();
+    awaitNetwork();
   };
 
   // A transaction sent from this page lands seconds after the wallet returns, so
@@ -221,25 +246,28 @@ const SafeView = ({ address }: { address: string }) => {
       const touched: string[] | undefined = (event as CustomEvent).detail?.addresses;
       if (touched && !touched.includes(address)) return;
       forget(address);
-      load();
+      load().then((fresh) => {
+        if (fresh && alive.current) setAwaiting(false);
+      });
     };
     window.addEventListener('mvxsafe:settled', again);
     return () => window.removeEventListener('mvxsafe:settled', again);
   }, [load]);
 
-  // The event above comes from a socket the SDK opens, which a strict content
-  // policy can block, ours did. So the page also reads again a few times after
-  // anything is sent, and then it no longer depends on that socket at all.
-  const readAgainShortly = useCallback(() => {
-    [4000, 10000, 20000].forEach((delay) =>
-      timers.current.push(
-        setTimeout(() => {
-          forget(address);
-          load();
-        }, delay)
-      )
+  // The processed signal above comes from the SDK, and on a clock from
+  // signAndSendTransactions. Should neither arrive, the buttons are released
+  // after half a minute with one last read.
+  const awaitNetwork = useCallback(() => {
+    setAwaiting(true);
+    timers.current.push(
+      setTimeout(() => {
+        if (!alive.current) return;
+        setAwaiting(false);
+        forget(address);
+        load();
+      }, 30000)
     );
-  }, [load]);
+  }, [address, load]);
 
   const title = nameFor(address) || 'Safe';
   const tokens = overview?.tokens ?? [];
@@ -336,6 +364,13 @@ const SafeView = ({ address }: { address: string }) => {
       {problem && (
         <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
           {problem}
+        </p>
+      )}
+
+      {awaiting && !stale && (
+        <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
+          Sent. The network takes a few seconds to process it; this page shows the result by
+          itself.
         </p>
       )}
 
@@ -466,7 +501,7 @@ const SafeView = ({ address }: { address: string }) => {
                       (action.signers.includes(account.address) ? (
                         <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'><button
                           type='button'
-                          disabled={working !== 0 || proposing || stale}
+                          disabled={working !== 0 || proposing || stale || awaiting}
                           onClick={() =>
                             run(action.actionId, () =>
                               unsignAction(signer, address, action.actionId)
@@ -479,7 +514,7 @@ const SafeView = ({ address }: { address: string }) => {
                       ) : (
                         <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'><button
                           type='button'
-                          disabled={working !== 0 || proposing || stale}
+                          disabled={working !== 0 || proposing || stale || awaiting}
                           onClick={() =>
                             run(action.actionId, () =>
                               signAction(signer, address, action.actionId)
@@ -494,7 +529,7 @@ const SafeView = ({ address }: { address: string }) => {
                     {action.quorumReached && (
                       <Tip text='Makes it happen. Enough signatures are in, and any board member may press this.'><button
                         type='button'
-                        disabled={working !== 0 || proposing || stale}
+                        disabled={working !== 0 || proposing || stale || awaiting}
                         onClick={() =>
                           run(action.actionId, () =>
                             performAction(signer, address, action.actionId)
@@ -515,7 +550,7 @@ const SafeView = ({ address }: { address: string }) => {
                     >
                       <button
                         type='button'
-                        disabled={working !== 0 || proposing || stale || action.signerCount > 0}
+                        disabled={working !== 0 || proposing || stale || awaiting || action.signerCount > 0}
                         onClick={() =>
                           run(action.actionId, () =>
                             discardAction(signer, address, action.actionId)
@@ -541,12 +576,11 @@ const SafeView = ({ address }: { address: string }) => {
           tokens={overview.tokens}
           egldBalance={overview.egldRaw}
           boardSize={overview.boardMembers.length}
-          disabled={working !== 0 || stale}
+          disabled={working !== 0 || stale || awaiting}
           onBusyChange={setProposing}
           onProposed={() => {
             forget(address);
             load();
-            readAgainShortly();
           }}
         />
       )}
