@@ -2,6 +2,7 @@
 //
 //   node scripts/capture/guide.mjs              all steps
 //   FROM=12 node scripts/capture/guide.mjs      from a given picture on
+//   ONLY=4,8,10,11 node scripts/capture/guide.mjs   just those pictures
 //
 // A Chrome window opens with an orange banner along the bottom saying what to
 // do. The script fills in every form itself and photographs each state as soon
@@ -20,7 +21,11 @@ import { homedir } from 'node:os';
 const SITE = process.env.SITE || 'https://mvxsafe.io';
 const OUT = process.env.OUT || 'public/shots/';
 const PROFILE = `${homedir()}/.mvxsafe-shots-profile`;
-const FROM = Number(process.env.FROM || 1);
+const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',').map(Number)) : null;
+const FROM = Number(process.env.FROM || (ONLY ? Math.min(...ONLY) : 1));
+const TO = Number(process.env.TO || (ONLY ? Math.max(...ONLY) : 18));
+/** Whether picture n is to be taken in this run. */
+const wanted = (n) => n >= FROM && n <= TO && (!ONLY || ONLY.has(n));
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
 const ALICE = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
@@ -106,7 +111,22 @@ const buttonEnabled = (name) =>
 /** Photographs the window with the banner hidden; `section` scrolls to it first. */
 const shot = async (name, section) => {
   const number = Number(name.slice(0, 2));
-  if (number < FROM) return;
+  if (!wanted(number)) return;
+  // The wallet-free pictures must not catch the wallet panel half open.
+  if (number <= 4) {
+    await until(
+      (needle) => {
+        const walk = (root) =>
+          [...root.querySelectorAll('*')].some(
+            (el) => el.shadowRoot && (el.shadowRoot.textContent.includes(needle) || walk(el.shadowRoot))
+          );
+        return !walk(document);
+      },
+      'Connect a wallet',
+      'the wallet panel to close',
+      60000
+    );
+  }
   if (section) {
     await page.evaluate((start) => {
       const target = [...document.querySelectorAll('section, h2, h1')].find((el) =>
@@ -116,6 +136,8 @@ const shot = async (name, section) => {
     }, section);
     await page.waitForTimeout(600);
   }
+  // A resting pointer opens tooltips: park it on empty page margin first.
+  await page.mouse.move(8, 450);
   await page.evaluate(() => {
     const bar = document.getElementById('shot-bar');
     if (bar) bar.style.display = 'none';
@@ -151,9 +173,9 @@ const fill = async (placeholder, value, nth = 0) =>
 // Buttons by their exact name: "Propose" would also match "Add proposer".
 const button = (name) => page.getByRole('button', { name, exact: true });
 
-// Each phase runs only when FROM reaches into it, so a restart from a later
-// picture does not ask for wallets that are already connected.
-const phase = (first, last) => FROM <= last && first >= 0;
+// Each phase runs only when the pictures asked for reach into it, so a restart
+// from a later picture does not ask for wallets that are already connected.
+const phase = (first, last) => FROM <= last && first <= TO;
 
 console.log(`\nSite: ${SITE}. Follow the orange banner in the Chrome window.\n`);
 await go('/');
@@ -162,8 +184,9 @@ await go('/');
 
 if (phase(1, 4)) {
   if (await page.evaluate(hasText, 'Disconnect')) {
-    await say('Please press Disconnect first: the first pictures are taken without a wallet.');
-    await until(() => !document.body.innerText.includes('Disconnect'), null, 'a disconnect');
+    await say('Disconnecting: the first pictures are taken without a wallet.', 'ok');
+    await button('Disconnect').click();
+    await until(() => !document.body.innerText.includes('Disconnect'), null, 'a disconnect', 60000);
   }
   await say('Nothing to do: photographing the site without a wallet.', 'ok');
   await seed([], LABELS);
@@ -195,7 +218,7 @@ if (phase(1, 4)) {
 
 // --- 2. Connected as Alice (pictures 5 to 11) ---------------------------------
 
-if (phase(5, 5)) {
+if (phase(5, 5) && wanted(5)) {
   await say('Press Connect, then WAIT a second before choosing xPortal, so the chooser can be photographed. Connect as Alice (your own wallet).');
   await until(
     (needle) => {
@@ -213,8 +236,8 @@ if (phase(5, 5)) {
     await shot('05-connect');
   }
 }
-// Alice is needed up to picture 14; from 15 on it is Bob.
-if (FROM <= 14) {
+// Alice is needed for pictures 5 to 14; from 15 on it is Bob.
+if (phase(5, 14)) {
   if (!(await page.evaluate(connectedAs, 'Alice'))) {
     await say('Connect as Alice (your own wallet, xPortal). I am waiting.');
   }
@@ -251,7 +274,7 @@ if (phase(6, 10)) {
   await shot('10-membership-note', 'Propose an action');
 }
 
-if (FROM <= 14) {
+if (phase(11, 14)) {
   await go(`/safe/${SAFE}`);
   await until(hasText, 'Propose an action', 'the propose form', 120000);
 }
