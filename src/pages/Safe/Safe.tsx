@@ -578,7 +578,19 @@ const SafeView = ({ address }: { address: string }) => {
           tokens={overview.tokens}
           egldBalance={overview.egldRaw}
           boardSize={overview.boardMembers.length}
+          boardMembers={overview.boardMembers}
+          proposers={overview.proposers ?? []}
+          quorum={overview.quorum}
           disabled={working !== 0 || stale || awaiting}
+          disabledReason={
+            awaiting
+              ? 'Waiting for the network to confirm the last transaction; this unlocks by itself.'
+              : stale
+                ? 'The network did not answer the last read; this unlocks as soon as it does.'
+                : working !== 0
+                  ? 'Another transaction is waiting for your wallet.'
+                  : undefined
+          }
           onBusyChange={setProposing}
           onProposed={() => {
             forget(address);

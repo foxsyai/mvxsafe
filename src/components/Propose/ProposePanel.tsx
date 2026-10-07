@@ -10,6 +10,8 @@ import {
 } from 'multisig/actions';
 import { formatUnits } from 'multisig/describe';
 import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
+import { isAccountAddress } from 'multisig/newSafe';
+import { membershipNote } from 'multisig/reads';
 import { explainWalletFailure } from 'multisig/walletFailure';
 
 /** A problem with what was typed, found before the wallet was asked anything. */
@@ -65,6 +67,12 @@ interface ProposePanelProps {
   disabled?: boolean;
   /** Tells the page when this form is waiting for the wallet. */
   onBusyChange?: (busy: boolean) => void;
+  /** Said under the button while it is disabled. */
+  disabledReason?: string;
+  /** Today's board, proposers and quorum, to say what a change would do. */
+  boardMembers?: string[];
+  proposers?: string[];
+  quorum?: number | null;
 }
 
 export const ProposePanel = ({
@@ -75,7 +83,11 @@ export const ProposePanel = ({
   onProposed,
   egldBalance,
   disabled = false,
-  onBusyChange
+  onBusyChange,
+  disabledReason,
+  boardMembers = [],
+  proposers = [],
+  quorum: currentQuorum = null
 }: ProposePanelProps) => {
   const [kind, setKind] = useState<Kind>('token');
   const [to, setTo] = useState('');
@@ -185,6 +197,29 @@ export const ProposePanel = ({
     if (reachedWallet) onProposed();
   };
 
+  // What the change would do, said while typing, in the words the signers
+  // will read: one role per address, and quorums that refuse or lock.
+  const ACTION_NAME: Partial<Record<Kind, string>> = {
+    addBoard: 'AddBoardMember',
+    addProposer: 'AddProposer',
+    remove: 'RemoveUser',
+    quorum: 'ChangeQuorum'
+  };
+  const changeNote = (() => {
+    const name = ACTION_NAME[kind];
+    if (!name) return '';
+    const subject = kind === 'quorum' ? Number(quorum) : to.trim();
+    if (kind === 'quorum' ? !Number.isInteger(subject) || !quorum : !isAccountAddress(String(subject))) {
+      return '';
+    }
+    const note = membershipNote(
+      { name, fields: [subject] },
+      { quorum: currentQuorum, boardMembers, proposers }
+    );
+    return note.replace(/^ \(/, '').replace(/\)$/, '');
+  })();
+  const noteIsWarning = /refuse|lock|every action/.test(changeNote);
+
   const needsAddress = kind !== 'quorum';
   const needsAmount = kind === 'token' || kind === 'egld';
 
@@ -291,6 +326,18 @@ export const ProposePanel = ({
         </div>
       )}
 
+      {changeNote && (
+        <p
+          className={`mt-3 rounded-lg px-3 py-2 text-xs ${
+            noteIsWarning
+              ? 'border border-[#FBBF24]/30 bg-[#FBBF24]/5 text-[#FBBF24]'
+              : 'border border-[#2A2A32] text-[#9AA0A6]'
+          }`}
+        >
+          {changeNote.charAt(0).toUpperCase() + changeNote.slice(1)}.
+        </p>
+      )}
+
       {error && <p className='mt-3 text-xs text-[#F87171]'>{error}</p>}
 
       <div className='mt-4'>
@@ -304,6 +351,7 @@ export const ProposePanel = ({
             {busy ? 'Waiting for your wallet...' : 'Propose'}
           </button>
         </Tip>
+        {disabled && !busy && disabledReason && <p className={hint}>{disabledReason}</p>}
         {busy && stuck && (
           <p className='mt-3 text-xs text-[#6B7280]'>
             Your wallet has not answered. If you dismissed the request,{' '}
