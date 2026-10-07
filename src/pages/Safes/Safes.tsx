@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
@@ -66,6 +66,14 @@ export const Safes = () => {
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<Record<string, Role>>({});
 
+  const listAlive = useRef(true);
+  useEffect(
+    () => () => {
+      listAlive.current = false;
+    },
+    []
+  );
+
   const isLoggedIn = useGetIsLoggedIn();
   const { address: connected } = useGetAccount();
 
@@ -113,6 +121,8 @@ export const Safes = () => {
       const pending = [...list];
       const worker = async () => {
         for (;;) {
+          // Left the list: stop, so the page now open is not queued behind it.
+          if (!listAlive.current) return;
           const safe = pending.shift();
           if (!safe) return;
           await readOne(safe, connectedAddress);

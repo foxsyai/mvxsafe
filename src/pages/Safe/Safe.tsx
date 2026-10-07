@@ -62,6 +62,8 @@ const SafeView = ({ address }: { address: string }) => {
   // Null when the pending actions could not be read, which is NOT the same as none.
   const [pending, setPending] = useState<PendingAction[] | null>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // False until the history was read once: before that, "none" would be a guess.
+  const [historyRead, setHistoryRead] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   // Null while unknown: nobody is told they are not on a board before it was checked.
@@ -133,7 +135,11 @@ const SafeView = ({ address }: { address: string }) => {
     }
     // History and role keep their last value when refused, without blocking.
     readHistory(address)
-      .then((entries) => alive.current && setHistory(entries))
+      .then((entries) => {
+        if (!alive.current) return;
+        setHistory(entries);
+        setHistoryRead(true);
+      })
       .catch(() => undefined);
     try {
       setRole(isLoggedIn ? await readUserRole(address, account.address) : 'None');
@@ -144,7 +150,8 @@ const SafeView = ({ address }: { address: string }) => {
     const isStale = !fresh && (readBefore.current.overview || readBefore.current.pending);
     setStale(isStale);
     setLoading(false);
-    if (isStale) {
+    // Whatever was refused, first read or later, is asked again by itself.
+    if (!fresh) {
       // 5 s, 10 s, then every 30 s, until the network answers.
       const delay = Math.min(30000, 5000 * Math.pow(2, staleRetries.current++));
       timers.current.push(
@@ -326,8 +333,9 @@ const SafeView = ({ address }: { address: string }) => {
             fills in by itself as soon as the safe exists.
           </p>
         ) : (
-          <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
-            This address could not be read from the network.
+          <p className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>
+            The network has not answered yet; trying again by itself. Nothing on this page can be
+            signed until it has.
           </p>
         ))}
 
@@ -404,9 +412,9 @@ const SafeView = ({ address }: { address: string }) => {
           <p className='mt-1 text-2xl font-semibold text-white'>
             {overview?.quorum
               ? `${overview.quorum} of ${overview.boardMembers.length}`
-              : loading
-                ? '...'
-                : 'unknown'}
+              : overview
+                ? 'unknown'
+                : '...'}
           </p>
           <p className='mt-2 text-xs text-[#6B7280]'>
             {overview
@@ -419,7 +427,9 @@ const SafeView = ({ address }: { address: string }) => {
           <p className='mt-1 text-2xl font-semibold text-white'>
             {primary
               ? primary.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })
-              : tokens.length}
+              : overview
+                ? tokens.length
+                : '...'}
             {primary?.valueUsd ? (
               <span className='ml-2 text-sm font-normal text-[#6B7280]'>
                 {formatUsd(primary.valueUsd)}
@@ -617,7 +627,8 @@ const SafeView = ({ address }: { address: string }) => {
                 )}
               </li>
             ))}
-            {!loading && (overview?.boardMembers.length ?? 0) === 0 && (
+            {!overview && <li className='text-sm text-[#6B7280]'>...</li>}
+            {overview && overview.boardMembers.length === 0 && (
               <li className='text-sm text-[#6B7280]'>No board members found.</li>
             )}
           </ul>
@@ -648,7 +659,7 @@ const SafeView = ({ address }: { address: string }) => {
             <li className='flex justify-between'>
               <span className='text-[#9AA0A6]'>EGLD</span>
               <span className='text-white'>
-                {(overview?.egld ?? 0).toFixed(4)}
+                {overview ? overview.egld.toFixed(4) : '...'}
                 {overview?.egldPrice && overview.egld > 0 ? (
                   <span className='ml-2 text-xs text-[#6B7280]'>
                     {formatUsd(overview.egld * overview.egldPrice)}
@@ -730,7 +741,7 @@ const SafeView = ({ address }: { address: string }) => {
               {history.length === 0 && (
                 <tr>
                   <td colSpan={4} className='px-4 py-6 text-center text-sm text-[#6B7280]'>
-                    {loading ? 'Loading...' : 'No transactions found.'}
+                    {historyRead ? 'No transactions found.' : 'Loading...'}
                   </td>
                 </tr>
               )}

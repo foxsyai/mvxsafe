@@ -213,9 +213,9 @@ export const networkMock = {
   explorerUrl: 'https://devnet-explorer.multiversx.com',
   clearCache: () => {},
   forget: () => {},
-  // Mirrors multisig/network: a refused or lost read, as opposed to an answer.
+  // Mirrors multisig/network: anything but the contract itself saying no.
   isTransient: (error: any) =>
-    /\b(429|502|503|504)\b|Too Many Requests|timeout|timed out|Network|Failed to fetch/i.test(
+    !/function not found|invalid function|execution failed|user error|wrong number of arguments/i.test(
       String(error?.message ?? error ?? '')
     ),
   cached: async <T>(_key: string, work: () => Promise<T>) => work(),
@@ -276,8 +276,11 @@ export const useRecorded = (safe: RecordedSafe | null) => {
 
 /** Views that answer with an error (a 429 after the retries, a timeout, a node that is down). */
 let failing = new Set<string>();
-export const useFailing = (views: string[]) => {
+let failingMessage = '{fn} answered 429';
+/** Views that fail, and how (by default a 429 after the retries). */
+export const useFailing = (views: string[], message = '{fn} answered 429') => {
   failing = new Set(views);
+  failingMessage = message;
 };
 
 /** Views that answer late, as on a slow connection or a busy API. */
@@ -300,12 +303,14 @@ const recordedAnswer = (safe: RecordedSafe, fn: string, args: Uint8Array[]): Uin
 
 const queryContractOriginal = networkMock.networkProvider.queryContract;
 networkMock.networkProvider.queryContract = async (query: { function: string; arguments?: Uint8Array[] }) => {
-  if (failing.has(query.function)) throw new Error(`${query.function} answered 429`);
+  if (failing.has(query.function)) throw new Error(failingMessage.replace('{fn}', query.function));
   if (delayed.views.has(query.function)) await new Promise((r) => setTimeout(r, delayed.ms));
   if (recorded) {
     const parts = recordedAnswer(recorded, query.function, query.arguments ?? []);
     if (parts) return { function: query.function, returnCode: 'ok', returnMessage: '', returnDataParts: parts };
     if (query.function === 'userRole') return { function: query.function, returnCode: 'ok', returnMessage: '', returnDataParts: [new Uint8Array(0)] };
+    // Recorded before the proposer list was read; those safes had no proposers.
+    if (query.function === 'getAllProposers') return { function: query.function, returnCode: 'ok', returnMessage: '', returnDataParts: [] };
     throw new Error(`no recorded answer for ${query.function}`);
   }
   return queryContractOriginal(query);

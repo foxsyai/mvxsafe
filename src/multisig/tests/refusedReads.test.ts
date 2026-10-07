@@ -28,3 +28,15 @@ test('a card whose quorum the API refused is not "not a multisig"', async () => 
   useFailing(['getQuorum']);
   await expect(readCard(SAFE, ALICE)).rejects.toThrow();
 });
+
+test('a dropped connection, whatever its wording, is not "not a multisig" either', async () => {
+  useFailing(['getQuorum'], 'socket hang up');
+  await expect(readCard(SAFE, ALICE)).rejects.toThrow('socket hang up');
+});
+
+test('control: the contract saying "no such function" is an answer: not a multisig', async () => {
+  useFailing(['getQuorum'], 'invalid function (not found)');
+  const card = await readCard(SAFE, ALICE);
+  expect(card.quorum).toBeNull();
+});
+

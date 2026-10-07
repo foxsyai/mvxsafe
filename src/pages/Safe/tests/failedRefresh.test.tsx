@@ -107,3 +107,23 @@ test('a refused history alone does not block signing', async () => {
   expect(screen.getByRole('button', { name: 'Sign' })).not.toBeDisabled();
 });
 
+// Seen the same day, when the API took 18 s to answer: a first read that
+// failed showed "unknown", "No board members found", "EGLD 0.0000" and
+// "No transactions found", and never tried again.
+test('a first read that fails invents nothing, says it is still trying, and fills in by itself', async () => {
+  (readOverview as jest.Mock).mockImplementationOnce(refused).mockResolvedValue(good);
+  (readPendingActions as jest.Mock).mockImplementationOnce(refused).mockResolvedValue([action]);
+  (readHistory as jest.Mock).mockImplementationOnce(refused).mockResolvedValue([]);
+  open();
+  await screen.findByText(/has not answered yet/);
+  expect(screen.queryByText(/No board members found/)).toBeNull();
+  expect(screen.queryByText(/No transactions found/)).toBeNull();
+  expect(screen.queryByText('unknown')).toBeNull();
+  expect(screen.queryByText('0.0000')).toBeNull();
+  expect(screen.queryByText(/could not be read from the network/)).toBeNull();
+
+  await screen.findByText('Send 0.1 EGLD to someone', {}, { timeout: 9000 });
+  expect(screen.getByText('2 of 2')).toBeInTheDocument();
+  expect(screen.queryByText(/has not answered yet/)).toBeNull();
+}, 15000);
+

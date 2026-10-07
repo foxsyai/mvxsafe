@@ -48,8 +48,8 @@ const CACHE_MS = 60_000;
 // 0.12 s. Pacing at two was making a list of seven safes take ten seconds for
 // no reason. These numbers stay well under what the API tolerates, and the
 // retry below covers the day it decides otherwise.
-const RATE_PER_SECOND = 10;
-const MAX_IN_FLIGHT = 6;
+const RATE_PER_SECOND = 8;
+const MAX_IN_FLIGHT = 4;
 const MAX_ATTEMPTS = 4;
 
 interface CacheEntry {
@@ -129,8 +129,16 @@ const worthRetrying = (error: any) => {
   return /\b(429|502|503|504)\b|Too Many Requests|timeout|timed out|Network|Failed to fetch/i.test(text);
 };
 
-/** A refusal or a lost answer, as opposed to a real answer such as "no such function". */
-export const isTransient = (error: unknown) => worthRetrying(error);
+/**
+ * A refusal, a timeout or a dropped connection, as opposed to an answer from
+ * the contract itself. Anything that is not clearly the contract saying no is
+ * treated as temporary: a slow API used to make a safe read as "not a
+ * multisig" (7 Oct 2026, when one answer took 18 seconds).
+ */
+export const isTransient = (error: unknown) =>
+  !/function not found|invalid function|execution failed|user error|wrong number of arguments/i.test(
+    String((error as any)?.message ?? error ?? '')
+  );
 
 const isRateLimit = (error: any) =>
   (error instanceof ApiError && error.status === 429) ||
