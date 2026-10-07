@@ -12,6 +12,7 @@ export interface CallContext {
 export declare const legacyAbi: any;
 export declare const DEFAULT_GAS: bigint;
 export declare const toRawAmount: (amount: string | number, decimals: number) => bigint;
+export declare const parseAddress: (value: string, what?: string) => import('@multiversx/sdk-core').Address;
 export declare const buildSign: (c: CallContext, actionId: number) => Promise<Transaction>;
 export declare const buildUnsign: (c: CallContext, actionId: number) => Promise<Transaction>;
 export declare const buildPerform: (c: CallContext, actionId: number) => Promise<Transaction>;

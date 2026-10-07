@@ -45,7 +45,7 @@ const call = async ({ chainId, sender, nonce, safe, fn, args, gasLimit }) => {
   const transaction = await factoryFor(chainId).createTransactionForExecute(
     new Address(sender),
     {
-      contract: new Address(safe),
+      contract: parseAddress(safe, 'safe address'),
       function: fn,
       gasLimit: gasLimit ?? DEFAULT_GAS,
       arguments: args
@@ -71,11 +71,51 @@ export const buildDiscard = (context, actionId) =>
 
 // --- proposing ---------------------------------------------------------------
 
-/** Turns "12.5" into the integer the chain works in, without floating point. */
+/**
+ * Turns "12.5" into the integer the chain works in, exactly, or refuses it.
+ *
+ * Only digits with at most one dot. No commas: a comma is a thousands separator
+ * in one country and a decimal point in the next, and "250,000" FOXSY used to
+ * be proposed as 250. No signs, exponents, hex or blanks, and never more
+ * decimals than the token has, which used to be cut off silently (tx audit
+ * TX-01 to TX-05, 7 Oct 2026). Trailing zeros past the decimals change nothing
+ * and are allowed.
+ */
 export const toRawAmount = (amount, decimals) => {
-  const [whole, fraction = ''] = String(amount).trim().replace(',', '.').split('.');
+  const text = String(amount ?? '').trim();
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(text);
+  if (!match || (match[1] === '' && !match[2])) {
+    throw new Error(
+      `"${text}" is not an amount. Use digits and at most one dot, for example 250000 or 1.5.`
+    );
+  }
+  const [, whole, fraction = ''] = match;
+  if (/[^0]/.test(fraction.slice(decimals))) {
+    throw new Error(`This token has ${decimals} decimals, and "${text}" has more.`);
+  }
   const padded = (fraction + '0'.repeat(decimals)).slice(0, decimals);
   return BigInt(`${whole || '0'}${padded}`);
+};
+
+const BECH32_ADDRESS = /^erd1[02-9ac-hj-np-z]{58}$/;
+
+/**
+ * An erd1 address, checksum included, or an error. new Address() alone also
+ * accepts 64 hex characters, so a pasted transaction hash became a recipient
+ * or a board member that nobody controls (tx audit TX-06).
+ */
+export const parseAddress = (value, what = 'address') => {
+  const text = String(value ?? '').trim();
+  if (!BECH32_ADDRESS.test(text) || !Address.isValid(text)) {
+    throw new Error(`That is not a valid MultiversX ${what}: "${text}".`);
+  }
+  return Address.newFromBech32(text);
+};
+
+/** A positive amount: a transfer of nothing is accepted, then fails when carried out. */
+const positive = (raw) => {
+  if (raw <= 0n) throw new Error('The amount has to be more than zero.');
+  return raw;
 };
 
 /** Top encoding of an amount, which is how a BigUint travels as an argument. */
@@ -91,13 +131,16 @@ const amountBytes = (raw) => {
 const variadic = (items) => VariadicValue.fromItems(...items);
 
 /** EGLD out of the safe, optionally calling a function on the receiving side. */
-export const buildProposeEgld = (context, { to, amount, functionName, functionArgs = [] }) =>
-  call({
+export const buildProposeEgld = async (context, { to, amount, functionName, functionArgs = [] }) => {
+  const raw = toRawAmount(amount, 18);
+  // Zero EGLD only makes sense when a function is called with it.
+  if (!functionName) positive(raw);
+  return call({
     ...context,
     fn: 'proposeTransferExecute',
     args: [
-      new Address(to),
-      new BigUIntValue(toRawAmount(amount, 18)),
+      parseAddress(to, 'recipient'),
+      new BigUIntValue(raw),
       variadic(
         functionName
           ? [
@@ -108,6 +151,7 @@ export const buildProposeEgld = (context, { to, amount, functionName, functionAr
       )
     ]
   });
+};
 
 /**
  * A token out of the safe. On this build there is no ESDT-specific endpoint:
@@ -115,29 +159,31 @@ export const buildProposeEgld = (context, { to, amount, functionName, functionAr
  * the amount as its arguments. The endpoint name is its own argument, NOT the
  * first entry of the argument list.
  */
-export const buildProposeToken = (context, { to, tokenIdentifier, amount, decimals }) =>
-  call({
+export const buildProposeToken = async (context, { to, tokenIdentifier, amount, decimals }) => {
+  const raw = positive(toRawAmount(amount, decimals));
+  return call({
     ...context,
     fn: 'proposeAsyncCall',
     args: [
-      new Address(to),
+      parseAddress(to, 'recipient'),
       new BigUIntValue(0n),
       variadic([
         BytesValue.fromUTF8('ESDTTransfer'),
         BytesValue.fromUTF8(tokenIdentifier),
-        amountBytes(toRawAmount(amount, decimals))
+        amountBytes(raw)
       ])
     ]
   });
+};
 
 export const buildProposeAddBoardMember = (context, address) =>
-  call({ ...context, fn: 'proposeAddBoardMember', args: [new Address(address)] });
+  call({ ...context, fn: 'proposeAddBoardMember', args: [parseAddress(address, 'board member')] });
 
 export const buildProposeAddProposer = (context, address) =>
-  call({ ...context, fn: 'proposeAddProposer', args: [new Address(address)] });
+  call({ ...context, fn: 'proposeAddProposer', args: [parseAddress(address, 'proposer')] });
 
 export const buildProposeRemoveUser = (context, address) =>
-  call({ ...context, fn: 'proposeRemoveUser', args: [new Address(address)] });
+  call({ ...context, fn: 'proposeRemoveUser', args: [parseAddress(address, 'member')] });
 
 export const buildProposeChangeQuorum = (context, newQuorum) =>
   call({ ...context, fn: 'proposeChangeQuorum', args: [new U32Value(newQuorum)] });
@@ -193,7 +239,7 @@ export const buildDeploySafe = async ({ chainId, sender, nonce }, { bytecode, qu
     gasLimit: DEPLOY_GAS,
     arguments: [
       new U32Value(quorum),
-      ...board.map((member) => new AddressValue(new Address(member)))
+      ...board.map((member) => new AddressValue(parseAddress(member, 'board member')))
     ],
     isUpgradeable: true,
     isReadable: true,
@@ -210,10 +256,10 @@ export const buildHandOver = async ({ chainId, sender, nonce, safe }) => {
     config: new TransactionsFactoryConfig({ chainID: chainId })
   });
   const transaction = await factory.createTransactionForExecute(new Address(sender), {
-    contract: new Address(safe),
+    contract: parseAddress(safe, 'safe address'),
     function: 'ChangeOwnerAddress',
     gasLimit: HANDOVER_GAS,
-    arguments: [new AddressValue(new Address(safe))]
+    arguments: [new AddressValue(parseAddress(safe, 'safe address'))]
   });
   transaction.nonce = BigInt(nonce);
   return transaction;

@@ -8,7 +8,11 @@ import {
   proposeSendToken,
   Signer
 } from 'multisig/actions';
+import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
 import { explainWalletFailure } from 'multisig/walletFailure';
+
+/** A problem with what was typed, found before the wallet was asked anything. */
+class FormError extends Error {}
 import { Info, Tip } from 'components/Info';
 import { TokenBalance } from 'multisig/reads';
 
@@ -52,7 +56,12 @@ interface ProposePanelProps {
   signer: Signer;
   tokens: TokenBalance[];
   boardSize: number;
+  /** After every attempt that reached the wallet, success or not. */
   onProposed: () => void;
+  /** True while another wallet prompt is open on the page. */
+  disabled?: boolean;
+  /** Tells the page when this form is waiting for the wallet. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export const ProposePanel = ({
@@ -60,7 +69,9 @@ export const ProposePanel = ({
   signer,
   tokens,
   boardSize,
-  onProposed
+  onProposed,
+  disabled = false,
+  onBusyChange
 }: ProposePanelProps) => {
   const [kind, setKind] = useState<Kind>('token');
   const [to, setTo] = useState('');
@@ -88,30 +99,58 @@ export const ProposePanel = ({
 
   const submit = async () => {
     setError('');
+    // What can be checked without the wallet is checked first, and said plainly.
+    try {
+      if (kind !== 'quorum') parseAddress(to, kind === 'token' || kind === 'egld' ? 'recipient' : 'address');
+      if (kind === 'egld') toRawAmount(amount, 18);
+      if (kind === 'token' && token) toRawAmount(amount, token.decimals);
+    } catch (failure: unknown) {
+      setError((failure as Error).message);
+      return;
+    }
+    if (disabled) return;
     setBusy(true);
+    onBusyChange?.(true);
+    let reachedWallet = false;
     try {
       switch (kind) {
-        case 'token':
-          if (!token) throw new Error('Choose a token.');
+        case 'token': {
+          if (!token) throw new FormError('Choose a token.');
+          // Checked here, before the wallet opens: a transfer the safe cannot pay
+          // is accepted, signed by the board, and then either consumed with
+          // nothing moved or stuck failing at every "Carry it out" (TX-07).
+          const raw = toRawAmount(amount, token.decimals);
+          if (raw > BigInt(token.balance || '0')) {
+            throw new FormError(
+              `The safe holds ${token.amount.toLocaleString('en-US')} ${token.identifier}, less than that.`
+            );
+          }
+          reachedWallet = true;
           await proposeSendToken(signer, safe, to, token.identifier, amount, token.decimals);
           break;
+        }
         case 'egld':
+          reachedWallet = true;
           await proposeSendEgld(signer, safe, to, amount);
           break;
         case 'addBoard':
+          reachedWallet = true;
           await proposeAddBoardMember(signer, safe, to);
           break;
         case 'addProposer':
+          reachedWallet = true;
           await proposeAddProposer(signer, safe, to);
           break;
         case 'remove':
+          reachedWallet = true;
           await proposeRemoveUser(signer, safe, to);
           break;
         case 'quorum': {
           const value = Number(quorum);
           if (!Number.isInteger(value) || value < 1 || value > boardSize) {
-            throw new Error(`The quorum has to be a whole number between 1 and ${boardSize}.`);
+            throw new FormError(`The quorum has to be a whole number between 1 and ${boardSize}.`);
           }
+          reachedWallet = true;
           await proposeChangeQuorum(signer, safe, value);
           break;
         }
@@ -119,11 +158,19 @@ export const ProposePanel = ({
       setTo('');
       setAmount('');
       setQuorum('');
-      onProposed();
     } catch (failure: unknown) {
-      setError(explainWalletFailure(failure, 'The proposal'));
+      setError(
+        failure instanceof FormError
+          ? failure.message
+          : explainWalletFailure(failure, 'The proposal')
+      );
     }
     setBusy(false);
+    onBusyChange?.(false);
+    // Read the chain again after any attempt the wallet saw: a proposal whose
+    // answer was lost may be on chain, and proposing it again would put a
+    // second identical action in front of the board (web audit WEB-07).
+    if (reachedWallet) onProposed();
   };
 
   const needsAddress = kind !== 'quorum';
@@ -238,7 +285,7 @@ export const ProposePanel = ({
         <Tip text='Puts the request in front of the board. Your wallet will ask you to sign this proposal, which costs a small network fee and moves nothing by itself.'>
           <button
             type='button'
-            disabled={busy}
+            disabled={busy || disabled}
             onClick={submit}
             className='rounded-lg bg-[#FF6E0A] px-5 py-2 text-sm font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
           >
