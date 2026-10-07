@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PRIMARY_TOKEN } from 'config/safes';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
 import { RoleBadge, Role } from 'components/RoleBadge';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import { clearCache } from 'multisig/network';
-import { formatUsd, readCard, readUserRole, SafeCard, shortAddress } from 'multisig/reads';
+import { formatUsd, readCard, readUserRole, SafeCard, shortAddress,
+  featuredToken
+} from 'multisig/reads';
 import {
   addSafe,
   exportSafes,
@@ -225,9 +226,7 @@ export const Safes = () => {
       <div className='mt-8 grid gap-4 sm:grid-cols-2'>
         {safes.map((safe) => {
           const card = cards[safe.address];
-          const primary =
-            card?.tokens.find((token) => token.identifier === PRIMARY_TOKEN) ??
-            card?.tokens[0];
+          const primary = card ? featuredToken(card.tokens) : undefined;
 
           return (
             <div
@@ -351,8 +350,7 @@ export const Safes = () => {
         <div>
           <h2 className='text-sm font-semibold text-white'>Create a new safe</h2>
           <p className='mt-1 text-xs text-[#6B7280]'>
-            Choose the board and how many signatures it needs. It runs the same contract as the
-            Foxsy AI Foundation's safes.
+            Choose the board and how many signatures it needs.
           </p>
         </div>
         <Link

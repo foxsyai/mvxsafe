@@ -1,7 +1,7 @@
 {
-  "name": "MultiversX dApp Template",
-  "short_name": "MultiversX dApp",
-  "description": "Easily add or update assets for a Token or NFT Collection on the MultiversX Blockchain",
+  "name": "mvxsafe",
+  "short_name": "mvxsafe",
+  "description": "A multisig interface for MultiversX. Your keys stay in your wallet.",
   "icons": [
     {
       "src": "apple-touch-icon.png",

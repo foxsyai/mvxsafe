@@ -176,9 +176,8 @@ export const Guide = () => (
           create page
         </Link>
         . Your wallet signs two transactions: the first creates the safe, the second hands it to
-        itself, so nobody, not even the person who created it, can change its code alone. It runs
-        the same contract as the Foundation's safes, checked byte for byte before anything is
-        sent, and this site keeps no special access to it.
+        itself, so nobody, not even the person who created it, can change its code alone. This
+        site keeps no special access to it.
       </Step>
     </div>
 

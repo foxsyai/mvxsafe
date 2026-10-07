@@ -11,7 +11,6 @@ import {
   signAction,
   unsignAction
 } from 'multisig/actions';
-import { PRIMARY_TOKEN } from 'config/safes';
 import { clearCache, explorerUrl } from 'multisig/network';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import {
@@ -25,7 +24,8 @@ import {
   readPendingActions,
   readUserRole,
   SafeOverview,
-  shortAddress
+  shortAddress,
+  featuredToken
 } from 'multisig/reads';
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
 
@@ -218,8 +218,8 @@ const SafeView = ({ address }: { address: string }) => {
 
   const title = nameFor(address) || 'Safe';
   const tokens = overview?.tokens ?? [];
-  const primary = tokens.find((token) => token.identifier === PRIMARY_TOKEN);
-  const others = tokens.filter((token) => token.identifier !== PRIMARY_TOKEN);
+  const primary = featuredToken(tokens);
+  const others = tokens.filter((token) => token !== primary);
   const sharedTickers = new Set(
     tokens
       .map((token) => token.ticker)

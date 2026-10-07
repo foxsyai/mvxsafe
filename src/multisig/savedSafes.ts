@@ -1,9 +1,9 @@
 // The safes a visitor has added, kept in their own browser. There is no
-// account and no server here: the Foundation's seven are compiled in, anything
-// else belongs to whoever typed it and never leaves their machine.
+// account and no server here: the list belongs to whoever typed it and never
+// leaves their machine.
 
 import { Address } from '@multiversx/sdk-core';
-import { FOUNDATION_SAFES, KnownSafe } from 'config/safes';
+import { KnownSafe } from 'config/safes';
 import { getLabels, mergeLabels } from './addressBook';
 
 const STORAGE_KEY = 'mvxsafe.savedSafes';
@@ -62,12 +62,7 @@ const write = (safes: KnownSafe[]) => {
 
 export const getSavedSafes = (): KnownSafe[] => read();
 
-/**
- * Every visitor starts empty and adds their own safes: this is a tool for
- * anyone on MultiversX, not a page about the Foundation (Sebastian, 6 Oct 2026).
- * FOUNDATION_SAFES stays in the code for the next milestone, where connecting a
- * wallet shows the safes whose board the connected address sits on.
- */
+/** Every visitor starts empty and adds their own safes: this is a public tool. */
 export const getAllSafes = (): KnownSafe[] => read();
 
 export const addSafe = (safe: KnownSafe) => {
@@ -80,9 +75,6 @@ export const addSafe = (safe: KnownSafe) => {
 export const removeSafe = (address: string) => {
   write(read().filter((safe) => safe.address !== address));
 };
-
-export const isFoundationSafe = (address: string) =>
-  FOUNDATION_SAFES.some((safe) => safe.address === address);
 
 export const nameFor = (address: string) =>
   getAllSafes().find((safe) => safe.address === address)?.name ?? '';

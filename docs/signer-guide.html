@@ -46,15 +46,16 @@
             stroke-linejoin="round" stroke-linecap="round"/>
     </svg>
     <div>
-      <h1>Approving a payment at mvxsafe.io</h1>
-      <p>A guide for board members of the Foxsy AI Foundation safes</p>
+      <h1>Approving an action at mvxsafe.io</h1>
+      <p>A one-page guide for board members of a multisig safe</p>
     </div>
   </header>
 
   <p class="intro">
-    The Foundation's tokens sit in safes that <strong>no single person can move</strong>.
-    Each safe needs <strong>two signatures out of three</strong>. Somebody proposes a
-    payment, you look at it, and if you agree you sign. Nothing happens until two of you do.
+    The tokens in a safe are something <strong>no single person can move</strong>.
+    Somebody proposes an action, the other board members read it, and those who agree sign.
+    Nothing happens until <strong>enough of them have signed</strong>: the quorum, for
+    example two of three.
   </p>
   <p class="muted">Your part takes about a minute, and it is the same every time.</p>
 
@@ -62,7 +63,7 @@
     <div class="num">1</div>
     <div>
       <h2>Open the safe and connect your wallet</h2>
-      <p>Go to <strong>mvxsafe.io</strong>, open the safe named in the email, and press <strong>Connect</strong>.</p>
+      <p>Go to <strong>mvxsafe.io</strong>, open the safe you were asked to sign for, and press <strong>Connect</strong>.</p>
       <ul>
         <li>Choose how you sign: <strong>xPortal</strong> (scan the code with your phone), the
           <strong>DeFi Wallet</strong> browser extension, a <strong>Ledger</strong>, or the <strong>web wallet</strong>.</li>
@@ -76,11 +77,11 @@
     <div>
       <h2>Read what you are approving</h2>
       <p>The pending action is written in plain words, for example:
-        <em>Send 1,000,000 FOXSY to erd1abc...xyz</em>.</p>
+        <em>Send 1,000 USDC-c76f1f to erd1qyu5wthldzr8wx5c9ucg8kjagg0jfs53s8nr3zpz3hypefsdd8ssycr6th</em>.</p>
       <ul>
         <li>Check the <strong>amount</strong>, the <strong>token</strong> and the
-          <strong>address</strong> against what you were told.</li>
-        <li>If anything is different, <strong>do not sign</strong>. Close the page and call Sebastian.</li>
+          <strong>whole address</strong> against what you were told, not only its first and last letters.</li>
+        <li>If anything is different, <strong>do not sign</strong>. Close the page and ask the person who proposed it.</li>
       </ul>
     </div>
   </div>
@@ -91,7 +92,7 @@
       <h2>Sign</h2>
       <p>Press <strong>Sign</strong>, confirm in your wallet, and you are done.</p>
       <ul>
-        <li>Your signature is one of the two the safe needs.</li>
+        <li>Your signature counts towards the quorum.</li>
         <li>It costs a tiny network fee, so keep a little EGLD in your wallet, around 0.05 is plenty.</li>
       </ul>
     </div>
@@ -101,11 +102,11 @@
     <div class="num optional">4</div>
     <div>
       <h2>Optional: carry it out</h2>
-      <p>If your signature is the one that completes the two, a <strong>Perform</strong> button appears.
-        Pressing it is what actually sends the tokens.</p>
+      <p>If your signature completes the quorum, a <strong>Carry it out</strong> button appears.
+        Pressing it is what actually moves the tokens.</p>
       <ul>
         <li>You do not have to. <strong>Any board member can press it later</strong>, and the result is identical.</li>
-        <li>If you prefer to stop after signing, simply close the page and tell Sebastian.</li>
+        <li>If you prefer to stop after signing, simply close the page and tell the others.</li>
       </ul>
     </div>
   </div>
@@ -118,8 +119,8 @@
   </div>
 
   <footer>
-    Questions, or something that does not look right: contact Sebastian Marian,
-    sebastian.marian@foxsy.ai. The interface is open source at github.com/foxsyai/mvxsafe.
+    mvxsafe.io is open source: github.com/foxsyai/mvxsafe. It never holds keys, and any copy
+    of it, or any other interface for the same contract, shows the same safe.
   </footer>
 </body>
 </html>

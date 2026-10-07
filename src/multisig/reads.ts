@@ -140,6 +140,14 @@ export const readBalances = async (address: string, withNfts = true) => {
 };
 
 /** Everything a safe holds, in dollars, as far as the API knows prices. */
+/**
+ * The token a safe's tile and card lead with: the most valuable one it holds,
+ * or the first when no price is known. It used to be FOXSY whatever the safe,
+ * which made sense for one organisation and not for a public tool.
+ */
+export const featuredToken = (tokens: TokenBalance[]): TokenBalance | undefined =>
+  [...tokens].sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0))[0];
+
 export const worthOf = (egld: number, tokens: TokenBalance[], egldPrice: number) =>
   egld * egldPrice + tokens.reduce((total, token) => total + (token.valueUsd ?? 0), 0);
 

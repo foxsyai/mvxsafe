@@ -1,6 +1,6 @@
 {
-  "name": "MultiversX dApp Template",
-  "short_name": "MultiversX dApp",
+  "name": "mvxsafe",
+  "short_name": "mvxsafe",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
@@ -15,5 +15,6 @@
   ],
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
-  "display": "standalone"
+  "display": "standalone",
+  "description": "A multisig interface for MultiversX. Your keys stay in your wallet."
 }

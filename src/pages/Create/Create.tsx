@@ -4,7 +4,6 @@ import { ConnectButton } from 'components/ConnectButton';
 import { Info, Tip } from 'components/Info';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import { createSafe } from 'multisig/actions';
-import { MULTISIG_CODE_HASH } from 'multisig/legacyCalls';
 import { checkBoard, majority, MAX_BOARD } from 'multisig/newSafe';
 import { addSafe } from 'multisig/savedSafes';
 import { explainWalletFailure } from 'multisig/walletFailure';
@@ -191,11 +190,6 @@ export const Create = () => {
             Your wallet asks you to sign <span className='text-white'>two transactions</span>: the
             first creates the safe, the second hands it to itself, so that nobody, you included,
             can ever change its code alone.
-          </li>
-          <li>
-            The safe runs the same contract as the Foxsy AI Foundation's safes, checked byte for
-            byte before anything is sent (code hash{' '}
-            <span className='font-mono text-xs text-[#6B7280]'>{MULTISIG_CODE_HASH.slice(0, 12)}...</span>).
           </li>
           <li>
             The network fee is about <span className='text-white'>0.073 EGLD</span>, paid from your
