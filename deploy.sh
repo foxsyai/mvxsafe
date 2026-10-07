@@ -21,8 +21,34 @@ case "$NETWORK" in
 esac
 
 cd "$HERE"
+
+# What goes live on mainnet must be what is on GitHub: no uncommitted changes,
+# and a commit that origin/main already contains.
+if [ "$NETWORK" = mainnet ]; then
+  git diff --quiet HEAD -- || { echo "REFUSING: uncommitted changes. Commit and push first."; exit 1; }
+  git fetch -q origin main
+  git merge-base --is-ancestor HEAD origin/main ||
+    { echo "REFUSING: $(git rev-parse --short HEAD) is not on origin/main. Push it first."; exit 1; }
+fi
+
 echo "Building for $NETWORK..."
 pnpm "build-$NETWORK"
+
+# The bundle has to say, twice and independently, that it is what we are about
+# to publish: the marker the build writes from its config, and the network that
+# was actually compiled into the code. A "mainnet" build used to be able to
+# carry devnet when its steps raced (ops audit OPS-01 and OPS-03, 7 Oct 2026).
+COMMIT="$(git rev-parse HEAD)"
+read -r built_commit built_network < build/version.txt || true
+[ "${built_network:-}" = "$NETWORK" ] ||
+  { echo "REFUSING: build/ says it is a '${built_network:-}' build, not $NETWORK."; exit 1; }
+[ "${built_commit:-}" = "$COMMIT" ] ||
+  { echo "REFUSING: build/ is commit '${built_commit:-}', not $COMMIT."; exit 1; }
+compiled="$(grep -ohE 'environment=[A-Za-z0-9_$]+\.(mainnet|devnet|testnet)' build/assets/index-*.js | head -1)"
+case "$compiled" in
+  *".$NETWORK") echo "build/ is ${COMMIT:0:7}, compiled for $NETWORK." ;;
+  *) echo "REFUSING: the code in build/ was compiled for '${compiled:-nothing recognisable}', not $NETWORK."; exit 1 ;;
+esac
 
 # devnet goes to its own host, which exists so the whole cycle can be tried with
 # play money; testnet is built but not published anywhere.
@@ -42,3 +68,10 @@ rsync -a --delete build/ "$REMOTE:$DIR/"
 code=$(curl -s -o /dev/null -w '%{http_code}' "$URL")
 echo "$URL -> HTTP $code"
 [ "$code" = "200" ] || { echo "The site did not answer 200."; exit 1; }
+
+# A 200 says nothing about WHICH build answered; the version file does.
+live="$(curl -s "${URL}version.txt")"
+[ "$live" = "$(cat build/version.txt)" ] ||
+  { echo "The live site does not serve this build: version.txt says '$live'."; exit 1; }
+echo "Live: ${COMMIT:0:7} on $NETWORK."
+

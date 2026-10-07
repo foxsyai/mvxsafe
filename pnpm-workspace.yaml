@@ -4,5 +4,7 @@ allowBuilds:
   keccak: false
   protobufjs: false
   unrs-resolver: false
-minimumReleaseAgeExclude:
-  - '@multiversx/*'
+# A version must be a day old before it can be installed: most malicious
+# releases are caught and pulled within hours. No exclusions, the MultiversX
+# packages least of all, since they are the ones that sign.
+minimumReleaseAge: 1440

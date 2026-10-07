@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { AddressLine } from 'components/Address';
 import { Tip } from 'components/Info';
 import { getAccountProvider, UnlockPanelManager, useGetAccount, useGetIsLoggedIn } from 'lib';
+import { ALLOWED_WALLETS } from 'lib/sdkDapp/sdkDapp.constants';
 
 // Connecting proves which address you are, nothing more. It cannot move
 // anything: every action is a separate transaction your wallet has to sign.
@@ -15,6 +16,7 @@ export const ConnectButton = () => {
 
   const openPanel = useCallback(() => {
     UnlockPanelManager.init({
+      allowedProviders: ALLOWED_WALLETS,
       loginHandler: () => undefined,
       onClose: async () => undefined
     }).openUnlockPanel();

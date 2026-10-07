@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UnlockPanelManager, useGetLoginInfo } from 'lib';
+import { ALLOWED_WALLETS } from 'lib/sdkDapp/sdkDapp.constants';
 import { RouteNamesEnum } from 'localConstants';
 
 export const Unlock = () => {
@@ -8,6 +9,7 @@ export const Unlock = () => {
   const { isLoggedIn } = useGetLoginInfo();
 
   const unlockPanelManager = UnlockPanelManager.init({
+    allowedProviders: ALLOWED_WALLETS,
     loginHandler: () => {
       navigate(RouteNamesEnum.home);
     },
