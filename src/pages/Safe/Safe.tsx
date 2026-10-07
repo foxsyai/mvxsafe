@@ -30,6 +30,7 @@ import {
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
 
 const card = 'rounded-xl border border-[#2A2A32] bg-[#121218] p-5';
+const pendingCard = 'rounded-xl border border-[#FF6E0A]/60 bg-[#121218] p-5';
 const label = 'text-xs text-[#6B7280]';
 
 /**
@@ -470,7 +471,8 @@ const SafeView = ({ address }: { address: string }) => {
         ) : (
           <div className='mt-3 space-y-3'>
             {pending.map((action) => (
-              <div key={action.actionId} className={card}>
+              // Orange, unlike every other card: something is waiting here.
+              <div key={action.actionId} className={pendingCard}>
                 <div className='flex flex-wrap items-center justify-between gap-3'>
                   {/* Full addresses and identifiers make this long; it wraps
                       anywhere rather than hiding the part that matters. */}
