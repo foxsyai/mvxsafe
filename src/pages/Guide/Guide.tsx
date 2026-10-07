@@ -71,12 +71,6 @@ export const Guide = () => (
       lives on the blockchain. This interface only shows you what is there and
       prepares the transactions that you sign yourself.
     </p>
-    <p className='mt-3 text-xs text-[#6B7280]'>
-      The pictures below are of this site operating a real safe on mainnet,
-      called Team safe here. Its board appears as Alice, Bob and Dave because
-      they were given those names in that browser, which is what step 4 is
-      about.
-    </p>
 
     <div className='mt-10'>
       <h2 className={heading}>The whole flow, step by step</h2>
@@ -292,7 +286,7 @@ export const Guide = () => (
         >
           download the signer's guide (PDF)
         </a>
-        . Written to be read by someone who has never touched a blockchain.
+        .
       </p>
       <p className='mt-3 text-sm text-[#9AA0A6]'>
         Everything else lives in the{' '}
