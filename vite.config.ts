@@ -22,11 +22,16 @@ const network =
     /environment = EnvironmentsEnum\.(mainnet|devnet|testnet)/
   )?.[1] ?? 'unknown';
 
+// Only mainnet is the public site. Any other build is a test bed and asks
+// search engines to leave it out; robots.txt stays open so they can read that.
 const buildMarker = (): Plugin => ({
   name: 'mvxsafe-build-marker',
   transformIndexHtml: () => [
     { tag: 'meta', attrs: { name: 'mvxsafe-commit', content: commit }, injectTo: 'head' },
-    { tag: 'meta', attrs: { name: 'mvxsafe-network', content: network }, injectTo: 'head' }
+    { tag: 'meta', attrs: { name: 'mvxsafe-network', content: network }, injectTo: 'head' },
+    ...(network === 'mainnet'
+      ? []
+      : [{ tag: 'meta', attrs: { name: 'robots', content: 'noindex, nofollow' }, injectTo: 'head' as const }])
   ],
   generateBundle() {
     this.emitFile({ type: 'asset', fileName: 'version.txt', source: `${commit} ${network}\n` });
