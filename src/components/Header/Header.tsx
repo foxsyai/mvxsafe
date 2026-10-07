@@ -13,16 +13,18 @@ export const Header = () => (
         <Link to='/guide' className='text-sm text-[#9AA0A6] hover:text-white'>
           How it works
         </Link>
-        {/* Green for the real network, orange for the play one: the two must
-            never look alike, and orange is also the Connect button beside it,
-            so an orange mainnet badge would read as a second button. */}
+        {/* A status label, not a button: an outline with a dot, so it never
+            looks like the filled Connect button beside it. Green for the real
+            network, orange for the play one, and the play one stays visible on
+            a phone too, because it is the warning. */}
         {networkName === 'mainnet' ? (
           <span className='hidden items-center gap-2 rounded-full border border-[#22C55E]/40 bg-[#22C55E]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#4ADE80] uppercase sm:inline-flex'>
             <span className='h-1.5 w-1.5 rounded-full bg-[#4ADE80]' aria-hidden />
             {networkName}
           </span>
         ) : (
-          <span className='rounded-full bg-[#FF6E0A] px-3 py-1 text-xs font-semibold tracking-widest text-black uppercase'>
+          <span className='inline-flex items-center gap-2 rounded-full border border-[#FF6E0A]/50 bg-[#FF6E0A]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#FF8A3D] uppercase'>
+            <span className='h-1.5 w-1.5 rounded-full bg-[#FF8A3D]' aria-hidden />
             {networkName}
           </span>
         )}
