@@ -172,7 +172,8 @@ export const ProposePanel = ({
             {tokens.length === 0 && <option value=''>This safe holds no tokens</option>}
             {tokens.map((candidate) => (
               <option key={candidate.identifier} value={candidate.identifier}>
-                {candidate.ticker} ({candidate.amount.toLocaleString('en-US')})
+                {/* The identifier, not the ticker: two tokens can share a ticker. */}
+                {candidate.identifier} ({candidate.amount.toLocaleString('en-US')})
               </option>
             ))}
           </select>

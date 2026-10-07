@@ -7,6 +7,7 @@
 // a pending action on ours, which is how this was found (devnet, 6 Oct 2026).
 
 import { Address, SmartContractController } from '@multiversx/sdk-core';
+import { describeAction, toBigInt } from './describe';
 import { legacyAbi } from './legacyCalls';
 import { api, cached, chainId, networkProvider } from './network';
 
@@ -49,14 +50,19 @@ export interface SafeOverview {
   boardMembers: string[];
   proposerCount: number;
   actionCount: number;
-  pendingCount: number;
+  /** Null when the pending actions could not be read. */
+  pendingCount: number | null;
 }
 
 export interface PendingAction {
   actionId: number;
   description: string;
+  /** Signatures that count: only from addresses on the board today. */
   signerCount: number;
+  /** Everyone who signed and still sits on the board. */
   signers: string[];
+  /** Who signed and has since left the board. The contract ignores them. */
+  formerSigners: string[];
   quorumReached: boolean;
 }
 
@@ -81,35 +87,6 @@ const asAddress = (value: any): string => {
   return String(value);
 };
 
-const bytesOf = (value: any): Uint8Array | null => {
-  if (!value) return null;
-  if (value instanceof Uint8Array) return value;
-  if (value.type === 'Buffer' && Array.isArray(value.data)) return new Uint8Array(value.data);
-  return null;
-};
-
-const asText = (value: any): string => {
-  if (typeof value === 'string') return value;
-  const bytes = bytesOf(value);
-  return bytes ? new TextDecoder().decode(bytes) : '';
-};
-
-/** A decoded buffer read as a number, which is how amounts arrive in arguments. */
-const asRaw = (value: any): bigint => {
-  const bytes = bytesOf(value);
-  if (!bytes || bytes.length === 0) return 0n;
-  let result = 0n;
-  for (const byte of bytes) result = (result << 8n) + BigInt(byte);
-  return result;
-};
-
-const asBigInt = (value: any): bigint => {
-  try {
-    return BigInt(value?.toString?.() ?? value ?? 0);
-  } catch {
-    return 0n;
-  }
-};
 
 interface AccountResponse {
   balance: string;
@@ -239,7 +216,7 @@ export const readOverview = async (address: string): Promise<SafeOverview> => {
   const [balances, state, pending, egldPrice] = await Promise.all([
     readBalances(address),
     readMultisigState(address),
-    readPendingActions(address),
+    readPendingActions(address).catch(() => null),
     readEgldPrice()
   ]);
 
@@ -249,7 +226,7 @@ export const readOverview = async (address: string): Promise<SafeOverview> => {
     ...state,
     egldPrice,
     worthUsd: worthOf(balances.egld, balances.tokens, egldPrice),
-    pendingCount: pending.length
+    pendingCount: pending ? pending.length : null
   };
 };
 
@@ -269,87 +246,41 @@ export const readUserRole = async (safe: string, user: string): Promise<string> 
 /**
  * Actions still waiting for signatures, each turned into a sentence. A signer's
  * only defence against approving something unexpected is reading it in words,
- * so the decoding happens here rather than in a view.
+ * so the decoding happens here, in describe.ts, rather than in a view.
+ *
+ * Only signatures from CURRENT board members count, exactly as the contract
+ * counts them: a former member's signature stays in the list but no longer
+ * moves anything, and it no longer blocks a discard (display audit DISP-05).
+ *
+ * A failed read THROWS. It used to answer "no pending actions", which put
+ * "Nothing is waiting for a signature" on a page that simply could not see
+ * (DISP-11).
  */
 export const readPendingActions = async (address: string): Promise<PendingAction[]> => {
-  try {
-    const [pending, state] = await Promise.all([
-      cached(`pending:${address}`, () => query<any>(address, 'getPendingActionFullInfo')),
-      readMultisigState(address)
-    ]);
-    const list = Array.isArray(pending) ? pending : pending ? [pending] : [];
-    const quorum = state.quorum ?? Number.MAX_SAFE_INTEGER;
+  const [pending, state] = await Promise.all([
+    cached(`pending:${address}`, () => query<any>(address, 'getPendingActionFullInfo')),
+    readMultisigState(address)
+  ]);
+  if (state.quorum === null) {
+    throw new Error('The board and quorum of this safe could not be read.');
+  }
+  const board = new Set(state.boardMembers);
+  const list = (Array.isArray(pending) ? pending : pending ? [pending] : []).filter(Boolean);
 
-    return list.filter(Boolean).map((action: any) => {
-      const signers: string[] = (action.signers ?? []).map(asAddress);
+  return Promise.all(
+    list.map(async (action: any) => {
+      const everyone: string[] = (action.signers ?? []).map(asAddress).filter(Boolean);
+      const signers = everyone.filter((signer) => board.has(signer));
       return {
         actionId: asNumber(action.action_id ?? action.actionId),
-        description: describeAction(action.action_data ?? action.actionData),
+        description: await describeAction(action.action_data ?? action.actionData, address),
         signerCount: signers.length,
         signers,
-        quorumReached: signers.length >= quorum
+        formerSigners: everyone.filter((signer) => !board.has(signer)),
+        quorumReached: signers.length >= (state.quorum ?? Number.MAX_SAFE_INTEGER)
       };
-    });
-  } catch {
-    return [];
-  }
-};
-
-/**
- * Plain language for one action, from the decoded enum. Anything unrecognised
- * is reported as unknown rather than guessed at, which is the safe failure: a
- * signer who cannot read what an action does should not sign it.
- */
-export const describeAction = (action: any): string => {
-  if (!action) return 'Unknown action';
-  const name = String(action.name ?? action.type ?? 'Unknown');
-  const fields = action.fields ?? [];
-  const first = fields[0];
-
-  switch (name) {
-    case 'Nothing':
-      return 'Already carried out or discarded';
-    case 'AddBoardMember':
-      return `Add ${shortAddress(asAddress(first))} to the board`;
-    case 'AddProposer':
-      return `Add ${shortAddress(asAddress(first))} as a proposer`;
-    case 'RemoveUser':
-      return `Remove ${shortAddress(asAddress(first))}`;
-    case 'ChangeQuorum':
-      return `Change the quorum to ${asNumber(first)}`;
-    case 'SendTransferExecute':
-    case 'SendAsyncCall': {
-      const data = first ?? {};
-      const to = shortAddress(asAddress(data.to));
-      const egldAmount = asBigInt(data.egld_amount);
-      const endpoint = asText(data.endpoint_name);
-      const rawArgs = data.arguments ?? [];
-
-      // How a token transfer looks on this build: an async call asking the
-      // recipient to run ESDTTransfer with the token and the amount.
-      if (endpoint === 'ESDTTransfer' && rawArgs.length >= 2) {
-        const token = asText(rawArgs[0]);
-        return `Send ${formatRaw(asRaw(rawArgs[1]), 18)} ${token.split('-')[0]} to ${to}`;
-      }
-      if (egldAmount > 0n && !endpoint) {
-        return `Send ${formatRaw(egldAmount, 18)} EGLD to ${to}`;
-      }
-      if (endpoint) {
-        return `Call ${endpoint} on ${to}${
-          egldAmount > 0n ? ` with ${formatRaw(egldAmount, 18)} EGLD` : ''
-        }`;
-      }
-      // No function, no amount: the action does nothing readable. Say so rather
-      // than dressing it up, because a signer should refuse what cannot be read.
-      return `Unreadable call to ${to}, do not sign without checking the explorer`;
-    }
-    case 'SCDeployFromSource':
-      return 'Deploy a smart contract';
-    case 'SCUpgradeFromSource':
-      return 'Upgrade a smart contract';
-    default:
-      return `Unknown action (${name})`;
-  }
+    })
+  );
 };
 
 export const formatRaw = (raw: bigint, decimals = 18, maximumFractionDigits = 4) => {
@@ -358,7 +289,7 @@ export const formatRaw = (raw: bigint, decimals = 18, maximumFractionDigits = 4)
 };
 
 export const formatAmount = (value: unknown, decimals = 18, maximumFractionDigits = 4) =>
-  formatRaw(asBigInt(value), decimals, maximumFractionDigits);
+  formatRaw(toBigInt(value) ?? 0n, decimals, maximumFractionDigits);
 
 export const shortAddress = (address: string, lead = 8, tail = 6) =>
   !address ? '' : `${address.slice(0, lead)}...${address.slice(-tail)}`;

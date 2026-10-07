@@ -35,11 +35,13 @@ const label = 'text-xs text-[#6B7280]';
 export const Safe = () => {
   const { address = '' } = useParams();
   const [overview, setOverview] = useState<SafeOverview | null>(null);
-  const [pending, setPending] = useState<PendingAction[]>([]);
+  // Null when the pending actions could not be read, which is NOT the same as none.
+  const [pending, setPending] = useState<PendingAction[] | null>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [role, setRole] = useState('None');
+  // Null while unknown: nobody is told they are not on a board before it was checked.
+  const [role, setRole] = useState<string | null>(null);
   const [working, setWorking] = useState(0);
   const [stuck, setStuck] = useState(false);
   const [problem, setProblem] = useState('');
@@ -66,13 +68,23 @@ export const Safe = () => {
       .catch(() => setContract(null));
     try {
       setOverview(await readOverview(address));
-      setPending(await readPendingActions(address));
+      try {
+        setPending(await readPendingActions(address));
+      } catch {
+        setPending(null);
+      }
       setHistory(await readHistory(address));
       setRole(isLoggedIn ? await readUserRole(address, account.address) : 'None');
     } catch {
       setFailed(true);
     }
     setLoading(false);
+  }, [address, isLoggedIn, account.address]);
+
+  // A different safe or a different wallet: what was known about the role no
+  // longer applies until it has been read again.
+  useEffect(() => {
+    setRole(null);
   }, [address, isLoggedIn, account.address]);
 
   // Every one of these ends in the visitor's wallet asking them to confirm.
@@ -162,6 +174,11 @@ export const Safe = () => {
   const tokens = overview?.tokens ?? [];
   const primary = tokens.find((token) => token.identifier === PRIMARY_TOKEN);
   const others = tokens.filter((token) => token.identifier !== PRIMARY_TOKEN);
+  const sharedTickers = new Set(
+    tokens
+      .map((token) => token.ticker)
+      .filter((ticker, at, all) => all.indexOf(ticker) !== at)
+  );
 
   return (
     <div className='mx-auto w-full max-w-5xl px-4 py-10'>
@@ -177,11 +194,13 @@ export const Safe = () => {
             <p className='mt-2 text-xs text-[#6B7280]'>
               You are{' '}
               <span className='text-[#9AA0A6]'>
-                {role === 'BoardMember'
-                  ? 'a board member here: you can propose, sign and carry out actions'
-                  : role === 'Proposer'
-                    ? 'a proposer here: you can propose, but not sign'
-                    : 'not on this board, so you can only look'}
+                {role === null
+                  ? 'being checked against this board'
+                  : role === 'BoardMember'
+                    ? 'a board member here: you can propose, sign and carry out actions'
+                    : role === 'Proposer'
+                      ? 'a proposer here: you can propose, but not sign'
+                      : 'not on this board, so you can only look'}
               </span>
               .
             </p>
@@ -301,7 +320,7 @@ export const Safe = () => {
             <Info text='Waiting for signatures right now. The number underneath counts every action ever proposed, carried out or discarded.' />
           </p>
           <p className='mt-1 text-2xl font-semibold text-white'>
-            {overview ? overview.pendingCount : '...'}
+            {overview ? (overview.pendingCount ?? '?') : '...'}
           </p>
           <p className='mt-2 text-xs text-[#6B7280]'>
             {overview ? `${overview.actionCount} in total since deployment` : ''}
@@ -314,7 +333,12 @@ export const Safe = () => {
           Pending actions
           <Info text='Each one is written in plain words. Read it before signing: this is what the safe will do.' />
         </h2>
-        {pending.length === 0 ? (
+        {pending === null ? (
+          <p className='mt-3 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+            The actions waiting for a signature could not be read. Refresh before signing
+            anything.
+          </p>
+        ) : pending.length === 0 ? (
           <p className='mt-3 text-sm text-[#6B7280]'>
             {loading ? 'Loading...' : 'Nothing is waiting for a signature.'}
           </p>
@@ -323,7 +347,9 @@ export const Safe = () => {
             {pending.map((action) => (
               <div key={action.actionId} className={card}>
                 <div className='flex flex-wrap items-center justify-between gap-3'>
-                  <p className='text-white'>
+                  {/* Full addresses and identifiers make this long; it wraps
+                      anywhere rather than hiding the part that matters. */}
+                  <p className='min-w-0 flex-1 text-white [overflow-wrap:anywhere]'>
                     <span className='mr-2 font-mono text-xs text-[#6B7280]'>
                       #{action.actionId}
                     </span>
@@ -344,6 +370,14 @@ export const Safe = () => {
                     <span>signed by</span>
                     {action.signers.map((who) => (
                       <AddressLine key={who} address={who} className='text-xs text-[#6B7280]' />
+                    ))}
+                  </div>
+                )}
+                {action.formerSigners.length > 0 && (
+                  <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
+                    <span>also signed, but has left the board and does not count:</span>
+                    {action.formerSigners.map((who) => (
+                      <AddressLine key={who} address={who} className='text-xs text-[#6B7280] line-through' />
                     ))}
                   </div>
                 )}
@@ -476,7 +510,10 @@ export const Safe = () => {
             </li>
             {[primary, ...others].filter(Boolean).map((token: any) => (
               <li key={token.identifier} className='flex justify-between'>
-                <span className='text-[#9AA0A6]'>{token.ticker}</span>
+                {/* Two tokens can share a ticker; then only the identifier tells them apart. */}
+                <span className='text-[#9AA0A6]'>
+                  {sharedTickers.has(token.ticker) ? token.identifier : token.ticker}
+                </span>
                 <span className='text-white'>
                   {token.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                   {token.valueUsd ? (
