@@ -389,7 +389,7 @@ export const membershipNote = (
  * Why a membership change should not be proposed at all, or '' when it can
  * be. Refused here, before any transaction: a change that does nothing only
  * costs fees, and one the contract refuses fails at "Carry it out", after
- * every signer has paid (Sebastian, 7 Oct 2026).
+ * every signer has paid (7 Oct 2026).
  */
 export const membershipProblem = (
   action: any,

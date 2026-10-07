@@ -3,14 +3,14 @@
 //   node scripts/capture/guide.mjs              all steps
 //   FROM=12 node scripts/capture/guide.mjs      from a given picture on
 //
-// A Chrome window opens with an orange banner across the top saying what to do.
-// The script fills in every form itself and photographs each state as soon as
-// it appears; a person only acts where a wallet has to sign. Five transactions
+// A Chrome window opens with an orange banner along the bottom saying what to
+// do. The script fills in every form itself and photographs each state as soon
+// as it appears; a person only acts where a wallet has to sign. Six transactions
 // in all, on the test safe, from two board members: "Alice" signs with xPortal,
 // "Bob" with the web wallet.
 //
 // Only the test safe appears, as "Team safe", and every board member carries a
-// neutral name (Sebastian, 7 Oct 2026): the guide is public.
+// neutral name: the guide is public.
 //
 // NOTHING IS SIGNED BY THIS SCRIPT. It fills forms, waits and photographs.
 import { chromium } from '@playwright/test';
@@ -55,7 +55,8 @@ const drawBanner = () =>
         bar = document.createElement('div');
         bar.id = 'shot-bar';
         bar.style.cssText =
-          'position:fixed;inset:0 0 auto 0;z-index:99999;padding:14px 18px;font:600 15px system-ui;text-align:center';
+          // At the bottom: at the top it covered the header and its Disconnect.
+          'position:fixed;inset:auto 0 0 0;z-index:99999;padding:14px 18px;font:600 15px system-ui;text-align:center';
         document.body.appendChild(bar);
       }
       bar.style.background = tone === 'ok' ? '#123d1c' : '#FF6E0A';
@@ -212,11 +213,14 @@ if (phase(5, 5)) {
     await shot('05-connect');
   }
 }
-if (!(await page.evaluate(connectedAs, 'Alice'))) {
-  await say('Connect as Alice (your own wallet, xPortal). I am waiting.');
+// Alice is needed up to picture 14; from 15 on it is Bob.
+if (FROM <= 14) {
+  if (!(await page.evaluate(connectedAs, 'Alice'))) {
+    await say('Connect as Alice (your own wallet, xPortal). I am waiting.');
+  }
+  await until(connectedAs, 'Alice', 'Alice to connect');
+  await say('Connected as Alice. Photographing.', 'ok');
 }
-await until(connectedAs, 'Alice', 'Alice to connect');
-await say('Connected as Alice. Photographing.', 'ok');
 
 if (phase(6, 10)) {
   await go('/');
@@ -247,8 +251,10 @@ if (phase(6, 10)) {
   await shot('10-membership-note', 'Propose an action');
 }
 
-await go(`/safe/${SAFE}`);
-await until(hasText, 'Propose an action', 'the propose form', 120000);
+if (FROM <= 14) {
+  await go(`/safe/${SAFE}`);
+  await until(hasText, 'Propose an action', 'the propose form', 120000);
+}
 
 if (phase(11, 11)) {
   // A change the contract would only refuse later is refused here at once.
@@ -305,7 +311,13 @@ if (phase(13, 14)) {
 // --- 5. Bob signs and carries it out (pictures 15 to 18) ----------------------
 
 if (phase(15, 18)) {
-  await say('Now switch wallets: press Disconnect, then Connect as Bob with the MultiversX Web Wallet.');
+  // Disconnecting is done here, so nobody has to find the button.
+  if (await page.evaluate(hasText, 'Disconnect') && !(await page.evaluate(connectedAs, 'Bob'))) {
+    await say('Disconnecting Alice.', 'ok');
+    await button('Disconnect').click();
+    await until(() => !document.body.innerText.includes('Disconnect'), null, 'the disconnect', 60000);
+  }
+  await say('Press Connect, choose MultiversX Web Wallet, and log in as Bob.');
   await until(connectedAs, 'Bob', 'Bob to connect');
   await say('Connected as Bob. Photographing the list.', 'ok');
   await go('/');

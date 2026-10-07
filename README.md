@@ -25,8 +25,9 @@ Reading and acting. Connect a wallet and, on a safe whose board you sit on, you 
 an action out once the quorum is reached, and discard one. The whole cycle is proven on devnet
 by `scripts/devnet/cycle.mjs`, which uses the same builders the app ships.
 
-Still to come: creating a new safe from the interface, and screenshots in the guide and the
-signer PDF.
+A new safe can be created from the interface too: the wallet signs the deployment and then a
+second transaction that hands the safe to itself. The guide at /guide walks through all of it
+with pictures of the live site, taken by `scripts/capture/guide.mjs`.
 
 ## The contracts, and why the SDK's multisig helper is not used
 
