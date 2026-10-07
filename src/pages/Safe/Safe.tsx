@@ -726,7 +726,8 @@ const SafeView = ({ address }: { address: string }) => {
                   </td>
                   <td className='px-4 py-3 text-white'>{entry.functionName}</td>
                   <td className='px-4 py-3 font-mono text-xs text-[#6B7280]'>
-                    {shortAddress(entry.sender)}
+                    {/* The same names as the board, never the raw address beside them. */}
+                    <AddressLine address={entry.sender} className='text-xs text-[#6B7280]' />
                   </td>
                   <td className='px-4 py-3'>
                     <a
