@@ -62,13 +62,13 @@ export const Guide = () => (
     <p className={body}>
       A multisig safe is an account on MultiversX that nobody controls alone. A
       small group, called the board, decides together: any member can propose
-      something, the others agree by signing, and the safe carries it out once
-      enough signatures are in. How many is enough is called the quorum, written
+      something and the others agree by signing. Once enough signatures are in,
+      the safe carries it out. How many is enough is called the quorum, written
       as two of three, for example.
     </p>
     <p className={body}>
-      Nothing here holds your keys. You connect your own wallet, the safe lives
-      on the blockchain, and this interface only shows you what is there and
+      Nothing here holds your keys. You connect your own wallet and the safe
+      lives on the blockchain. This interface only shows you what is there and
       prepares the transactions that you sign yourself.
     </p>
     <p className='mt-3 text-xs text-[#6B7280]'>
@@ -82,12 +82,12 @@ export const Guide = () => (
       <h2 className={heading}>The whole flow, step by step</h2>
 
       <Step number={1} title='Add a safe you already have'>
-        You start with an empty list. Paste the contract address of the
-        multisig, give it a name, and it appears with what it holds, its value
-        in dollars and how many signatures it needs. The list is kept in your
-        browser alone: no account, nothing sent anywhere. Export writes it to a
-        file and Import reads one back, so it can move to another browser or
-        another machine.
+        You start with an empty list. Paste the contract address of the multisig
+        and give it a name. It appears with what it holds, its value in dollars
+        and how many signatures it needs. The list is kept in your browser
+        alone: no account, nothing sent anywhere. Export writes it to a file and
+        Import reads one back, so it can move to another browser or another
+        machine.
         <Shot src='/shots/01-empty.jpg' caption='Before anything is added.' />
         <Shot
           src='/shots/02-add.jpg'
@@ -106,7 +106,7 @@ export const Guide = () => (
         this page is read from the contract itself.
         <Shot
           src='/shots/04-safe-read-only.jpg'
-          caption='The same safe opened without a wallet. Two signatures out of three move anything, and nothing is waiting right now.'
+          caption='The same safe opened without a wallet. Two signatures out of three move anything. Nothing is waiting right now.'
         />
       </Step>
 
@@ -120,7 +120,7 @@ export const Guide = () => (
           caption='The wallet chooser. xPortal shows a code to scan with your phone; the others ask for whatever they need.'
         />
         Once connected, every safe whose board you sit on changes from read only
-        to board member, and the safe itself tells you what you can do there.
+        to board member. The safe itself tells you what you can do there.
         <Shot
           src='/shots/06-list-board-member.jpg'
           caption='The same list, connected as Alice. The orange badge marks a safe you can act on.'
@@ -134,10 +134,10 @@ export const Guide = () => (
       <Step number={4} title='Know who is who'>
         An address tells you nothing about whose it is, so each one can carry a
         name. If the account has a herotag, it is shown automatically. Otherwise
-        the pencil lets you name it yourself, and that name follows the address
+        the pencil lets you name it yourself. That name follows the address
         everywhere in the app and travels in your export file. Below the board,
-        the holdings are listed with their value in dollars, and under them the
-        full history, each line linking to the explorer.
+        the holdings are listed with their value in dollars. Under them comes
+        the full history, each line linking to the explorer.
         <Shot
           src='/shots/08-board-holdings.jpg'
           caption='The board, named by hand, with YOU next to your own address. The names live in your browser, never on the chain.'
@@ -171,12 +171,12 @@ export const Guide = () => (
 
       <Step number={7} title='Read it, then sign'>
         Every pending action is written in plain words before you sign: which
-        token, how much, to which address. Check it against what you were told,
-        and refuse anything the interface says it cannot read. Signing is
-        approval, not execution.
+        token, how much, to which address. Check it against what you were told.
+        Refuse anything the interface says it cannot read. Signing is approval,
+        not execution.
         <Shot
           src='/shots/16-sign.jpg'
-          caption='What Bob sees: the whole action, who has signed it so far, and Sign.'
+          caption='What Bob sees: the whole action, who has signed it so far and the Sign button.'
         />
         Until the action is carried out, Remove my signature takes your approval
         back if you change your mind.
@@ -184,7 +184,7 @@ export const Guide = () => (
 
       <Step number={8} title='Carry it out'>
         Once the signatures reach the quorum, any board member can carry the
-        action out, and that is the moment the safe actually moves something.
+        action out. That is the moment the safe actually moves something.
         Usually the last person to sign does it, in the same visit.
         <Shot
           src='/shots/17-ready.jpg'
@@ -210,13 +210,13 @@ export const Guide = () => (
       </Step>
 
       <Step number={10} title='Change the board'>
-        Adding or removing a board member or a proposer, or changing the quorum,
-        goes through the same propose, sign and carry out as a payment. A
+        Adding or removing a board member or a proposer goes through the same
+        propose, sign and carry out as a payment. So does changing the quorum. A
         proposer can suggest actions but never sign them. An address holds one
         role at a time, so a change can do more than it seems: while you type,
-        the form says what it would really do. A change that would do nothing,
-        or that the contract would refuse when it is carried out, is stopped in
-        the form before anybody pays a fee.
+        the form says what it would really do. A change that would do nothing is
+        stopped in the form before anybody pays a fee. So is a change the
+        contract would refuse when it is carried out.
         <Shot
           src='/shots/10-membership-note.jpg'
           caption='Making Alice a proposer: the note warns that it would take her off the board.'
@@ -254,25 +254,24 @@ export const Guide = () => (
         <li>
           Read what you are signing. The description of an action is built from
           what the contract itself reports, not from what the proposer typed. An
-          action the interface cannot read says so, and you should refuse it.
+          action the interface cannot read says so. Refuse it.
         </li>
         <li>
           Everything here is public. Balances, board members, signatures and
-          history are on the blockchain, and anyone can verify them in the
-          explorer.
+          history are on the blockchain. Anyone can verify them in the explorer.
         </li>
         <li>
           Losing access to this site does not lock you out of your safe. The
-          contract is independent of it, and the source of this interface is
-          public so anyone can run their own copy.
+          contract is independent of it. The source of this interface is public
+          so anyone can run their own copy.
         </li>
         <li>
           Keep a little EGLD in your wallet. Proposing, signing and carrying out
-          are transactions, and each costs a small network fee.
+          are transactions. Each costs a small network fee.
         </li>
         <li>
           A guarded wallet works here. If your account has a guardian switched
-          on, every transaction carries it, and your wallet asks for the second
+          on, every transaction carries it. Your wallet asks for the second
           factor as usual.
         </li>
       </ul>

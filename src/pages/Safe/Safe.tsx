@@ -541,7 +541,7 @@ const SafeView = ({ address }: { address: string }) => {
                       ))}
 
                     {action.quorumReached && (
-                      <Tip text='Makes it happen. Enough signatures are in, and any board member may press this.'><button
+                      <Tip text='Makes it happen. Enough signatures are in. Any board member may press this.'><button
                         type='button'
                         disabled={working !== 0 || proposing || stale || awaiting}
                         onClick={() =>
@@ -654,7 +654,7 @@ const SafeView = ({ address }: { address: string }) => {
         <section className={card}>
           <h2 className='flex items-center text-lg font-semibold text-white'>
             Holdings
-            <Info text='Dollar values come from the same MultiversX API as the balances, and only exist for tokens that have a market price.' />
+            <Info text='Dollar values come from the same MultiversX API as the balances. They only exist for tokens that have a market price.' />
           </h2>
           <ul className='mt-3 space-y-2 text-sm'>
             <li className='flex justify-between'>

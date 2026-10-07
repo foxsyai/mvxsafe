@@ -91,7 +91,7 @@ export const toRawAmount = (amount, decimals) => {
   }
   const [, whole, fraction = ''] = match;
   if (/[^0]/.test(fraction.slice(decimals))) {
-    throw new Error(`This token has ${decimals} decimals, and "${text}" has more.`);
+    throw new Error(`This token has ${decimals} decimals. "${text}" has more.`);
   }
   const padded = (fraction + '0'.repeat(decimals)).slice(0, decimals);
   return BigInt(`${whole || '0'}${padded}`);
