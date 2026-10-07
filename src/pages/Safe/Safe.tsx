@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
 import { ProposePanel } from 'components/Propose';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import {
   discardAction,
+  handOverSafe,
   performAction,
   signAction,
   unsignAction
@@ -14,11 +15,13 @@ import { PRIMARY_TOKEN } from 'config/safes';
 import { clearCache, explorerUrl } from 'multisig/network';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import {
+  ContractInfo,
   formatUsd,
   HistoryEntry,
   PendingAction,
   readHistory,
   readOverview,
+  readContractInfo,
   readPendingActions,
   readUserRole,
   SafeOverview,
@@ -40,6 +43,13 @@ export const Safe = () => {
   const [working, setWorking] = useState(0);
   const [stuck, setStuck] = useState(false);
   const [problem, setProblem] = useState('');
+  const [contract, setContract] = useState<ContractInfo | null>(null);
+  const [handingOver, setHandingOver] = useState(false);
+
+  // Set by the create page: the deploy was just sent, so for a little while an
+  // address that cannot be read yet is expected, not a failure.
+  const creating = Boolean((useLocation().state as { creating?: boolean } | null)?.creating);
+  const [waitedFor, setWaitedFor] = useState(0);
 
   const isLoggedIn = useGetIsLoggedIn();
   const account = useGetAccount();
@@ -50,6 +60,10 @@ export const Safe = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setFailed(false);
+    // Read on its own, so a hiccup here never hides the safe itself.
+    readContractInfo(address)
+      .then(setContract)
+      .catch(() => setContract(null));
     try {
       setOverview(await readOverview(address));
       setPending(await readPendingActions(address));
@@ -92,6 +106,33 @@ export const Safe = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A safe that was just created takes a few seconds to exist. Keep reading for
+  // up to two minutes instead of declaring it unreadable.
+  useEffect(() => {
+    if (!creating || !failed || waitedFor >= 40) return;
+    const timer = setTimeout(() => {
+      setWaitedFor((count) => count + 1);
+      clearCache();
+      load();
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [creating, failed, waitedFor, load]);
+
+  const ownsItself = !contract?.exists || contract.ownerAddress === address;
+  const youOwnIt = isLoggedIn && contract?.ownerAddress === account.address;
+
+  const handOver = async () => {
+    setHandingOver(true);
+    setProblem('');
+    try {
+      await handOverSafe(signer, address);
+      readAgainShortly();
+    } catch (failure: unknown) {
+      setProblem(explainWalletFailure(failure, 'The handover'));
+    }
+    setHandingOver(false);
+  };
 
   // A transaction sent from this page lands seconds after the wallet returns, so
   // the page reads everything again at that moment rather than waiting for the
@@ -160,10 +201,46 @@ export const Safe = () => {
         </Tip>
       </div>
 
-      {failed && (
-        <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
-          This address could not be read from the network.
-        </p>
+      {failed &&
+        (creating && waitedFor < 40 ? (
+          <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
+            Being created. The network needs a few seconds to run the two transactions; this page
+            fills in by itself as soon as the safe exists.
+          </p>
+        ) : (
+          <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+            This address could not be read from the network.
+          </p>
+        ))}
+
+      {!ownsItself && (
+        <div className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+          <p>
+            This safe is not in its own hands. Its owner can replace the contract's code alone,
+            without the board:
+          </p>
+          <AddressLine address={contract?.ownerAddress ?? ''} short={false} className='mt-2 text-xs' />
+          {youOwnIt ? (
+            <div className='mt-3 flex flex-wrap items-center gap-3'>
+              <button
+                type='button'
+                disabled={handingOver}
+                onClick={handOver}
+                className='rounded-lg bg-[#FF6E0A] px-4 py-2 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
+              >
+                {handingOver ? 'Waiting for your wallet...' : 'Hand it to itself now'}
+              </button>
+              <span className='text-xs text-[#F87171]/80'>
+                That owner is you. One transaction makes the safe its own owner, after which only
+                the board, by quorum, can change it.
+              </span>
+            </div>
+          ) : (
+            <p className='mt-2 text-xs text-[#F87171]/80'>
+              Ask that owner to hand the safe to itself before trusting it with funds.
+            </p>
+          )}
+        </div>
       )}
 
       {problem && (

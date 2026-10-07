@@ -170,10 +170,15 @@ export const Guide = () => (
         first.
       </Step>
 
-      <Step number={9} title='Create a new safe' comingSoon>
-        Choose who sits on the board and how many signatures an action needs, then deploy it.
-        The safe is yours from that moment: this site has no special access to it and can be
-        replaced by any other interface that speaks to the same contract.
+      <Step number={9} title='Create a new safe'>
+        Choose who sits on the board and how many signatures an action needs, on the{' '}
+        <Link to='/create' className='text-[#FF6E0A] hover:underline'>
+          create page
+        </Link>
+        . Your wallet signs two transactions: the first creates the safe, the second hands it to
+        itself, so nobody, not even the person who created it, can change its code alone. It runs
+        the same contract as the Foundation's safes, checked byte for byte before anything is
+        sent, and this site keeps no special access to it.
       </Step>
     </div>
 

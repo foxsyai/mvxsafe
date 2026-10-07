@@ -377,3 +377,27 @@ export const readHistory = async (address: string): Promise<HistoryEntry[]> => {
     status: transaction.status ?? ''
   }));
 };
+
+export interface ContractInfo {
+  /** Who may replace the contract's code. For a safe set up right, itself. */
+  ownerAddress: string;
+  codeHash: string;
+  /** False when the address holds no contract yet, for example mid-creation. */
+  exists: boolean;
+}
+
+/**
+ * Ownership and code of a contract. A safe that is not its own owner can have
+ * its code replaced by that owner alone, whatever the board thinks, so the page
+ * says so in red.
+ */
+export const readContractInfo = async (address: string): Promise<ContractInfo> => {
+  const account = await cached(`contract:${address}`, () =>
+    api<{ ownerAddress?: string; codeHash?: string }>(`/accounts/${address}`)
+  );
+  return {
+    ownerAddress: account?.ownerAddress ?? '',
+    codeHash: account?.codeHash ?? '',
+    exists: Boolean(account?.codeHash)
+  };
+};

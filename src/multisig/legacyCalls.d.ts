@@ -28,3 +28,14 @@ export declare const buildProposeAddBoardMember: (c: CallContext, address: strin
 export declare const buildProposeAddProposer: (c: CallContext, address: string) => Promise<Transaction>;
 export declare const buildProposeRemoveUser: (c: CallContext, address: string) => Promise<Transaction>;
 export declare const buildProposeChangeQuorum: (c: CallContext, newQuorum: number) => Promise<Transaction>;
+
+export declare const MULTISIG_CODE_HASH: string;
+export declare const MULTISIG_WASM_SHA256: string;
+export declare const DEPLOY_GAS: bigint;
+export declare const HANDOVER_GAS: bigint;
+export declare const predictSafeAddress: (deployer: string, nonce: number | bigint) => string;
+export declare const buildDeploySafe: (
+  c: Omit<CallContext, 'safe'>,
+  options: { bytecode: Uint8Array; quorum: number; board: string[] }
+) => Promise<Transaction>;
+export declare const buildHandOver: (c: CallContext) => Promise<Transaction>;

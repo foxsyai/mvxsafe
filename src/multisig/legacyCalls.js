@@ -14,6 +14,8 @@
 import {
   Abi,
   Address,
+  AddressComputer,
+  AddressValue,
   BigUIntValue,
   BytesType,
   BytesValue,
@@ -139,3 +141,81 @@ export const buildProposeRemoveUser = (context, address) =>
 
 export const buildProposeChangeQuorum = (context, newQuorum) =>
   call({ ...context, fn: 'proposeChangeQuorum', args: [new U32Value(newQuorum)] });
+
+// --- creating a safe ---------------------------------------------------------
+//
+// A new safe runs the Foundation's own contract, byte for byte, so everything
+// above is proven against it. Two transactions, signed together:
+//
+//   1. deploy the code with the quorum and the board,
+//   2. ChangeOwnerAddress, handing the contract to itself.
+//
+// Step 2 matters: a contract is upgradeable by its owner, and right after the
+// deploy the owner is whoever sent it. Once the safe owns itself, only the board,
+// by quorum, can ever change its code. The Foundation's safes were set up exactly
+// this way (deploy at nonce 3, handover at nonce 4, Treasury, May 2026), and the
+// tests rebuild those two transactions byte for byte.
+
+/** What the chain reports as the code hash of every Foundation safe. */
+export const MULTISIG_CODE_HASH = '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=';
+
+/** SHA-256 of the same wasm, checkable in a browser before it is deployed. */
+export const MULTISIG_WASM_SHA256 =
+  '394e33d9ea7e854edf39f59da30c3e65f5b975322f252ded0a5017c48234a9d5';
+
+/**
+ * A deploy spends ALL the gas it is given: the Treasury burned its full 100M
+ * with one member, the devnet test safe its full 200M with three. Most of the
+ * fee pays for the 47,000 bytes of code; gas above that is priced at a hundredth,
+ * so 250M costs about 0.0005 EGLD more than 200M, while running out would lose
+ * the whole fee. Fee at 250M: about 0.073 EGLD.
+ */
+export const DEPLOY_GAS = 250000000n;
+
+/** The Foundation's handover used 5.2M of the 10M it was given. */
+export const HANDOVER_GAS = 10000000n;
+
+/** The address the safe will have, known before anything is sent. */
+export const predictSafeAddress = (deployer, nonce) =>
+  new AddressComputer().computeContractAddress(new Address(deployer), BigInt(nonce)).toBech32();
+
+/**
+ * Deploys a safe: the quorum, then every board member. Upgradeable, readable,
+ * payable and payable by contracts, like the Foundation's, so tokens can be sent
+ * to it from any wallet or contract.
+ */
+export const buildDeploySafe = async ({ chainId, sender, nonce }, { bytecode, quorum, board }) => {
+  const factory = new SmartContractTransactionsFactory({
+    config: new TransactionsFactoryConfig({ chainID: chainId })
+  });
+  const transaction = await factory.createTransactionForDeploy(new Address(sender), {
+    bytecode,
+    gasLimit: DEPLOY_GAS,
+    arguments: [
+      new U32Value(quorum),
+      ...board.map((member) => new AddressValue(new Address(member)))
+    ],
+    isUpgradeable: true,
+    isReadable: true,
+    isPayable: true,
+    isPayableBySmartContract: true
+  });
+  transaction.nonce = BigInt(nonce);
+  return transaction;
+};
+
+/** Hands the contract to itself. Sent by the deployer, the owner until then. */
+export const buildHandOver = async ({ chainId, sender, nonce, safe }) => {
+  const factory = new SmartContractTransactionsFactory({
+    config: new TransactionsFactoryConfig({ chainID: chainId })
+  });
+  const transaction = await factory.createTransactionForExecute(new Address(sender), {
+    contract: new Address(safe),
+    function: 'ChangeOwnerAddress',
+    gasLimit: HANDOVER_GAS,
+    arguments: [new AddressValue(new Address(safe))]
+  });
+  transaction.nonce = BigInt(nonce);
+  return transaction;
+};
+

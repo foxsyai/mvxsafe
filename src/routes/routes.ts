@@ -1,4 +1,5 @@
 import { RouteNamesEnum } from 'localConstants';
+import { Create } from 'pages/Create/Create';
 import { Guide } from 'pages/Guide/Guide';
 import { Safe } from 'pages/Safe/Safe';
 import { Safes } from 'pages/Safes/Safes';
@@ -28,5 +29,10 @@ export const routes: RouteWithTitleType[] = [
     path: RouteNamesEnum.guide,
     title: 'How it works',
     component: Guide
+  },
+  {
+    path: RouteNamesEnum.create,
+    title: 'Create a safe',
+    component: Create
   }
 ];

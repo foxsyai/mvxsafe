@@ -6,7 +6,9 @@ import { Address, TransactionComputer } from '@multiversx/sdk-core';
 import { signAndSendTransactions } from 'helpers/signAndSendTransactions';
 import { api, chainId, networkProvider } from './network';
 import {
+  buildDeploySafe,
   buildDiscard,
+  buildHandOver,
   buildPerform,
   buildProposeAddBoardMember,
   buildProposeAddProposer,
@@ -15,7 +17,9 @@ import {
   buildProposeRemoveUser,
   buildProposeToken,
   buildSign,
-  buildUnsign
+  buildUnsign,
+  MULTISIG_WASM_SHA256,
+  predictSafeAddress
 } from './legacyCalls';
 
 export interface Signer {
@@ -58,20 +62,24 @@ const guardianOf = async (address: string): Promise<string> => {
   }
 };
 
-const send = async (transaction: any, label: string) => {
+/** Several transactions from one sender, signed together, sent in nonce order. */
+const sendAll = async (transactions: any[], label: string) => {
   // A guarded account can only send transactions that name their guardian and
   // carry its signature. Without these three fields the wallet has nothing it
   // can co-sign, and the attempt dies as if it had been cancelled, which is
   // exactly how it looked (Sebastian, 6 Oct 2026). applyGuardian sets the
   // guardian, version 2 and the guarded option; the wallet, or the web wallet's
   // two factor page, adds the second signature.
-  const guardian = await guardianOf(transaction.sender.toBech32());
+  const guardian = await guardianOf(transactions[0].sender.toBech32());
   if (guardian) {
-    new TransactionComputer().applyGuardian(transaction, new Address(guardian));
+    const computer = new TransactionComputer();
+    transactions.forEach((transaction) =>
+      computer.applyGuardian(transaction, new Address(guardian))
+    );
   }
 
   return signAndSendTransactions({
-    transactions: [transaction],
+    transactions,
     transactionsDisplayInfo: {
       processingMessage: `${label}...`,
       errorMessage: `${label} failed`,
@@ -79,6 +87,8 @@ const send = async (transaction: any, label: string) => {
     }
   });
 };
+
+const send = (transaction: any, label: string) => sendAll([transaction], label);
 
 export const signAction = async (signer: Signer, safe: string, actionId: number) =>
   send(await buildSign(await contextOf(signer, safe), actionId), `Signing action ${actionId}`);
@@ -157,3 +167,50 @@ export const proposeChangeQuorum = async (
     await buildProposeChangeQuorum(await contextOf(signer, safe), newQuorum),
     'Proposing a new quorum'
   );
+
+// --- creating a safe ---------------------------------------------------------
+
+/**
+ * The contract every new safe runs, fetched from this site and refused unless
+ * it is byte for byte the one the app was tested against: the Foundation's.
+ */
+const loadSafeCode = async (): Promise<Uint8Array> => {
+  const response = await fetch('/contracts/multisig.wasm', { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('The contract code could not be loaded. Nothing was sent.');
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  if (hex !== MULTISIG_WASM_SHA256) {
+    throw new Error(
+      'The contract code is not the one this app was tested with, so it was refused. Nothing was sent.'
+    );
+  }
+  return bytes;
+};
+
+/**
+ * Creates a safe and hands it to itself, as one pair of transactions to sign.
+ * Returns the new safe's address, which is known before anything is sent: it
+ * follows from the sender and the nonce of the deploy.
+ */
+export const createSafe = async (
+  signer: Signer,
+  { quorum, board }: { quorum: number; board: string[] }
+): Promise<string> => {
+  const bytecode = await loadSafeCode();
+  const { chainId, sender, nonce } = await contextOf(signer, '');
+  const safe = predictSafeAddress(sender, nonce);
+  const deploy = await buildDeploySafe({ chainId, sender, nonce }, { bytecode, quorum, board });
+  // The next nonce, so the network runs it right after the deploy, when the
+  // contract exists and the sender still owns it.
+  const handOver = await buildHandOver({ chainId, sender, nonce: nonce + 1, safe });
+  await sendAll([deploy, handOver], 'Creating the safe');
+  return safe;
+};
+
+/** The second half on its own, for a safe whose handover never happened. */
+export const handOverSafe = async (signer: Signer, safe: string) =>
+  send(await buildHandOver(await contextOf(signer, safe)), 'Handing the safe to itself');
+

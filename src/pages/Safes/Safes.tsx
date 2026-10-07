@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PRIMARY_TOKEN } from 'config/safes';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
@@ -325,6 +325,22 @@ export const Safes = () => {
           </Tip>
         </div>
         {error && <p className='mt-2 text-xs text-[#F87171]'>{error}</p>}
+      </div>
+
+      <div className='mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
+        <div>
+          <h2 className='text-sm font-semibold text-white'>Create a new safe</h2>
+          <p className='mt-1 text-xs text-[#6B7280]'>
+            Choose the board and how many signatures it needs. It runs the same contract as the
+            Foxsy AI Foundation's safes.
+          </p>
+        </div>
+        <Link
+          to='/create'
+          className='rounded-lg border border-[#FF6E0A] px-5 py-2 text-sm font-semibold text-[#FF6E0A] hover:bg-[#FF6E0A] hover:text-black'
+        >
+          Create a safe
+        </Link>
       </div>
     </div>
   );
