@@ -1,0 +1,73 @@
+{
+  "recordedAt": "2026-10-07T08:51:42.090Z",
+  "safeA": {
+    "address": "erd1qqqqqqqqqqqqqpgqfhtkpf9warq5w7eny4az9epxt26gxyvgaujqlz7cqq",
+    "getQuorum": [
+      "AQ=="
+    ],
+    "getAllBoardMembers": [
+      "I1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
+      "ZoQrW3e4CsGsmWkeZ2xNnvJ1ilQLMM/MZIH8LduTNkU=",
+      "xyBRBQRBxLCwdTyO4/wdxaPPIX+Zv82pWG/fZ7Eu3HI="
+    ],
+    "getNumProposers": [
+      ""
+    ],
+    "getActionLastIndex": [
+      "Dw=="
+    ],
+    "getPendingActionFullInfo": [
+      "AAAAAQZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAAAAAAMRVNEVFRyYW5zZmVyAAAAAgAAAAxGT1hTWS1iYjg0YjEAAAAF6NSlEAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
+      "AAAAAgZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAAAAAAMRVNEVFRyYW5zZmVyAAAABQAAAAxXRUdMRC1hMjhjNTkAAAAIAWNFeF2KAAAAAAAUc3dhcFRva2Vuc0ZpeGVkSW5wdXQAAAAMV0VHTEQtYTI4YzU5AAAAAQEAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
+      "AAAAAwYAAAAAAAAAAAUATddgpK7owUd7MyV6IuQmWrSDEYjvJAAAAAAAAAAUTXVsdGlFU0RUTkZUVHJhbnNmZXIAAAAFAAAAICNcWAblE/BkIAtjh0KRXkU473Vsah8Q5xFZCSLzqe8kAAAAAQEAAAAMV0VHTEQtYTI4YzU5AAAAAAAAAAgBY0V4XYoAAAAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAABQVmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAk2Ncmtxd6gAAAAAAAAAAAAAAAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAABgZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAk2Ncmtxd6gAAAAAAAIZGVsZWdhdGUAAAAAAAAAASNcWAblE/BkIAtjh0KRXkU473Vsah8Q5xFZCSLzqe8k",
+      "AAAABwYAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAL//wAAAAAAAAAOc2V0U3BlY2lhbFJvbGUAAAADAAAADEZPWFNZLWJiODRiMQAAACBmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAABFFU0RUUm9sZUxvY2FsTWludAAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAACAZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAAAAAAPRVNEVFRyYW5zZmVy4oCLAAAAAgAAAAxXRUdMRC1hMjhjNTkAAAAIAWNFeF2KAAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
+      "AAAACQcAAAAAAAAAAAAAAAAFAE3XYKSu6MFHezMleiLkJlq0gxGI7yQFAAAAAAIAAAABAQAAACAjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJAAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAACggAAAAAAAAAAAUA+ROklMFaV87jNoUHd4+F5Qp92ZrvJAAAAAAAAAAAAAAAAAUATddgpK7owUd7MyV6IuQmWrSDEYjvJAUAAAAAAAAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAACwZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAgG8FtZ07IAAAAAAAxFU0RUVHJhbnNmZXIAAAACAAAADFdFR0xELWEyOGM1OQAAAAgBY0V4XYoAAAAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAADAZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAAAAAAL4oCucmVmc25hcnQAAAABAAAADFdFR0xELWEyOGM1OQAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAADQFmhCqOo2ZFxGblAyWCQY8n+3j6dtIpKLfxz2wU8pBViQAAAAEjXFgG5RPwZCALY4dCkV5FOO91bGofEOcRWQki86nvJA==",
+      "AAAADgVmhCqOo2ZFxGblAyWCQY8n+3j6dtIpKLfxz2wU8pBViQAAAAcjhvJvwQAAAAAAAAAAAAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
+      "AAAADwVmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAcjhvJvwQAAAAAAAAAAAAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ="
+    ],
+    "board": [
+      "erd1ydw9sph9z0cxggqtvwr59y27g5uw7atvdg03pec3tyyj9uafaujqsx035a",
+      "erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3",
+      "erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug"
+    ]
+  },
+  "safeB": {
+    "address": "erd1qqqqqqqqqqqqqpgqlyf6f9xptftuaceks5rh0ru9u598mkv6aujqgu4hyw",
+    "getQuorum": [
+      "AQ=="
+    ],
+    "getAllBoardMembers": [
+      "ZoQrW3e4CsGsmWkeZ2xNnvJ1ilQLMM/MZIH8LduTNkU=",
+      "xyBRBQRBxLCwdTyO4/wdxaPPIX+Zv82pWG/fZ7Eu3HI="
+    ],
+    "getNumProposers": [
+      ""
+    ],
+    "getActionLastIndex": [
+      "Ag=="
+    ],
+    "getPendingActionFullInfo": [
+      "AAAAAQVmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAcjhvJvwQAAAAAAAAAAAAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ="
+    ],
+    "board": [
+      "erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3",
+      "erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug"
+    ],
+    "getActionValidSignerCount_1": [
+      ""
+    ],
+    "quorumReached_1": [
+      ""
+    ],
+    "getActionSigners_1": [
+      "I1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ="
+    ]
+  }
+}
