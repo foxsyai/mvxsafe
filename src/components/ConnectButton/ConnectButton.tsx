@@ -9,7 +9,7 @@ import { ALLOWED_WALLETS } from 'lib/sdkDapp/sdkDapp.constants';
 //
 // The panel is built when the button is pressed, NOT in the render body. Built
 // on every render it was rebuilt dozens of times while the list loaded, which
-// is what made the browser crawl (Sebastian, 6 Oct 2026).
+// is what made the browser crawl (6 Oct 2026).
 export const ConnectButton = () => {
   const isLoggedIn = useGetIsLoggedIn();
   const { address } = useGetAccount();

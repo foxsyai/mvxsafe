@@ -5,7 +5,7 @@
  * and imported as a safe, and then shows "..." or "could not be read" forever
  * instead of being refused at entry. sdk-core's Address.isValid does the real check.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-04.test.ts
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-04.test.ts
  */
 import { Address } from '@multiversx/sdk-core';
 import { importSafes, isValidSafeAddress } from 'multisig/savedSafes';

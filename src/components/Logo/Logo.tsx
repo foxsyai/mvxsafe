@@ -3,7 +3,7 @@ import classNames from 'classnames';
 // The mark: the fox head filled in orange with a thick black check. Solid
 // rather than outlined because black on orange carries about three times the
 // contrast of white, which is what keeps it legible at favicon size
-// (Sebastian's choice, 6 Oct 2026). Inline rather than an <img> so it never
+// (chosen 6 Oct 2026). Inline rather than an <img> so it never
 // flashes while loading.
 const styles = {
   logo: 'logo flex items-center gap-3',

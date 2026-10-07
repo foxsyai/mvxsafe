@@ -16,9 +16,11 @@
 // the list printed is the one that matters on the day it runs.
 //
 //   node src/__audit__/ops/proofs/OPS-07-prod-advisories.mjs
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const APP = '/home/sebastian/FOXSY/mvxsafe/app';
+// The repository root, four levels above this file.
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 const r = spawnSync('pnpm', ['audit', '--prod', '--json'], { cwd: APP, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 let report;
 try {

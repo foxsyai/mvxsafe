@@ -18,12 +18,14 @@
 //
 //   node src/__audit__/ops/proofs/OPS-03-deploy-unverified.mjs
 //   DEPLOY_SH=/path/to/fixed/deploy.sh node src/__audit__/ops/proofs/OPS-03-deploy-unverified.mjs   # expected: exit 0
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const APP = '/home/sebastian/FOXSY/mvxsafe/app';
+// The repository root, four levels above this file.
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 const tmp = mkdtempSync(join(tmpdir(), 'mvxsafe-ops03-'));
 const log = join(tmp, 'calls.log');
 

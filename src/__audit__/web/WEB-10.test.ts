@@ -7,7 +7,7 @@
  * 0.6 s + 1.2 s + 2.4 s of waiting. The same test string also misses Chrome's
  * "Failed to fetch", so a dropped connection is retried on Firefox and not on Chrome.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-10.test.ts
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-10.test.ts
  */
 jest.useFakeTimers();
 

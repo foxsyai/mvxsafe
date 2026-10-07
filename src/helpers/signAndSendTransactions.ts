@@ -39,7 +39,7 @@ export const signAndSendTransactions = async ({
   // Sending only puts the transaction on the network. Pages that show what the
   // chain holds have to read it again once it has been processed, otherwise a
   // proposal looks like it did nothing until somebody presses Refresh
-  // (Sebastian, 6 Oct 2026).
+  // (6 Oct 2026).
   const settled = async () => {
     window.dispatchEvent(new CustomEvent('mvxsafe:settled'));
   };

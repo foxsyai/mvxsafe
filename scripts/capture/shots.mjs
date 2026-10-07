@@ -15,7 +15,7 @@
 // Launch settings are taken from next-foxleague/scratchpad/manual-shots.mjs,
 // which already solved this on the same laptop: Chrome runs on X11 (XWayland)
 // because its Qt theme plugin exists only for xcb here.
-import { chromium } from '/home/sebastian/FOXSY/next-foxleague/frontend/node_modules/playwright/index.mjs';
+import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 
@@ -266,7 +266,7 @@ await say(
 await page.evaluate(() => window.scrollTo(0, 0));
 // Both fields have to hold the right kind of value. The first attempt was
 // photographed with the address and the amount swapped, which is exactly the
-// mistake a picture in the guide must not teach (Sebastian, 6 Oct 2026).
+// mistake a picture in the guide must not teach (6 Oct 2026).
 await until(() => {
   const field = (placeholder) =>
     [...document.querySelectorAll('input')]

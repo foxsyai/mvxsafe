@@ -31,7 +31,7 @@ export interface Signer {
  * The nonce is read from the network at the moment of sending, not taken from
  * the account hook. A stale one is rejected by the node with "lowerNonceInTx",
  * and because the page used to swallow that, a signed transaction simply
- * vanished with no toast and nothing on chain (Sebastian, 6 Oct 2026).
+ * vanished with no toast and nothing on chain (6 Oct 2026).
  */
 const contextOf = async (signer: Signer, safe: string) => {
   let nonce = signer.nonce;
@@ -67,7 +67,7 @@ const sendAll = async (transactions: any[], label: string) => {
   // A guarded account can only send transactions that name their guardian and
   // carry its signature. Without these three fields the wallet has nothing it
   // can co-sign, and the attempt dies as if it had been cancelled, which is
-  // exactly how it looked (Sebastian, 6 Oct 2026). applyGuardian sets the
+  // exactly how it looked (6 Oct 2026). applyGuardian sets the
   // guardian, version 2 and the guarded option; the wallet, or the web wallet's
   // two factor page, adds the second signature.
   const guardian = await guardianOf(transactions[0].sender.toBech32());

@@ -6,7 +6,7 @@
  * 0.3 s, 3,000 take 3 s, 6,000 take 13 s. A file that fills the 5 MB storage
  * quota (about 50,000 entries) freezes the tab for a quarter of an hour.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-09.test.ts
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-09.test.ts
  */
 import { getAllSafes, importSafes } from 'multisig/savedSafes';
 

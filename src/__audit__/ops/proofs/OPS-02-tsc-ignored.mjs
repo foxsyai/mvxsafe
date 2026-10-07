@@ -16,12 +16,14 @@
 //
 //   node src/__audit__/ops/proofs/OPS-02-tsc-ignored.mjs
 //   FIXED=1 node src/__audit__/ops/proofs/OPS-02-tsc-ignored.mjs   # expected: exit 0
+import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const APP = '/home/sebastian/FOXSY/mvxsafe/app';
+// The repository root, four levels above this file.
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 const tmp = mkdtempSync(join(tmpdir(), 'mvxsafe-ops02-'));
 const wt = join(tmp, 'worktree');
 execFileSync('git', ['-C', APP, 'worktree', 'add', '--detach', wt, 'HEAD'], { stdio: 'pipe' });

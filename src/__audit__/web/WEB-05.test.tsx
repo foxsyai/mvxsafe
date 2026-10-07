@@ -7,7 +7,7 @@
  * which leaves the visitor with a blank page and no way to recover from inside
  * the app.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-05.test.tsx
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-05.test.tsx
  */
 import React from 'react';
 import { render } from '@testing-library/react';

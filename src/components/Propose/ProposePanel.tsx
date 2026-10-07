@@ -85,7 +85,7 @@ export const ProposePanel = ({
   // An xPortal request dismissed on the phone never comes back as a refusal, so
   // the button would say "Waiting for your wallet" until the page is reloaded.
   // After a while the panel offers a way out, without claiming anything about
-  // what the wallet did (Sebastian, 6 Oct 2026).
+  // what the wallet did (6 Oct 2026).
   useEffect(() => {
     if (!busy) {
       setStuck(false);

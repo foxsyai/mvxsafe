@@ -5,7 +5,7 @@
  * read from the network before the first one is broadcast, so both carry the
  * same nonce and the second is refused by the node after the visitor signed it.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-08.test.tsx
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-08.test.tsx
  */
 import './fixSetImmediate';
 import React from 'react';

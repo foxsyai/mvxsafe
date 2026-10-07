@@ -5,7 +5,7 @@
  * wallet action hold the previous safe's loader. The buttons on those stale
  * cards call signAction(signer, <new safe>, <old action id>).
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-01.test.tsx
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-01.test.tsx
  */
 import './fixSetImmediate';
 import React from 'react';

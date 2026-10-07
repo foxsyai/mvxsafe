@@ -22,6 +22,7 @@
 //
 //   node src/__audit__/ops/proofs/OPS-01-build-race.mjs
 //   FIXED=1 node src/__audit__/ops/proofs/OPS-01-build-race.mjs   # expected: exit 0
+import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -37,7 +38,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const APP = '/home/sebastian/FOXSY/mvxsafe/app';
+// The repository root, four levels above this file.
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 const ROUNDS = Number(process.env.ROUNDS || 5);
 const DELAY = process.env.NPM_DELAY || '1.5';
 

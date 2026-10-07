@@ -4,7 +4,7 @@
  * Object.prototype, which React refuses as a child: the whole app unmounts to a
  * blank page. Any name that exists on Object.prototype misbehaves the same way.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-03.test.tsx
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-03.test.tsx
  */
 import React from 'react';
 import { render } from '@testing-library/react';

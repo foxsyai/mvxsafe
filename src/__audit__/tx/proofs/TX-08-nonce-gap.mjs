@@ -2,7 +2,7 @@
 // account (the situation TX-08 puts the app in after one failed send).
 // bob sends a harmless 0-EGLD note to himself with nonce N+1, we watch it for
 // a while, then send nonce N and see whether the first one dies or executes.
-//   cd /home/sebastian/FOXSY/mvxsafe/app && node src/__audit__/tx/proofs/TX-08-nonce-gap.mjs
+//   node src/__audit__/tx/proofs/TX-08-nonce-gap.mjs
 // Exit 0 always: this records protocol behaviour, it is not a regression test.
 // Devnet only, bob only, two transactions of 50k-ish gas.
 import { Account, ApiNetworkProvider, Transaction } from '@multiversx/sdk-core';

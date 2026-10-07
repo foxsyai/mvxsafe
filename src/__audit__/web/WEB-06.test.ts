@@ -6,7 +6,7 @@
  * never starts. Only a page reload recovers. The SDK provider used for contract
  * queries has a 15 s timeout; the app's own GETs have none.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-06.test.ts
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-06.test.ts
  */
 jest.useFakeTimers();
 

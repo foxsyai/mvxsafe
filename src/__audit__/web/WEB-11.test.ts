@@ -5,7 +5,7 @@
  * overwrites the fresh one and is served for the next 60 s. Refresh therefore
  * cannot be trusted to leave the cache fresh.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-11.test.ts
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-11.test.ts
  */
 import { cached, clearCache } from 'multisig/network';
 

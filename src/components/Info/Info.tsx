@@ -34,7 +34,7 @@ export const Info = ({ text }: { text: string }) => {
       ref={holder}
       // The holder is lifted while open. Without it the bubble paints under the
       // elements that come after it in the page, which showed their text
-      // through it (Sebastian, 6 Oct 2026).
+      // through it (6 Oct 2026).
       className={`relative ml-1 inline-flex translate-y-[0.5px] items-center align-middle ${
         open ? 'z-50' : ''
       }`}

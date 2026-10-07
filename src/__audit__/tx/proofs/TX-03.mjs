@@ -1,7 +1,7 @@
 // TX-03 devnet proof: the token builder turns a negative amount into a
 // well-formed proposal for ZERO tokens, and the contract accepts it.
 //
-//   cd /home/sebastian/FOXSY/mvxsafe/app && node src/__audit__/tx/proofs/TX-03.mjs
+//   node src/__audit__/tx/proofs/TX-03.mjs
 //   AMOUNT=-0.5 ...     another negative amount (default -1)
 //
 // Exit 1 when the bug reproduces: buildProposeToken produces a transaction and

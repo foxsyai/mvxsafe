@@ -1,6 +1,7 @@
 // Refreshes recorded-devnet.json from the two devnet audit safes (read-only, no keys).
 // The jest tests DISP-01, DISP-02 and DISP-05 run on these bytes as well as on hand-made ones.
-//   cd /home/sebastian/FOXSY/mvxsafe/app && node src/__audit__/display/proofs/refresh-recorded-devnet.mjs
+//   node src/__audit__/display/proofs/refresh-recorded-devnet.mjs
+import { fileURLToPath } from 'node:url';
 import { Address } from '@multiversx/sdk-core';
 const A = 'erd1qqqqqqqqqqqqqpgqfhtkpf9warq5w7eny4az9epxt26gxyvgaujqlz7cqq';
 const B = 'erd1qqqqqqqqqqqqqpgqlyf6f9xptftuaceks5rh0ru9u598mkv6aujqgu4hyw';
@@ -20,6 +21,6 @@ for (const [key, sc] of [['safeA', A], ['safeB', B]]) {
 out.safeB.getActionValidSignerCount_1 = await q(B, 'getActionValidSignerCount', ['01']);
 out.safeB.quorumReached_1 = await q(B, 'quorumReached', ['01']);
 out.safeB.getActionSigners_1 = await q(B, 'getActionSigners', ['01']);
-writeFileSync('/home/sebastian/FOXSY/mvxsafe/app/src/__audit__/display/recorded-devnet.json', JSON.stringify(out, null, 2) + '\n');
+writeFileSync(fileURLToPath(new URL('../recorded-devnet.json', import.meta.url)), JSON.stringify(out, null, 2) + '\n');
 console.log('safeA pending entries:', out.safeA.getPendingActionFullInfo.length, '| board', out.safeA.board.length);
 console.log('safeB pending entries:', out.safeB.getPendingActionFullInfo.length, '| board', out.safeB.board, '| validSignerCount(1):', out.safeB.getActionValidSignerCount_1, '| quorumReached(1):', out.safeB.quorumReached_1, '| signers(1):', out.safeB.getActionSigners_1);

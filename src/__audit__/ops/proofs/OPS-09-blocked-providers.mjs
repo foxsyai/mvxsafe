@@ -18,7 +18,7 @@
 // frame-src), 0 otherwise.
 //
 //   node src/__audit__/ops/proofs/OPS-09-blocked-providers.mjs
-import { chromium } from '/home/sebastian/FOXSY/next-foxleague/frontend/node_modules/playwright/index.mjs';
+import { chromium } from '@playwright/test';
 
 const SITE = process.env.SITE || 'https://mvxsafe.io';
 const SUSPECTS = ['MetaMask Snap', 'Passkey'];

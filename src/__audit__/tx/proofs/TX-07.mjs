@@ -9,7 +9,7 @@
 //     pending with its signatures, so it cannot be discarded until everybody
 //     unsigns, and "Carry it out" fails again every time it is pressed.
 //
-//   cd /home/sebastian/FOXSY/mvxsafe/app
+//   (from the repository root)
 //   node src/__audit__/tx/proofs/TX-07.mjs                 same-shard recipient (alice)
 //   RECIPIENT=bob node src/__audit__/tx/proofs/TX-07.mjs   cross-shard recipient (bob)
 //   DRY=1 ...                                              only read state, send nothing

@@ -10,7 +10,7 @@
 // revalidation (bug), 0 when Chrome went back to the server (fixed: no-cache).
 //
 //   node src/__audit__/ops/proofs/OPS-04-stale-index-observed.mjs
-import { chromium } from '/home/sebastian/FOXSY/next-foxleague/frontend/node_modules/playwright/index.mjs';
+import { chromium } from '@playwright/test';
 
 const URL = process.env.URL || 'https://mvxsafe.io/';
 const browser = await chromium.launch({ channel: 'chrome', headless: true });

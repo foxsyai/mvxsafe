@@ -6,7 +6,7 @@
  * for sign, perform and discard the retry is harmless, for a proposal it puts a
  * second identical action in front of the board.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-07.test.tsx
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-07.test.tsx
  */
 import './fixSetImmediate';
 import React from 'react';

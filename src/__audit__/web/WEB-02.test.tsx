@@ -4,7 +4,7 @@
  * new wallet when a safe cannot be re-read. The roles map is only cleared by
  * the Refresh button.
  *
- * Run: cd /home/sebastian/FOXSY/mvxsafe/app && npx jest src/__audit__/web/WEB-02.test.tsx
+ * Run, from the repository root: npx jest src/__audit__/web/WEB-02.test.tsx
  */
 import './fixSetImmediate';
 import React from 'react';
