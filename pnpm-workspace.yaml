@@ -18,3 +18,9 @@ overrides:
   brace-expansion@>=4.0.0 <5.0.11: 5.0.12
   source-map-js@>=1.0.0 <1.2.2: 1.2.2
   '@vue/server-renderer@<3.5.42': 3.5.43
+  # 8 Oct 2026: qs (denial of service in the cross-window wallet provider),
+  # pbkdf2 (denial of service in bip39, which the app never calls) and postcss
+  # (build-time file read through a sourceMappingURL). None reachable here.
+  qs@<6.16.0: 6.16.0
+  pbkdf2@<3.1.7: 3.1.7
+  postcss@<8.5.23: 8.5.28
