@@ -94,13 +94,13 @@ const SafeView = ({ address }: { address: string }) => {
   // False once this view is gone: a read that finishes later changes nothing.
   const alive = useRef(true);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    alive.current = true;
+    return () => {
       alive.current = false;
       timers.current.forEach(clearTimeout);
-    },
-    []
-  );
+    };
+  }, []);
 
   // Each part is read on its own, and a part the network refused keeps what
   // was read before: a failed refresh used to replace a safe with "unknown",

@@ -65,14 +65,16 @@ export const Safes = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<Record<string, Role>>({});
+  // Safes whose last read was refused; they are being asked again.
+  const [unread, setUnread] = useState<Set<string>>(new Set());
 
   const listAlive = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    listAlive.current = true;
+    return () => {
       listAlive.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   const isLoggedIn = useGetIsLoggedIn();
   const { address: connected } = useGetAccount();
@@ -83,7 +85,7 @@ export const Safes = () => {
   // One safe: its role first (one request, it decides the badge and the
   // highlight), then its card. Errors leave that safe without numbers rather
   // than breaking the page for the others.
-  const readOne = useCallback(async (safe: KnownSafe, connectedAddress: string) => {
+  const readOne = useCallback(async (safe: KnownSafe, connectedAddress: string): Promise<boolean> => {
     if (connectedAddress) {
       try {
         const role = (await readUserRole(safe.address, connectedAddress)) as Role;
@@ -103,10 +105,41 @@ export const Safes = () => {
         }
         return next;
       });
+      setUnread((current) => {
+        if (!current.has(safe.address)) return current;
+        const next = new Set(current);
+        next.delete(safe.address);
+        return next;
+      });
+      return true;
     } catch {
-      // Shown without numbers.
+      // Refused or lost: marked, and asked again by itself (see retryLater).
+      setUnread((current) => new Set(current).add(safe.address));
+      return false;
     }
   }, []);
+
+  // Cards whose read was refused are read again by themselves, 5 s, 10 s,
+  // then every 30 s, for as long as the list is open: two cards used to stay
+  // on "..." for good after a slow moment of the API (7 Oct 2026).
+  const retryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => retryTimers.current.forEach(clearTimeout), []);
+  const retryLater = useCallback(
+    (failed: KnownSafe[], connectedAddress: string, attempt: number) => {
+      const delay = Math.min(30000, 5000 * Math.pow(2, attempt));
+      retryTimers.current.push(
+        setTimeout(async () => {
+          const still: KnownSafe[] = [];
+          for (const safe of failed) {
+            if (!listAlive.current) return;
+            if (!(await readOne(safe, connectedAddress))) still.push(safe);
+          }
+          if (still.length > 0 && listAlive.current) retryLater(still, connectedAddress, attempt + 1);
+        }, delay)
+      );
+    },
+    [readOne]
+  );
 
   const load = useCallback(
     async (list: KnownSafe[], connectedAddress: string) => {
@@ -119,20 +152,22 @@ export const Safes = () => {
       // Three safes at a time. The queue underneath paces the individual
       // requests, so this only decides how many conversations run at once.
       const pending = [...list];
+      const failed: KnownSafe[] = [];
       const worker = async () => {
         for (;;) {
           // Left the list: stop, so the page now open is not queued behind it.
           if (!listAlive.current) return;
           const safe = pending.shift();
           if (!safe) return;
-          await readOne(safe, connectedAddress);
+          if (!(await readOne(safe, connectedAddress))) failed.push(safe);
           setDone((count) => count + 1);
         }
       };
       await Promise.all([worker(), worker(), worker()]);
       setLoading(false);
+      if (failed.length > 0 && listAlive.current) retryLater(failed, connectedAddress, 0);
     },
-    [readOne]
+    [readOne, retryLater]
   );
 
   useEffect(() => {
@@ -353,6 +388,10 @@ export const Safes = () => {
                   </dd>
                 </div>
               </dl>
+
+              {unread.has(safe.address) && (
+                <p className='mt-3 text-xs text-[#FBBF24]'>Not read yet, trying again...</p>
+              )}
 
               {/* What is waiting, and for whom: at a glance, without opening the safe. */}
               {card?.quorum ? (
