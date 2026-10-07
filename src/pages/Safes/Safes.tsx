@@ -38,7 +38,18 @@ export const Safes = () => {
       if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
         for (const [address, card] of Object.entries(stored as Record<string, any>)) {
           if (Array.isArray(card?.tokens) && typeof card?.egld === 'number') {
-            kept[address] = card as SafeCard;
+            // Balances may show at once from the last visit; what is pending and
+            // for whom may not: a "needs you" from before a signature landed is
+            // worse than "...", so those wait for a fresh read (7 Oct 2026).
+            const {
+              pendingCount: _pending,
+              readyCount: _ready,
+              needsViewer: _needs,
+              actionCount: _actions,
+              viewer: _viewer,
+              ...balances
+            } = card as SafeCard;
+            kept[address] = balances as SafeCard;
           }
         }
       }
@@ -76,6 +87,16 @@ export const Safes = () => {
         for (;;) {
           const safe = pending.shift();
           if (!safe) return;
+          // The role first: one request, and it decides the badge and the
+          // highlight, so it should not wait behind the balances.
+          if (connectedAddress) {
+            try {
+              const role = (await readUserRole(safe.address, connectedAddress)) as Role;
+              setRoles((current) => ({ ...current, [safe.address]: role }));
+            } catch {
+              // No role shown is the honest answer when it could not be read.
+            }
+          }
           try {
             const card = await readCard(safe.address, connectedAddress);
             setCards((current) => {
@@ -91,16 +112,7 @@ export const Safes = () => {
             // A safe that cannot be read is shown without numbers rather than
             // breaking the page for the others.
           }
-          // Read on its own, so a failed balance read never leaves a role from
-          // an earlier wallet in place.
-          if (connectedAddress) {
-            try {
-              const role = (await readUserRole(safe.address, connectedAddress)) as Role;
-              setRoles((current) => ({ ...current, [safe.address]: role }));
-            } catch {
-              // No role shown is the honest answer when it could not be read.
-            }
-          }
+
           setDone((count) => count + 1);
         }
       };
