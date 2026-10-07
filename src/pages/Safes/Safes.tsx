@@ -77,7 +77,7 @@ export const Safes = () => {
           const safe = pending.shift();
           if (!safe) return;
           try {
-            const card = await readCard(safe.address);
+            const card = await readCard(safe.address, connectedAddress);
             setCards((current) => {
               const next = { ...current, [safe.address]: card };
               try {
@@ -302,10 +302,45 @@ export const Safes = () => {
                 <div className='text-right'>
                   <dt className='text-xs text-[#6B7280]'>Signatures needed</dt>
                   <dd className='mt-1 text-white'>
-                    {card ? (card.quorum ? card.quorum : 'not a multisig') : '...'}
+                    {card
+                      ? card.quorum
+                        ? card.boardSize
+                          ? `${card.quorum} of ${card.boardSize}`
+                          : card.quorum
+                        : 'not a multisig'
+                      : '...'}
                   </dd>
                 </div>
               </dl>
+
+              {/* What is waiting, and for whom: at a glance, without opening the safe. */}
+              {card?.quorum ? (
+                <dl className='mt-3 flex items-start justify-between gap-6 border-t border-[#2A2A32] pt-3 text-sm'>
+                  <div>
+                    <dt className='text-xs text-[#6B7280]'>Waiting for signatures</dt>
+                    <dd className='mt-1 flex items-baseline gap-2'>
+                      <span
+                        className={
+                          (card.pendingCount ?? 0) > 0 ? 'font-semibold text-[#FF6E0A]' : 'text-white'
+                        }
+                      >
+                        {card.pendingCount ?? '...'}
+                      </span>
+                      {card.viewer === connected &&
+                        isLoggedIn &&
+                        (card.needsViewer ?? 0) > 0 && (
+                          <span className='text-xs text-[#FF6E0A]'>
+                            {card.needsViewer} need{card.needsViewer === 1 ? 's' : ''} you
+                          </span>
+                        )}
+                    </dd>
+                  </div>
+                  <div className='text-right'>
+                    <dt className='text-xs text-[#6B7280]'>Proposed so far</dt>
+                    <dd className='mt-1 text-white'>{card.actionCount ?? '...'}</dd>
+                  </div>
+                </dl>
+              ) : null}
 
             </div>
           );

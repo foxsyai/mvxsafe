@@ -192,15 +192,25 @@ export interface SafeCard {
   quorum: number | null;
   /** What the whole safe is worth, when the API knows the prices. */
   worthUsd: number;
+  // The rest is absent on cards cached by an older version of the page.
+  boardSize?: number | null;
+  /** Actions waiting for signatures right now. */
+  pendingCount?: number | null;
+  /** Every action ever proposed, carried out or discarded included. */
+  actionCount?: number | null;
+  /** Who the next number was counted for: a card never speaks for another wallet. */
+  viewer?: string;
+  /** Pending actions the viewer, a board member, has not signed and that still need signatures. */
+  needsViewer?: number | null;
 }
 
 /**
- * Just enough for one row of the list: what it holds and how many signatures it
- * needs. Three requests instead of the eight a full overview costs, which
- * matters because the public API allows about two a second per visitor and the
- * list asks for every safe at once.
+ * Enough for one card of the list: what it holds, how many signatures it needs
+ * out of how many members, what is waiting and how much has been proposed so
+ * far. The contract reads share their cache keys with the safe page, so
+ * opening a safe after the list costs nothing more.
  */
-export const readCard = async (address: string): Promise<SafeCard> => {
+export const readCard = async (address: string, viewer = ''): Promise<SafeCard> => {
   const [balances, egldPrice] = await Promise.all([
     readBalances(address, false),
     readEgldPrice()
@@ -211,13 +221,47 @@ export const readCard = async (address: string): Promise<SafeCard> => {
   } catch {
     quorum = null;
   }
-  return {
+
+  const card: SafeCard = {
     address,
     tokens: balances.tokens,
     egld: balances.egld,
     quorum,
-    worthUsd: worthOf(balances.egld, balances.tokens, egldPrice)
+    worthUsd: worthOf(balances.egld, balances.tokens, egldPrice),
+    boardSize: null,
+    pendingCount: null,
+    actionCount: null,
+    viewer,
+    needsViewer: null
   };
+  if (quorum === null) return card;
+
+  const [board, last, pending] = await Promise.allSettled([
+    cached(`board:${address}`, () => query<any>(address, 'getAllBoardMembers')),
+    cached(`actions:${address}`, () => query<any>(address, 'getActionLastIndex')),
+    cached(`pending:${address}`, () => query<any>(address, 'getPendingActionFullInfo'))
+  ]);
+  const members =
+    board.status === 'fulfilled'
+      ? (Array.isArray(board.value) ? board.value : [board.value]).map(asAddress).filter(Boolean)
+      : null;
+  if (members) card.boardSize = members.length;
+  if (last.status === 'fulfilled') card.actionCount = asNumber(last.value);
+  if (pending.status === 'fulfilled') {
+    const list = (
+      Array.isArray(pending.value) ? pending.value : pending.value ? [pending.value] : []
+    ).filter(Boolean);
+    card.pendingCount = list.length;
+    // Only for a board member, and only signatures that count, as on the safe page.
+    if (viewer && members?.includes(viewer)) {
+      card.needsViewer = list.filter((action: any) => {
+        const signers: string[] = (action.signers ?? []).map(asAddress);
+        const valid = signers.filter((signer) => members.includes(signer)).length;
+        return !signers.includes(viewer) && valid < (quorum ?? 0);
+      }).length;
+    }
+  }
+  return card;
 };
 
 export const readOverview = async (address: string): Promise<SafeOverview> => {
