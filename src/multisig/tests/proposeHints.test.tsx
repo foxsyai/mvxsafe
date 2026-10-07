@@ -15,9 +15,9 @@ jest.mock('multisig/actions', () => ({
 }));
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
-const CEO = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
-const COO = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
-const CTO = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
+const ALICE = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
+const BOB = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
+const CAROL = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
 const SPARE = 'erd16pe79ay2m6g7ap9vpshvvqaqc3ayplwuqw0rkwj2gqvv0egn0wjsyzvjwd';
 
 const panel = (extra: Record<string, unknown> = {}) =>
@@ -27,7 +27,7 @@ const panel = (extra: Record<string, unknown> = {}) =>
       signer={{ address: SPARE, nonce: 1 }}
       tokens={[]}
       boardSize={4}
-      boardMembers={[CEO, COO, CTO, SPARE]}
+      boardMembers={[ALICE, BOB, CAROL, SPARE]}
       proposers={[]}
       quorum={2}
       onProposed={jest.fn()}
@@ -88,7 +88,7 @@ test('removing an address with no role is refused before any transaction', async
 });
 
 test('adding a board member to the board, or a proposer as a proposer, is refused', async () => {
-  const first = await attempt('Add board member', CEO);
+  const first = await attempt('Add board member', ALICE);
   expect(actions.proposeAddBoardMember).not.toHaveBeenCalled();
   expect(screen.getByText(/already on the board/)).toBeInTheDocument();
   first.unmount();
@@ -98,7 +98,7 @@ test('adding a board member to the board, or a proposer as a proposer, is refuse
 });
 
 test('a removal the contract would refuse for the quorum is refused here first', async () => {
-  await attempt('Remove member', CTO, { boardMembers: [CEO, COO, CTO], quorum: 3, boardSize: 3 });
+  await attempt('Remove member', CAROL, { boardMembers: [ALICE, BOB, CAROL], quorum: 3, boardSize: 3 });
   expect(actions.proposeRemoveUser).not.toHaveBeenCalled();
   expect(screen.getByText(/lower the quorum first/i)).toBeInTheDocument();
 });

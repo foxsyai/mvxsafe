@@ -11,7 +11,7 @@ import { readHistory, readOverview, readPendingActions, readUserRole } from 'mul
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
 const ME = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
-const COO = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
+const BOB = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
 
 jest.mock('lib', () => ({
   useGetIsLoggedIn: () => true,
@@ -32,9 +32,9 @@ jest.mock('multisig/reads', () => ({
 
 const good = {
   address: SAFE, egld: 1, egldRaw: '1000000000000000000', egldPrice: 4, worthUsd: 4, tokens: [], nftCount: 0,
-  quorum: 2, boardMembers: [ME, COO], proposers: [], proposerCount: 0, actionCount: 2, pendingCount: 1
+  quorum: 2, boardMembers: [ME, BOB], proposers: [], proposerCount: 0, actionCount: 2, pendingCount: 1
 };
-const action = { actionId: 2, description: 'Send 0.1 EGLD to someone', signerCount: 1, signers: [COO], formerSigners: [], quorumReached: false };
+const action = { actionId: 2, description: 'Send 0.1 EGLD to someone', signerCount: 1, signers: [BOB], formerSigners: [], quorumReached: false };
 const refused = () => Promise.reject(new Error('Request failed with status code 429'));
 
 const open = () =>

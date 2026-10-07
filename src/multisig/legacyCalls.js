@@ -8,7 +8,7 @@
 // ends up with an empty endpoint name and ESDTTransfer sitting in the argument
 // list. The proposal is accepted and then fails at perform with "tokenize
 // failed", which is the worst possible moment: after signatures were collected.
-// Proven on devnet, 6 October 2026, against a copy of the Foundation's exact
+// Proven on devnet, 6 October 2026, against a copy of a mainnet safe's exact
 // bytecode. See src/abi/multisig-legacy.abi.json.
 
 import {
@@ -190,7 +190,7 @@ export const buildProposeChangeQuorum = (context, newQuorum) =>
 
 // --- creating a safe ---------------------------------------------------------
 //
-// A new safe runs the Foundation's own contract, byte for byte, so everything
+// A new safe runs the same contract as the older mainnet safes, byte for byte, so everything
 // above is proven against it. Two transactions, signed together:
 //
 //   1. deploy the code with the quorum and the board,
@@ -198,11 +198,11 @@ export const buildProposeChangeQuorum = (context, newQuorum) =>
 //
 // Step 2 matters: a contract is upgradeable by its owner, and right after the
 // deploy the owner is whoever sent it. Once the safe owns itself, only the board,
-// by quorum, can ever change its code. The Foundation's safes were set up exactly
-// this way (deploy at nonce 3, handover at nonce 4, Treasury, May 2026), and the
-// tests rebuild those two transactions byte for byte.
+// by quorum, can ever change its code. Existing mainnet safes were set up exactly
+// this way (one was deployed at nonce 3 and handed over at nonce 4 in May 2026).
+// The tests rebuild those two transactions byte for byte.
 
-/** What the chain reports as the code hash of every Foundation safe. */
+/** What the chain reports as the code hash of every safe running this build. */
 export const MULTISIG_CODE_HASH = '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=';
 
 /** SHA-256 of the same wasm, checkable in a browser before it is deployed. */
@@ -210,7 +210,7 @@ export const MULTISIG_WASM_SHA256 =
   '394e33d9ea7e854edf39f59da30c3e65f5b975322f252ded0a5017c48234a9d5';
 
 /**
- * A deploy spends ALL the gas it is given: the Treasury burned its full 100M
+ * A deploy spends ALL the gas it is given: a mainnet safe burned its full 100M
  * with one member, the devnet test safe its full 200M with three. Most of the
  * fee pays for the 47,000 bytes of code; gas above that is priced at a hundredth,
  * so 250M costs about 0.0005 EGLD more than 200M, while running out would lose
@@ -218,7 +218,7 @@ export const MULTISIG_WASM_SHA256 =
  */
 export const DEPLOY_GAS = 250000000n;
 
-/** The Foundation's handover used 5.2M of the 10M it was given. */
+/** A mainnet handover used 5.2M of the 10M it was given. */
 export const HANDOVER_GAS = 10000000n;
 
 /** The address the safe will have, known before anything is sent. */
@@ -227,7 +227,7 @@ export const predictSafeAddress = (deployer, nonce) =>
 
 /**
  * Deploys a safe: the quorum, then every board member. Upgradeable, readable,
- * payable and payable by contracts, like the Foundation's, so tokens can be sent
+ * payable and payable by contracts, like the existing safes, so tokens can be sent
  * to it from any wallet or contract.
  */
 export const buildDeploySafe = async ({ chainId, sender, nonce }, { bytecode, quorum, board }) => {

@@ -9,13 +9,13 @@ import {
   predictSafeAddress
 } from 'multisig/legacyCalls';
 
-// The Foundation's Treasury was created on mainnet by these two transactions:
+// An existing safe was created on mainnet by these two transactions:
 //   76b7ddb633e661c23e31d18e98688a8c736df066b7eb0612f7a9d18f91e4bd70  deploy, nonce 3
 //   9876077e1102b028...                                                 ChangeOwnerAddress, nonce 4
 // Rebuilding them byte for byte proves the builders against reality without
 // sending anything.
 const DEPLOYER = 'erd15gpvttvxudnatxampf280gltmpagglpraqt72dylhvxef4rmaggsmt3p3h';
-const TREASURY = 'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
+const EXISTING_SAFE = 'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
 const REAL_DEPLOY_DATA_SHA256 = 'f0becc5dbce5d2ae9d3e8f382061edb7ba1a7b6eafe87288942c880a85df681e';
 const REAL_HANDOVER_DATA =
   'ChangeOwnerAddress@000000000000000005007d4d7e83d3c01748c2518ec06ed8a3d8cc93db8aea11';
@@ -24,15 +24,15 @@ const bytecode = new Uint8Array(readFileSync(join(__dirname, '../../../public/co
 const text = (data: Uint8Array) => Buffer.from(data).toString();
 
 describe('creating a safe', () => {
-  it('ships exactly the Foundation contract', () => {
+  it('ships exactly the contract the existing safes run', () => {
     expect(createHash('sha256').update(bytecode).digest('hex')).toBe(MULTISIG_WASM_SHA256);
   });
 
   it('predicts the address the deploy will create', () => {
-    expect(predictSafeAddress(DEPLOYER, 3)).toBe(TREASURY);
+    expect(predictSafeAddress(DEPLOYER, 3)).toBe(EXISTING_SAFE);
   });
 
-  it('rebuilds the Treasury deploy byte for byte', async () => {
+  it('rebuilds that deploy byte for byte', async () => {
     const tx = await buildDeploySafe(
       { chainId: '1', sender: DEPLOYER, nonce: 3 },
       { bytecode, quorum: 1, board: [DEPLOYER] }
@@ -45,10 +45,10 @@ describe('creating a safe', () => {
     expect(tx.receiver.toBech32()).toBe('erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu');
   });
 
-  it('rebuilds the Treasury handover byte for byte', async () => {
-    const tx = await buildHandOver({ chainId: '1', sender: DEPLOYER, nonce: 4, safe: TREASURY });
+  it('rebuilds that handover byte for byte', async () => {
+    const tx = await buildHandOver({ chainId: '1', sender: DEPLOYER, nonce: 4, safe: EXISTING_SAFE });
     expect(text(tx.data)).toBe(REAL_HANDOVER_DATA);
-    expect(tx.receiver.toBech32()).toBe(TREASURY);
+    expect(tx.receiver.toBech32()).toBe(EXISTING_SAFE);
     expect(tx.nonce).toBe(4n);
   });
 

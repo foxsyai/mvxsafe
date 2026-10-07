@@ -5,7 +5,7 @@
 // VALID address with the same 14 visible characters was found by brute force in
 // 1.2e9 trials (8 minutes, one CPU; devnet/collide.mjs); an attacker who needs
 // the private key grinds ed25519 keys, ~2^50 of them, which is GPU-farm work
-// measured in days, not years, against 1.36 billion FOXSY.
+// measured in days, not years, against a large safe.
 jest.mock('multisig/network', () => require('./fixtures').networkMock);
 jest.mock('lib', () => require('./mocks').libMock);
 jest.mock('multisig/actions', () => require('./mocks').actionsMock);

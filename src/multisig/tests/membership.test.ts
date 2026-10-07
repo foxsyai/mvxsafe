@@ -7,12 +7,12 @@
  */
 import { membershipNote } from 'multisig/reads';
 
-const CEO = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
-const COO = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
-const CTO = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
+const ALICE = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
+const BOB = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
+const CAROL = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
 const SPARE = 'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
 
-const state = { quorum: 2, boardMembers: [CEO, COO, CTO], proposers: [SPARE] };
+const state = { quorum: 2, boardMembers: [ALICE, BOB, CAROL], proposers: [SPARE] };
 const action = (name: string, who: string) => ({ name, fields: [who] });
 
 test('adding a proposer to the board says it is a promotion', () => {
@@ -20,27 +20,27 @@ test('adding a proposer to the board says it is a promotion', () => {
 });
 
 test('adding a board member as a proposer says it takes them off the board', () => {
-  expect(membershipNote(action('AddProposer', CTO), state)).toMatch(/takes them off the board/);
+  expect(membershipNote(action('AddProposer', CAROL), state)).toMatch(/takes them off the board/);
 });
 
 test('removing whoever is on the board or proposing says which', () => {
-  const roomy = { quorum: 2, boardMembers: [CEO, COO, CTO, SPARE], proposers: [] };
-  expect(membershipNote(action('RemoveUser', CTO), roomy)).toBe(' (on the board today)');
+  const roomy = { quorum: 2, boardMembers: [ALICE, BOB, CAROL, SPARE], proposers: [] };
+  expect(membershipNote(action('RemoveUser', CAROL), roomy)).toBe(' (on the board today)');
   expect(membershipNote(action('RemoveUser', SPARE), state)).toBe(' (a proposer today)');
   // One of three at a quorum of two leaves two of two.
-  expect(membershipNote(action('RemoveUser', CTO), state)).toMatch(/all 2 remaining board members/);
+  expect(membershipNote(action('RemoveUser', CAROL), state)).toMatch(/all 2 remaining board members/);
 });
 
 test('no-ops say so', () => {
-  expect(membershipNote(action('AddBoardMember', CEO), state)).toMatch(/already on the board/);
+  expect(membershipNote(action('AddBoardMember', ALICE), state)).toMatch(/already on the board/);
   expect(membershipNote(action('AddProposer', SPARE), state)).toMatch(/already a proposer/);
   expect(membershipNote(action('RemoveUser', 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3'), state)).toMatch(/holds no role today/);
 });
 
 test('what the contract will refuse is said before anyone signs', () => {
-  const tight = { quorum: 3, boardMembers: [CEO, COO, CTO], proposers: [] };
-  expect(membershipNote(action('RemoveUser', CTO), tight)).toMatch(/leave 2 board members for the 3 signatures needed.*refuse/);
-  expect(membershipNote(action('AddProposer', COO), tight)).toMatch(/refuse/);
+  const tight = { quorum: 3, boardMembers: [ALICE, BOB, CAROL], proposers: [] };
+  expect(membershipNote(action('RemoveUser', CAROL), tight)).toMatch(/leave 2 board members for the 3 signatures needed.*refuse/);
+  expect(membershipNote(action('AddProposer', BOB), tight)).toMatch(/refuse/);
 });
 
 test('a plain new member or proposer needs no note', () => {
@@ -53,7 +53,7 @@ test('a plain new member or proposer needs no note', () => {
 // Raised in the mainnet test on 7 Oct 2026: a quorum of 3 on a board of 4, and
 // then a removal, would have left 3 of 3 with a member nobody present controls.
 test('a quorum equal to the board says every member must then sign everything', () => {
-  const four = { quorum: 2, boardMembers: [CEO, COO, CTO, SPARE], proposers: [] };
+  const four = { quorum: 2, boardMembers: [ALICE, BOB, CAROL, SPARE], proposers: [] };
   expect(membershipNote({ name: 'ChangeQuorum', fields: [4] }, four)).toMatch(/all 4 board members.*every action/);
   expect(membershipNote({ name: 'ChangeQuorum', fields: [3] }, four)).toBe('');
 });
@@ -63,7 +63,7 @@ test('a quorum above the board size says the contract will refuse it', () => {
 });
 
 test('a removal that leaves exactly the quorum says every remaining member must sign', () => {
-  const tight = { quorum: 3, boardMembers: [CEO, COO, CTO, SPARE], proposers: [] };
+  const tight = { quorum: 3, boardMembers: [ALICE, BOB, CAROL, SPARE], proposers: [] };
   expect(membershipNote(action('RemoveUser', SPARE), tight)).toMatch(/all 3 remaining board members.*every action/);
 });
 

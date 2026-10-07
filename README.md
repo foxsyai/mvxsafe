@@ -4,7 +4,7 @@ A multisig interface for MultiversX, at [mvxsafe.io](https://mvxsafe.io). It ope
 standard MultiversX multisig smart contract: read a safe, propose actions, sign them and carry
 them out once the quorum is reached.
 
-Built because xsafe.io stopped working and the Foxsy AI Foundation needs its own way in.
+Built after xsafe.io stopped working, so that the owners of these safes keep a way in.
 
 ## What it is, and what it is not
 
@@ -31,7 +31,7 @@ with pictures of the live site, taken by `scripts/capture/guide.mjs`.
 
 ## The contracts, and why the SDK's multisig helper is not used
 
-The Foundation's safes, and most multisigs deployed before 2025, run an **older multisig build**.
+Most multisigs deployed before 2025 run an **older multisig build**.
 Read out of the deployed bytecode, its endpoints are: `deposit`, `sign`, `unsign`,
 `performAction`, `discardAction`, `proposeAddBoardMember`, `proposeAddProposer`,
 `proposeRemoveUser`, `proposeChangeQuorum`, `proposeTransferExecute`, `proposeAsyncCall`,

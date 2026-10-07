@@ -1,9 +1,9 @@
 {
   "name": "MultisigLegacy",
   "docs": [
-    "The multisig build the Foxsy AI Foundation's safes actually run, and the one most",
-    "multisigs deployed before 2025 run. Written by hand on 6 Oct 2026 after the current",
-    "ABI from mx-sdk-js-core failed to decode a pending action on a copy of their exact",
+    "The multisig build that most multisigs deployed before 2025 actually run.",
+    "Written by hand on 6 Oct 2026 after the current",
+    "ABI from mx-sdk-js-core failed to decode a pending action on a copy of that exact",
     "bytecode: that ABI describes a newer contract whose ActionFullInfo carries a group id",
     "and whose Action enum splits transfers into Egld and Esdt variants.",
     "",

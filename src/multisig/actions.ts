@@ -47,7 +47,7 @@ const contextOf = async (signer: Signer, safe: string) => {
 /**
  * The guardian of an account, if it has one switched on. A guarded account is
  * one where a second service has to co-sign everything, which is how a treasury
- * wallet should be held, and the Foundation's are.
+ * wallet should be held.
  */
 const guardianOf = async (address: string): Promise<string> => {
   try {
@@ -172,7 +172,7 @@ export const proposeChangeQuorum = async (
 
 /**
  * The contract every new safe runs, fetched from this site and refused unless
- * it is byte for byte the one the app was tested against: the Foundation's.
+ * it is byte for byte the one the app was tested against.
  */
 const loadSafeCode = async (): Promise<Uint8Array> => {
   const response = await fetch('/contracts/multisig.wasm', { cache: 'no-store' });
