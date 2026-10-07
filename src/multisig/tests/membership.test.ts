@@ -24,8 +24,11 @@ test('adding a board member as a proposer says it takes them off the board', () 
 });
 
 test('removing whoever is on the board or proposing says which', () => {
-  expect(membershipNote(action('RemoveUser', CTO), state)).toBe(' (on the board today)');
+  const roomy = { quorum: 2, boardMembers: [CEO, COO, CTO, SPARE], proposers: [] };
+  expect(membershipNote(action('RemoveUser', CTO), roomy)).toBe(' (on the board today)');
   expect(membershipNote(action('RemoveUser', SPARE), state)).toBe(' (a proposer today)');
+  // One of three at a quorum of two leaves two of two.
+  expect(membershipNote(action('RemoveUser', CTO), state)).toMatch(/all 2 remaining board members/);
 });
 
 test('no-ops say so', () => {
@@ -46,3 +49,21 @@ test('a plain new member or proposer needs no note', () => {
   expect(membershipNote(action('AddProposer', fresh), state)).toBe('');
   expect(membershipNote({ name: 'ChangeQuorum', fields: [2] }, state)).toBe('');
 });
+
+// Raised in the mainnet test on 7 Oct 2026: a quorum of 3 on a board of 4, and
+// then a removal, would have left 3 of 3 with a member nobody present controls.
+test('a quorum equal to the board says every member must then sign everything', () => {
+  const four = { quorum: 2, boardMembers: [CEO, COO, CTO, SPARE], proposers: [] };
+  expect(membershipNote({ name: 'ChangeQuorum', fields: [4] }, four)).toMatch(/all 4 board members.*every action/);
+  expect(membershipNote({ name: 'ChangeQuorum', fields: [3] }, four)).toBe('');
+});
+
+test('a quorum above the board size says the contract will refuse it', () => {
+  expect(membershipNote({ name: 'ChangeQuorum', fields: [4] }, state)).toMatch(/only 3 board members.*refuse/);
+});
+
+test('a removal that leaves exactly the quorum says every remaining member must sign', () => {
+  const tight = { quorum: 3, boardMembers: [CEO, COO, CTO, SPARE], proposers: [] };
+  expect(membershipNote(action('RemoveUser', SPARE), tight)).toMatch(/all 3 remaining board members.*every action/);
+});
+

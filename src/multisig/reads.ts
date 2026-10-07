@@ -335,6 +335,21 @@ export const membershipNote = (
   state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
 ): string => {
   const name = String(action?.name ?? '');
+  const board = state.boardMembers.length;
+
+  // A quorum equal to the board means one lost wallet locks the safe for
+  // good; above it, the contract refuses (raised in the mainnet test, 7 Oct).
+  if (name === 'ChangeQuorum') {
+    const next = Number(action?.fields?.[0]?.toString?.() ?? action?.fields?.[0] ?? 0);
+    if (next > board) {
+      return ` (there are only ${board} board members, so the contract will refuse to carry it out)`;
+    }
+    if (board > 1 && next === board) {
+      return ` (all ${board} board members would then have to sign every action: one lost wallet would lock the safe)`;
+    }
+    return '';
+  }
+
   const who = asAddress(action?.fields?.[0]);
   if (!who) return '';
   const onBoard = state.boardMembers.includes(who);
@@ -356,7 +371,13 @@ export const membershipNote = (
       }
       return '';
     case 'RemoveUser':
-      if (onBoard) return left < quorum ? refused('removing them') : ' (on the board today)';
+      if (onBoard) {
+        if (left < quorum) return refused('removing them');
+        if (left > 1 && left === quorum) {
+          return ` (on the board today: afterwards all ${left} remaining board members would have to sign every action)`;
+        }
+        return ' (on the board today)';
+      }
       if (proposer) return ' (a proposer today)';
       return ' (holds no role today: this changes nothing)';
     default:
