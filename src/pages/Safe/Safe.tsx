@@ -636,8 +636,7 @@ const SafeView = ({ address }: { address: string }) => {
           </ul>
 
           <p className='mt-5 text-xs tracking-wider text-[#6B7280] uppercase'>Proposers</p>
-          <p className='mt-1 text-xs text-[#6B7280]'>Can propose, cannot sign.</p>
-          <ul className='mt-2 space-y-2'>
+          <ul className='mt-3 space-y-2'>
             {(overview?.proposers ?? []).map((proposer) => (
               <li key={proposer} className='flex items-center justify-between gap-2'>
                 <AddressLine address={proposer} nameable className='text-xs text-[#9AA0A6]' />
