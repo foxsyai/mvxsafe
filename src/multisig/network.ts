@@ -42,14 +42,18 @@ export const networkProvider = new ApiNetworkProvider(apiUrl, {
 // stuck on "..." and the browser retrying nothing. So: a token bucket paces the
 // calls, refusals are retried with a growing wait, and answers are remembered.
 
-const CACHE_MS = 60_000;
-// The documentation says two requests a second per address, but measured from a
-// browser the API answers 20 calls in 0.3 s with no refusal, each in about
-// 0.12 s. Pacing at two was making a list of seven safes take ten seconds for
-// no reason. These numbers stay well under what the API tolerates, and the
-// retry below covers the day it decides otherwise.
-const RATE_PER_SECOND = 8;
-const MAX_IN_FLIGHT = 4;
+// Two minutes: a transaction sent from this app forgets its own safe at once
+// (forget), so the cache only delays what other signers do elsewhere, and
+// Refresh reads everything again.
+const CACHE_MS = 120_000;
+// The documentation asks for two requests a second per visitor. Short bursts
+// are tolerated (20 calls in 0.3 s, measured), so a page may start with a
+// burst of eight; after that the pace is four a second, three at a time. At
+// eight a second, sustained use during the mainnet test of 7 Oct 2026 tripped
+// the API's rate limit (Cloudflare 1015) again and again.
+const RATE_PER_SECOND = 4;
+const BURST = 8;
+const MAX_IN_FLIGHT = 3;
 const MAX_ATTEMPTS = 4;
 
 interface CacheEntry {
@@ -61,19 +65,31 @@ const cache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<unknown>>();
 const queue: (() => void)[] = [];
 let running = 0;
-let tokens = RATE_PER_SECOND;
+let tokens = BURST;
 let lastRefill = Date.now();
 
 const refill = () => {
   const now = Date.now();
-  tokens = Math.min(RATE_PER_SECOND, tokens + ((now - lastRefill) / 1000) * RATE_PER_SECOND);
+  tokens = Math.min(BURST, tokens + ((now - lastRefill) / 1000) * RATE_PER_SECOND);
   lastRefill = now;
+};
+
+// One timer at most, and only to wait for the pace or a pause: waiting for a
+// free slot needs none, since every finishing request pumps again. Polling
+// every 250 ms while requests were stuck was wasted work.
+let pumpTimer: ReturnType<typeof setTimeout> | undefined;
+const pumpIn = (ms: number) => {
+  if (pumpTimer) return;
+  pumpTimer = setTimeout(() => {
+    pumpTimer = undefined;
+    pump();
+  }, Math.max(0, ms));
 };
 
 const pump = () => {
   const wait = pausedUntil - Date.now();
   if (wait > 0) {
-    setTimeout(pump, wait);
+    pumpIn(wait);
     return;
   }
   refill();
@@ -82,8 +98,8 @@ const pump = () => {
     running++;
     (queue.shift() as () => void)();
   }
-  if (queue.length > 0) {
-    setTimeout(pump, 250);
+  if (queue.length > 0 && running < MAX_IN_FLIGHT) {
+    pumpIn(Math.ceil(((1 - tokens) / RATE_PER_SECOND) * 1000));
   }
 };
 

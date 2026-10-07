@@ -218,7 +218,7 @@ export const ProposePanel = ({
     );
     return note.replace(/^ \(/, '').replace(/\)$/, '');
   })();
-  const noteIsWarning = /refuse|lock|every action/.test(changeNote);
+  const noteIsWarning = /refuse|lock|every action|changes nothing/.test(changeNote);
 
   const needsAddress = kind !== 'quorum';
   const needsAmount = kind === 'token' || kind === 'egld';

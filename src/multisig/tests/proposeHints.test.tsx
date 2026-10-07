@@ -52,3 +52,16 @@ test('a disabled Propose says why, next to the button', () => {
   expect(screen.getByRole('button', { name: 'Propose' })).toBeDisabled();
   expect(screen.getByText('Waiting for the network to confirm the last transaction.')).toBeInTheDocument();
 });
+
+// Asked in the mainnet test on 7 Oct 2026: removing an address that holds no
+// role is accepted by the contract and changes nothing but the fees.
+test('a change that would do nothing is flagged as a warning while typing it', () => {
+  panel();
+  fireEvent.click(screen.getByRole('button', { name: 'Remove member' }));
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), {
+    target: { value: 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3' }
+  });
+  const note = screen.getByText(/this changes nothing/);
+  expect(note.className).toMatch(/FBBF24/);
+});
+
