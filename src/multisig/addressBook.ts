@@ -90,9 +90,9 @@ export const mergeLabels = (incoming: unknown): number => {
  */
 export const readHerotag = async (address: string): Promise<string> => {
   try {
-    const account = await cached(`herotag:${address}`, () =>
-      api<{ username?: string }>(`/accounts/${address}?fields=username`)
-    );
+    // api() queues and caches by itself; wrapping it in cached() again held a
+    // queue slot while waiting for another, which deadlocked a list of eight.
+    const account = await api<{ username?: string }>(`/accounts/${address}?fields=username`);
     return account?.username ?? '';
   } catch {
     return '';

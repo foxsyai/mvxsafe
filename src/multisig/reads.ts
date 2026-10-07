@@ -107,9 +107,7 @@ interface TokenResponse {
  */
 export const readEgldPrice = async (): Promise<number> => {
   try {
-    const economics = await cached('economics', () =>
-      api<{ price?: number }>('/economics')
-    );
+    const economics = await api<{ price?: number }>('/economics');
     return Number(economics?.price ?? 0);
   } catch {
     return 0;
@@ -385,9 +383,7 @@ export interface ContractInfo {
  * says so in red.
  */
 export const readContractInfo = async (address: string): Promise<ContractInfo> => {
-  const account = await cached(`contract:${address}`, () =>
-    api<{ ownerAddress?: string; codeHash?: string }>(`/accounts/${address}`)
-  );
+  const account = await api<{ ownerAddress?: string; codeHash?: string }>(`/accounts/${address}`);
   return {
     ownerAddress: account?.ownerAddress ?? '',
     codeHash: account?.codeHash ?? '',

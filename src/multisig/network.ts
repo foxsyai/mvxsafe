@@ -193,6 +193,12 @@ export const clearCache = () => {
   inflight.clear();
 };
 
+/**
+ * A GET on the public API, queued, retried and cached for a minute by path.
+ * NEVER call it inside cached(): both queue, so the outer call holds one of
+ * the six slots while waiting for another, and six of those at once stop
+ * every read in the app (a list of eight safes froze on 7 Oct 2026).
+ */
 export const api = async <T>(path: string): Promise<T> =>
   cached(`api:${path}`, async () => {
     let response: Response;

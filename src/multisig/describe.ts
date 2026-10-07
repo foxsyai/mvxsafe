@@ -14,7 +14,7 @@
 //      and hidden characters are said out loud, never smoothed over.
 
 import { Address } from '@multiversx/sdk-core';
-import { api, cached } from './network';
+import { api } from './network';
 
 const DO_NOT_SIGN = 'Do not sign without checking it in the explorer.';
 
@@ -106,9 +106,7 @@ export const readTokenMeta = async (identifier: string, withNonce: boolean): Pro
   if (!TOKEN_ID.test(identifier)) return { decimals: null };
   const path = withNonce ? `/collections/${identifier}` : `/tokens/${identifier}`;
   try {
-    const answer = await cached(`token:${path}`, () =>
-      api<{ decimals?: number; type?: string }>(path)
-    );
+    const answer = await api<{ decimals?: number; type?: string }>(path);
     if (answer?.type === 'NonFungibleESDT' || answer?.type === 'SemiFungibleESDT') {
       return { decimals: 0 };
     }
