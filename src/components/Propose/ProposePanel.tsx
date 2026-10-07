@@ -11,7 +11,7 @@ import {
 import { formatUnits } from 'multisig/describe';
 import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
 import { isAccountAddress } from 'multisig/newSafe';
-import { membershipNote } from 'multisig/reads';
+import { membershipNote, membershipProblem } from 'multisig/reads';
 import { explainWalletFailure } from 'multisig/walletFailure';
 
 /** A problem with what was typed, found before the wallet was asked anything. */
@@ -120,6 +120,16 @@ export const ProposePanel = ({
       if (kind !== 'quorum') parseAddress(to, kind === 'token' || kind === 'egld' ? 'recipient' : 'address');
       if (kind === 'egld') toRawAmount(amount, 18);
       if (kind === 'token' && token) toRawAmount(amount, token.decimals);
+      // A membership change that does nothing, or that the contract would
+      // refuse, is refused here, like a wrong address.
+      const name = ACTION_NAME[kind];
+      if (name && kind !== 'quorum') {
+        const problem = membershipProblem(
+          { name, fields: [to.trim()] },
+          { quorum: currentQuorum, boardMembers, proposers }
+        );
+        if (problem) throw new Error(problem);
+      }
     } catch (failure: unknown) {
       setError((failure as Error).message);
       return;

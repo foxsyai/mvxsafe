@@ -386,6 +386,41 @@ export const membershipNote = (
 };
 
 /**
+ * Why a membership change should not be proposed at all, or '' when it can
+ * be. Refused here, before any transaction: a change that does nothing only
+ * costs fees, and one the contract refuses fails at "Carry it out", after
+ * every signer has paid (Sebastian, 7 Oct 2026).
+ */
+export const membershipProblem = (
+  action: any,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
+): string => {
+  const name = String(action?.name ?? '');
+  const who = asAddress(action?.fields?.[0]);
+  if (!who) return '';
+  const onBoard = state.boardMembers.includes(who);
+  const proposer = state.proposers.includes(who);
+  const quorum = state.quorum ?? 0;
+  const left = state.boardMembers.length - 1;
+  const tooFew = `That would leave ${left} board member${left === 1 ? '' : 's'} for the ${quorum} signatures needed, which the contract refuses. Lower the quorum first.`;
+
+  switch (name) {
+    case 'AddBoardMember':
+      return onBoard ? 'That address is already on the board.' : '';
+    case 'AddProposer':
+      if (proposer) return 'That address is already a proposer.';
+      return onBoard && left < quorum ? tooFew : '';
+    case 'RemoveUser':
+      if (!onBoard && !proposer) {
+        return 'That address is neither on the board nor a proposer, so there is nothing to remove.';
+      }
+      return onBoard && left < quorum ? tooFew : '';
+    default:
+      return '';
+  }
+};
+
+/**
  * Actions still waiting for signatures, each turned into a sentence. A signer's
  * only defence against approving something unexpected is reading it in words,
  * so the decoding happens here, in describe.ts, rather than in a view.

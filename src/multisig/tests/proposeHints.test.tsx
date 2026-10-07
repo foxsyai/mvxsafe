@@ -4,12 +4,14 @@
 // membership change would do was said only once it was proposed.
 import '../../__audit__/web/fixSetImmediate';
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import * as actions from 'multisig/actions';
 import { ProposePanel } from 'components/Propose/ProposePanel';
 
 jest.mock('multisig/actions', () => ({
-  proposeSendToken: jest.fn(), proposeSendEgld: jest.fn(), proposeAddBoardMember: jest.fn(),
-  proposeAddProposer: jest.fn(), proposeRemoveUser: jest.fn(), proposeChangeQuorum: jest.fn()
+  proposeSendToken: jest.fn(async () => 'session'), proposeSendEgld: jest.fn(async () => 'session'),
+  proposeAddBoardMember: jest.fn(async () => 'session'), proposeAddProposer: jest.fn(async () => 'session'),
+  proposeRemoveUser: jest.fn(async () => 'session'), proposeChangeQuorum: jest.fn(async () => 'session')
 }));
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
@@ -63,5 +65,49 @@ test('a change that would do nothing is flagged as a warning while typing it', (
   });
   const note = screen.getByText(/this changes nothing/);
   expect(note.className).toMatch(/FBBF24/);
+});
+
+// Decided in the mainnet test on 7 Oct 2026: what changes nothing, or what the
+// contract would refuse at "Carry it out", is refused before any transaction.
+const STRANGER = 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3';
+const attempt = async (tab: string, address: string, extra: Record<string, unknown> = {}) => {
+  jest.clearAllMocks();
+  const view = panel(extra);
+  fireEvent.click(screen.getByRole('button', { name: tab }));
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), { target: { value: address } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Propose' }));
+  });
+  return view;
+};
+
+test('removing an address with no role is refused before any transaction', async () => {
+  await attempt('Remove member', STRANGER);
+  expect(actions.proposeRemoveUser).not.toHaveBeenCalled();
+  expect(screen.getByText(/nothing to remove/)).toBeInTheDocument();
+});
+
+test('adding a board member to the board, or a proposer as a proposer, is refused', async () => {
+  const first = await attempt('Add board member', CEO);
+  expect(actions.proposeAddBoardMember).not.toHaveBeenCalled();
+  expect(screen.getByText(/already on the board/)).toBeInTheDocument();
+  first.unmount();
+  await attempt('Add proposer', STRANGER, { proposers: [STRANGER] });
+  expect(actions.proposeAddProposer).not.toHaveBeenCalled();
+  expect(screen.getByText(/already a proposer/)).toBeInTheDocument();
+});
+
+test('a removal the contract would refuse for the quorum is refused here first', async () => {
+  await attempt('Remove member', CTO, { boardMembers: [CEO, COO, CTO], quorum: 3, boardSize: 3 });
+  expect(actions.proposeRemoveUser).not.toHaveBeenCalled();
+  expect(screen.getByText(/lower the quorum first/i)).toBeInTheDocument();
+});
+
+test('control: removing a real proposer, and demoting a board member when the quorum allows it, are proposed', async () => {
+  const first = await attempt('Remove member', STRANGER, { proposers: [STRANGER] });
+  expect(actions.proposeRemoveUser).toHaveBeenCalledTimes(1);
+  first.unmount();
+  await attempt('Add proposer', SPARE);
+  expect(actions.proposeAddProposer).toHaveBeenCalledTimes(1);
 });
 
