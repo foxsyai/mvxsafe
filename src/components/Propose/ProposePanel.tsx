@@ -8,6 +8,7 @@ import {
   proposeSendToken,
   Signer
 } from 'multisig/actions';
+import { formatUnits } from 'multisig/describe';
 import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
 import { explainWalletFailure } from 'multisig/walletFailure';
 
@@ -58,6 +59,8 @@ interface ProposePanelProps {
   boardSize: number;
   /** After every attempt that reached the wallet, success or not. */
   onProposed: () => void;
+  /** The safe's EGLD in base units; an EGLD proposal above it is refused. */
+  egldBalance?: string;
   /** True while another wallet prompt is open on the page. */
   disabled?: boolean;
   /** Tells the page when this form is waiting for the wallet. */
@@ -70,6 +73,7 @@ export const ProposePanel = ({
   tokens,
   boardSize,
   onProposed,
+  egldBalance,
   disabled = false,
   onBusyChange
 }: ProposePanelProps) => {
@@ -129,10 +133,18 @@ export const ProposePanel = ({
           await proposeSendToken(signer, safe, to, token.identifier, amount, token.decimals);
           break;
         }
-        case 'egld':
+        case 'egld': {
+          // Same rule as tokens (TX-07): the safe cannot send what it does not
+          // hold, and finding out at "Carry it out" costs every signer a fee.
+          if (egldBalance !== undefined && toRawAmount(amount, 18) > BigInt(egldBalance || '0')) {
+            throw new FormError(
+              `The safe holds ${formatUnits(BigInt(egldBalance || '0'), 18)} EGLD, less than that.`
+            );
+          }
           reachedWallet = true;
           await proposeSendEgld(signer, safe, to, amount);
           break;
+        }
         case 'addBoard':
           reachedWallet = true;
           await proposeAddBoardMember(signer, safe, to);

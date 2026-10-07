@@ -41,6 +41,7 @@ export interface TokenBalance {
 export interface SafeOverview {
   address: string;
   egld: number;
+  egldRaw: string;
   egldPrice: number;
   worthUsd: number;
   tokens: TokenBalance[];
@@ -124,6 +125,8 @@ export const readBalances = async (address: string, withNfts = true) => {
 
   return {
     egld: toNumber(account.balance ?? '0', 18),
+    /** The exact balance in base units, for checks that must not round. */
+    egldRaw: account.balance ?? '0',
     nftCount: Number(nftCount) || 0,
     tokens: tokens.map((token) => ({
       identifier: token.identifier,

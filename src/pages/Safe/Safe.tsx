@@ -507,6 +507,7 @@ const SafeView = ({ address }: { address: string }) => {
           safe={address}
           signer={signer}
           tokens={overview.tokens}
+          egldBalance={overview.egldRaw}
           boardSize={overview.boardMembers.length}
           disabled={working !== 0}
           onBusyChange={setProposing}
