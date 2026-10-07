@@ -4,7 +4,7 @@ import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
 import { RoleBadge, Role } from 'components/RoleBadge';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
-import { clearCache } from 'multisig/network';
+import { clearCache, forget } from 'multisig/network';
 import { formatUsd, readCard, readUserRole, SafeCard, shortAddress,
   featuredToken
 } from 'multisig/reads';
@@ -72,6 +72,34 @@ export const Safes = () => {
   // One pass over the list: each safe's numbers and, when a wallet is connected,
   // what that wallet may do with it. Sequential on purpose, the public API
   // allows about two requests a second per visitor.
+  // One safe: its role first (one request, it decides the badge and the
+  // highlight), then its card. Errors leave that safe without numbers rather
+  // than breaking the page for the others.
+  const readOne = useCallback(async (safe: KnownSafe, connectedAddress: string) => {
+    if (connectedAddress) {
+      try {
+        const role = (await readUserRole(safe.address, connectedAddress)) as Role;
+        setRoles((current) => ({ ...current, [safe.address]: role }));
+      } catch {
+        // No role shown is the honest answer when it could not be read.
+      }
+    }
+    try {
+      const card = await readCard(safe.address, connectedAddress);
+      setCards((current) => {
+        const next = { ...current, [safe.address]: card };
+        try {
+          window.sessionStorage.setItem('mvxsafe.cards', JSON.stringify(next));
+        } catch {
+          // A browser that refuses storage simply does not remember.
+        }
+        return next;
+      });
+    } catch {
+      // Shown without numbers.
+    }
+  }, []);
+
   const load = useCallback(
     async (list: KnownSafe[], connectedAddress: string) => {
       setLoading(true);
@@ -87,39 +115,14 @@ export const Safes = () => {
         for (;;) {
           const safe = pending.shift();
           if (!safe) return;
-          // The role first: one request, and it decides the badge and the
-          // highlight, so it should not wait behind the balances.
-          if (connectedAddress) {
-            try {
-              const role = (await readUserRole(safe.address, connectedAddress)) as Role;
-              setRoles((current) => ({ ...current, [safe.address]: role }));
-            } catch {
-              // No role shown is the honest answer when it could not be read.
-            }
-          }
-          try {
-            const card = await readCard(safe.address, connectedAddress);
-            setCards((current) => {
-              const next = { ...current, [safe.address]: card };
-              try {
-                window.sessionStorage.setItem('mvxsafe.cards', JSON.stringify(next));
-              } catch {
-                // A browser that refuses storage simply does not remember.
-              }
-              return next;
-            });
-          } catch {
-            // A safe that cannot be read is shown without numbers rather than
-            // breaking the page for the others.
-          }
-
+          await readOne(safe, connectedAddress);
           setDone((count) => count + 1);
         }
       };
       await Promise.all([worker(), worker(), worker()]);
       setLoading(false);
     },
-    []
+    [readOne]
   );
 
   useEffect(() => {
@@ -129,13 +132,18 @@ export const Safes = () => {
   // A transaction sent from any page lands seconds later. The list reads
   // again when it has, instead of showing a count from before it landed.
   useEffect(() => {
-    const again = () => {
-      clearCache();
-      load(safes, isLoggedIn ? connected : '');
+    // Only the safes the transaction touched are read again; the others keep
+    // their cached answers and their cards as they are.
+    const again = (event: Event) => {
+      const touched: string[] = (event as CustomEvent).detail?.addresses ?? [];
+      for (const safe of safes.filter((candidate) => touched.includes(candidate.address))) {
+        forget(safe.address);
+        readOne(safe, isLoggedIn ? connected : '');
+      }
     };
     window.addEventListener('mvxsafe:settled', again);
     return () => window.removeEventListener('mvxsafe:settled', again);
-  }, [safes, isLoggedIn, connected, load]);
+  }, [safes, isLoggedIn, connected, readOne]);
 
   const handleAdd = () => {
     const address = newAddress.trim();

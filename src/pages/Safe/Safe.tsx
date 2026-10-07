@@ -11,7 +11,7 @@ import {
   signAction,
   unsignAction
 } from 'multisig/actions';
-import { clearCache, explorerUrl } from 'multisig/network';
+import { clearCache, explorerUrl, forget } from 'multisig/network';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import {
   ContractInfo,
@@ -73,6 +73,8 @@ const SafeView = ({ address }: { address: string }) => {
   const [handingOver, setHandingOver] = useState(false);
   // True while the propose form waits for the wallet.
   const [proposing, setProposing] = useState(false);
+  // True when the last read was refused and the page shows the one before.
+  const [stale, setStale] = useState(false);
 
   // Set by the create page: the deploy was just sent, so for a little while an
   // address that cannot be read yet is expected, not a failure.
@@ -96,27 +98,48 @@ const SafeView = ({ address }: { address: string }) => {
     []
   );
 
+  // Each part is read on its own, and a part the network refused keeps what
+  // was read before: a failed refresh used to replace a safe with "unknown",
+  // "No board members found" and "not on this board" (7 Oct 2026). Only a
+  // first read that fails is shown as a failure. While anything is out of
+  // date, nothing can be signed or carried out.
+  const readBefore = useRef({ overview: false, pending: false });
   const load = useCallback(async () => {
     if (!alive.current) return;
     setLoading(true);
-    setFailed(false);
-    // Read on its own, so a hiccup here never hides the safe itself.
+    let fresh = true;
     readContractInfo(address)
       .then(setContract)
-      .catch(() => setContract(null));
+      .catch(() => undefined);
     try {
       setOverview(await readOverview(address));
-      try {
-        setPending(await readPendingActions(address));
-      } catch {
-        setPending(null);
-      }
+      readBefore.current.overview = true;
+      setFailed(false);
+    } catch {
+      fresh = false;
+      if (!readBefore.current.overview) setFailed(true);
+    }
+    try {
+      setPending(await readPendingActions(address));
+      readBefore.current.pending = true;
+    } catch {
+      fresh = false;
+      if (!readBefore.current.pending) setPending(null);
+    }
+    try {
       setHistory(await readHistory(address));
+    } catch {
+      fresh = false;
+    }
+    try {
       setRole(isLoggedIn ? await readUserRole(address, account.address) : 'None');
     } catch {
-      setFailed(true);
+      fresh = false;
     }
-    setLoading(false);
+    if (alive.current) {
+      setStale(!fresh && (readBefore.current.overview || readBefore.current.pending));
+      setLoading(false);
+    }
   }, [address, isLoggedIn, account.address]);
 
   // A different safe or a different wallet: what was known about the role no
@@ -142,7 +165,7 @@ const SafeView = ({ address }: { address: string }) => {
     // Success or not, read the chain again: a send whose answer was lost may
     // have gone through, and only the chain can say (WEB-07).
     setWorking(0);
-    clearCache();
+    forget(address);
     await load();
     readAgainShortly();
   };
@@ -168,7 +191,7 @@ const SafeView = ({ address }: { address: string }) => {
     if (!creating || !failed || waitedFor >= 40) return;
     const timer = setTimeout(() => {
       setWaitedFor((count) => count + 1);
-      clearCache();
+      forget(address);
       load();
     }, 3000);
     return () => clearTimeout(timer);
@@ -194,8 +217,10 @@ const SafeView = ({ address }: { address: string }) => {
   // the page reads everything again at that moment rather than waiting for the
   // visitor to press Refresh.
   useEffect(() => {
-    const again = () => {
-      clearCache();
+    const again = (event: Event) => {
+      const touched: string[] | undefined = (event as CustomEvent).detail?.addresses;
+      if (touched && !touched.includes(address)) return;
+      forget(address);
       load();
     };
     window.addEventListener('mvxsafe:settled', again);
@@ -209,7 +234,7 @@ const SafeView = ({ address }: { address: string }) => {
     [4000, 10000, 20000].forEach((delay) =>
       timers.current.push(
         setTimeout(() => {
-          clearCache();
+          forget(address);
           load();
         }, delay)
       )
@@ -311,6 +336,13 @@ const SafeView = ({ address }: { address: string }) => {
       {problem && (
         <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
           {problem}
+        </p>
+      )}
+
+      {stale && !failed && (
+        <p className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>
+          The network did not answer just now, so this is what was read a moment ago. It
+          updates by itself; nothing can be signed or carried out until it does.
         </p>
       )}
 
@@ -434,7 +466,7 @@ const SafeView = ({ address }: { address: string }) => {
                       (action.signers.includes(account.address) ? (
                         <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'><button
                           type='button'
-                          disabled={working !== 0 || proposing}
+                          disabled={working !== 0 || proposing || stale}
                           onClick={() =>
                             run(action.actionId, () =>
                               unsignAction(signer, address, action.actionId)
@@ -447,7 +479,7 @@ const SafeView = ({ address }: { address: string }) => {
                       ) : (
                         <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'><button
                           type='button'
-                          disabled={working !== 0 || proposing}
+                          disabled={working !== 0 || proposing || stale}
                           onClick={() =>
                             run(action.actionId, () =>
                               signAction(signer, address, action.actionId)
@@ -462,7 +494,7 @@ const SafeView = ({ address }: { address: string }) => {
                     {action.quorumReached && (
                       <Tip text='Makes it happen. Enough signatures are in, and any board member may press this.'><button
                         type='button'
-                        disabled={working !== 0 || proposing}
+                        disabled={working !== 0 || proposing || stale}
                         onClick={() =>
                           run(action.actionId, () =>
                             performAction(signer, address, action.actionId)
@@ -483,7 +515,7 @@ const SafeView = ({ address }: { address: string }) => {
                     >
                       <button
                         type='button'
-                        disabled={working !== 0 || proposing || action.signerCount > 0}
+                        disabled={working !== 0 || proposing || stale || action.signerCount > 0}
                         onClick={() =>
                           run(action.actionId, () =>
                             discardAction(signer, address, action.actionId)
@@ -509,10 +541,10 @@ const SafeView = ({ address }: { address: string }) => {
           tokens={overview.tokens}
           egldBalance={overview.egldRaw}
           boardSize={overview.boardMembers.length}
-          disabled={working !== 0}
+          disabled={working !== 0 || stale}
           onBusyChange={setProposing}
           onProposed={() => {
-            clearCache();
+            forget(address);
             load();
             readAgainShortly();
           }}

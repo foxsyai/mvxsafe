@@ -40,8 +40,11 @@ export const signAndSendTransactions = async ({
   // chain holds have to read it again once it has been processed, otherwise a
   // proposal looks like it did nothing until somebody presses Refresh
   // (6 Oct 2026).
+  // Which safes changed: the receivers (a safe for every multisig call, the
+  // new safe for a handover), so pages re-read those and nothing else.
+  const addresses = [...new Set(transactions.map((transaction) => transaction.receiver.toBech32()))];
   const settled = async () => {
-    window.dispatchEvent(new CustomEvent('mvxsafe:settled'));
+    window.dispatchEvent(new CustomEvent('mvxsafe:settled', { detail: { addresses } }));
   };
   const sessionId = await txManager.track(sentTransactions, {
     transactionsDisplayInfo,

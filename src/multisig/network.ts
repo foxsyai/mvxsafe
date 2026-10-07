@@ -71,6 +71,11 @@ const refill = () => {
 };
 
 const pump = () => {
+  const wait = pausedUntil - Date.now();
+  if (wait > 0) {
+    setTimeout(pump, wait);
+    return;
+  }
   refill();
   while (queue.length > 0 && running < MAX_IN_FLIGHT && tokens >= 1) {
     tokens -= 1;
@@ -124,6 +129,17 @@ const worthRetrying = (error: any) => {
   return /\b(429|502|503|504)\b|Too Many Requests|timeout|timed out|Network|Failed to fetch/i.test(text);
 };
 
+/** A refusal or a lost answer, as opposed to a real answer such as "no such function". */
+export const isTransient = (error: unknown) => worthRetrying(error);
+
+const isRateLimit = (error: any) =>
+  (error instanceof ApiError && error.status === 429) ||
+  /\b429\b|Too Many Requests|1015/i.test(String(error?.message ?? error ?? ''));
+
+// When the API says "too many", the whole queue waits, instead of every
+// request retrying on its own and keeping the limit tripped (7 Oct 2026).
+let pausedUntil = 0;
+
 const REQUEST_TIMEOUT_MS = 15_000;
 
 /**
@@ -146,9 +162,12 @@ const fetchWithTimeout = (url: string): Promise<Response> => {
   );
 };
 
-// Bumped by clearCache: an answer that was asked for before a Refresh must
-// not be written over what the Refresh fetched (WEB-11).
+// Bumped by clearCache and forget: an answer that was asked for before a
+// Refresh, or before a transaction landed, must not be written over what was
+// read after it (WEB-11).
 let generation = 0;
+let clearedIn = 0;
+const forgottenIn = new Map<string, number>();
 
 /**
  * Runs `work` behind the queue and remembers its answer for a minute. Two
@@ -167,11 +186,16 @@ export const cached = async <T>(key: string, work: () => Promise<T>): Promise<T>
     for (let round = 0; round < MAX_ATTEMPTS; round++) {
       try {
         const value = await schedule(work);
-        if (generation === startedIn) cache.set(key, { at: Date.now(), value });
+        if (startedIn >= clearedIn && (forgottenIn.get(key) ?? -1) <= startedIn) {
+          cache.set(key, { at: Date.now(), value });
+        }
         return value;
       } catch (error) {
         lastError = error;
         if (!worthRetrying(error)) break;
+        if (isRateLimit(error)) {
+          pausedUntil = Math.max(pausedUntil, Date.now() + 2000 * Math.pow(2, round));
+        }
         await wait(600 * Math.pow(2, round));
       }
     }
@@ -189,8 +213,25 @@ export const cached = async <T>(key: string, work: () => Promise<T>): Promise<T>
 /** Drops everything cached, so a Refresh button really refetches. */
 export const clearCache = () => {
   generation++;
+  clearedIn = generation;
   cache.clear();
   inflight.clear();
+};
+
+/**
+ * Drops what is cached about one address only. After a transaction to one
+ * safe, that safe is read again and every other one stays as fast as it was:
+ * wiping everything after each transaction made a list of eight safes re-read
+ * all of them several times in a row (7 Oct 2026).
+ */
+export const forget = (address: string) => {
+  generation++;
+  for (const key of [...cache.keys(), ...inflight.keys()]) {
+    if (!key.includes(address)) continue;
+    cache.delete(key);
+    inflight.delete(key);
+    forgottenIn.set(key, generation);
+  }
 };
 
 /**

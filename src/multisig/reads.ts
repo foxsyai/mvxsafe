@@ -9,7 +9,7 @@
 import { Address, SmartContractController } from '@multiversx/sdk-core';
 import { describeAction, toBigInt } from './describe';
 import { legacyAbi } from './legacyCalls';
-import { api, cached, chainId, networkProvider } from './network';
+import { api, cached, chainId, isTransient, networkProvider } from './network';
 
 const contracts = new SmartContractController({
   chainID: chainId,
@@ -180,7 +180,10 @@ export const readMultisigState = async (address: string) => {
       proposerCount: asNumber(proposers),
       actionCount: asNumber(actionCount)
     };
-  } catch {
+  } catch (error) {
+    // A refused or lost read is not an answer: the caller keeps what it had.
+    // Anything else (no such function) means this is not a multisig we read.
+    if (isTransient(error)) throw error;
     return { quorum: null, boardMembers: [], proposerCount: 0, actionCount: 0 };
   }
 };
@@ -221,7 +224,9 @@ export const readCard = async (address: string, viewer = ''): Promise<SafeCard> 
   let quorum: number | null = null;
   try {
     quorum = asNumber(await cached(`quorum:${address}`, () => query<any>(address, 'getQuorum')));
-  } catch {
+  } catch (error) {
+    // Refused is not "not a multisig": the list keeps the card it had.
+    if (isTransient(error)) throw error;
     quorum = null;
   }
 
@@ -296,14 +301,12 @@ export const readOverview = async (address: string): Promise<SafeOverview> => {
 /** What the connected address may do here: BoardMember, Proposer or None. */
 export const readUserRole = async (safe: string, user: string): Promise<string> => {
   if (!user) return 'None';
-  try {
-    const role = await cached(`role:${safe}:${user}`, () =>
-      query<any>(safe, 'userRole', [Address.newFromBech32(user)])
-    );
-    return String(role?.name ?? role ?? 'None');
-  } catch {
-    return 'None';
-  }
+  // A refused read throws: it used to come back as "None", and a board member
+  // was told "You are not on this board" (7 Oct 2026).
+  const role = await cached(`role:${safe}:${user}`, () =>
+    query<any>(safe, 'userRole', [Address.newFromBech32(user)])
+  );
+  return String(role?.name ?? role ?? 'None');
 };
 
 /**
@@ -359,9 +362,11 @@ export const shortAddress = (address: string, lead = 8, tail = 6) =>
 
 /** The last transactions the safe took part in, newest first. */
 export const readHistory = async (address: string): Promise<HistoryEntry[]> => {
+  // A refused read throws, so the page keeps the history it had instead of
+  // saying "No transactions found".
   const transactions = await api<any[]>(
     `/accounts/${address}/transactions?size=25&fields=txHash,timestamp,sender,function,status`
-  ).catch(() => []);
+  );
 
   return transactions.map((transaction) => ({
     txHash: transaction.txHash,

@@ -18,6 +18,9 @@ interface AddressLineProps {
   className?: string;
 }
 
+/** A smart contract address starts with eight zero bytes. */
+const isContract = (address: string) => address.startsWith('erd1qqqqqqqqqqqq');
+
 export const AddressLine = ({
   address,
   short = true,
@@ -39,7 +42,9 @@ export const AddressLine = ({
 
   useEffect(() => {
     let cancelled = false;
-    if (!label) {
+    // Contracts, safes included, practically never have a herotag; asking for
+    // every safe on the list only slowed it down.
+    if (!label && !isContract(address)) {
       readHerotag(address).then((name) => {
         if (!cancelled) setHerotag(name);
       });
