@@ -29,8 +29,19 @@ export const Safes = () => {
   // to the list shows something at once instead of seven rows of dots while the
   // API is asked again at two requests a second.
   const [cards, setCards] = useState<Record<string, SafeCard>>(() => {
+    // Only cards that look like cards: storage can hold anything, and one with
+    // no token list used to take the whole page down (web audit WEB-05).
     try {
-      return JSON.parse(window.sessionStorage.getItem('mvxsafe.cards') ?? '{}');
+      const stored = JSON.parse(window.sessionStorage.getItem('mvxsafe.cards') ?? '{}');
+      const kept: Record<string, SafeCard> = {};
+      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        for (const [address, card] of Object.entries(stored as Record<string, any>)) {
+          if (Array.isArray(card?.tokens) && typeof card?.egld === 'number') {
+            kept[address] = card as SafeCard;
+          }
+        }
+      }
+      return kept;
     } catch {
       return {};
     }
@@ -53,6 +64,9 @@ export const Safes = () => {
     async (list: KnownSafe[], connectedAddress: string) => {
       setLoading(true);
       setDone(0);
+      // Roles belong to one wallet: none survive a disconnect, a new wallet or
+      // a safe that cannot be read this time (web audit WEB-02).
+      setRoles({});
 
       // Three safes at a time. The queue underneath paces the individual
       // requests, so this only decides how many conversations run at once.
@@ -72,13 +86,19 @@ export const Safes = () => {
               }
               return next;
             });
-            if (connectedAddress) {
-              const role = (await readUserRole(safe.address, connectedAddress)) as Role;
-              setRoles((current) => ({ ...current, [safe.address]: role }));
-            }
           } catch {
             // A safe that cannot be read is shown without numbers rather than
             // breaking the page for the others.
+          }
+          // Read on its own, so a failed balance read never leaves a role from
+          // an earlier wallet in place.
+          if (connectedAddress) {
+            try {
+              const role = (await readUserRole(safe.address, connectedAddress)) as Role;
+              setRoles((current) => ({ ...current, [safe.address]: role }));
+            } catch {
+              // No role shown is the honest answer when it could not be read.
+            }
           }
           setDone((count) => count + 1);
         }

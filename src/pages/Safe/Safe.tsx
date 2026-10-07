@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
@@ -27,13 +27,37 @@ import {
   SafeOverview,
   shortAddress
 } from 'multisig/reads';
-import { nameFor } from 'multisig/savedSafes';
+import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
 
 const card = 'rounded-xl border border-[#2A2A32] bg-[#121218] p-5';
 const label = 'text-xs text-[#6B7280]';
 
+/**
+ * The route. It refuses anything that is not an address before touching the
+ * network (/safe/__proto__ used to unmount the whole app, web audit WEB-03),
+ * and gives every safe its own instance of the page: kept as one instance, a
+ * Treasury -> Team change showed Treasury's actions under Team's title, and
+ * Sign then sent Treasury's action id to the Team safe (WEB-01). The key
+ * throws away the old state, its pending reads and its timers.
+ */
 export const Safe = () => {
   const { address = '' } = useParams();
+  if (!isValidSafeAddress(address)) {
+    return (
+      <div className='mx-auto w-full max-w-5xl px-4 py-10'>
+        <Link to='/' className='text-sm text-[#9AA0A6] hover:text-[#FF6E0A]'>
+          &larr; All safes
+        </Link>
+        <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+          That is not a MultiversX address, so there is no safe to show.
+        </p>
+      </div>
+    );
+  }
+  return <SafeView key={address} address={address} />;
+};
+
+const SafeView = ({ address }: { address: string }) => {
   const [overview, setOverview] = useState<SafeOverview | null>(null);
   // Null when the pending actions could not be read, which is NOT the same as none.
   const [pending, setPending] = useState<PendingAction[] | null>([]);
@@ -47,6 +71,8 @@ export const Safe = () => {
   const [problem, setProblem] = useState('');
   const [contract, setContract] = useState<ContractInfo | null>(null);
   const [handingOver, setHandingOver] = useState(false);
+  // True while the propose form waits for the wallet.
+  const [proposing, setProposing] = useState(false);
 
   // Set by the create page: the deploy was just sent, so for a little while an
   // address that cannot be read yet is expected, not a failure.
@@ -59,7 +85,19 @@ export const Safe = () => {
   const canPropose = role === 'BoardMember' || role === 'Proposer';
   const canSign = role === 'BoardMember';
 
+  // False once this view is gone: a read that finishes later changes nothing.
+  const alive = useRef(true);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      alive.current = false;
+      timers.current.forEach(clearTimeout);
+    },
+    []
+  );
+
   const load = useCallback(async () => {
+    if (!alive.current) return;
     setLoading(true);
     setFailed(false);
     // Read on its own, so a hiccup here never hides the safe itself.
@@ -91,17 +129,22 @@ export const Safe = () => {
   // Whatever goes wrong is shown: this used to swallow failures, so a signed
   // transaction that the node refused looked exactly like nothing happening.
   const run = async (actionId: number, work: () => Promise<unknown>) => {
+    // One wallet prompt at a time: every action button is disabled while this
+    // runs, or a second transaction could be built on the same nonce (WEB-08).
+    if (working !== 0 || proposing) return;
     setWorking(actionId);
     setProblem('');
     try {
       await work();
-      clearCache();
-      await load();
-      readAgainShortly();
     } catch (failure: unknown) {
       setProblem(explainWalletFailure(failure, 'That'));
     }
+    // Success or not, read the chain again: a send whose answer was lost may
+    // have gone through, and only the chain can say (WEB-07).
     setWorking(0);
+    clearCache();
+    await load();
+    readAgainShortly();
   };
 
   // A wallet that never answers, an xPortal request dismissed on the phone for
@@ -135,15 +178,16 @@ export const Safe = () => {
   const youOwnIt = isLoggedIn && contract?.ownerAddress === account.address;
 
   const handOver = async () => {
+    if (working !== 0 || proposing) return;
     setHandingOver(true);
     setProblem('');
     try {
       await handOverSafe(signer, address);
-      readAgainShortly();
     } catch (failure: unknown) {
       setProblem(explainWalletFailure(failure, 'The handover'));
     }
     setHandingOver(false);
+    readAgainShortly();
   };
 
   // A transaction sent from this page lands seconds after the wallet returns, so
@@ -163,10 +207,12 @@ export const Safe = () => {
   // anything is sent, and then it no longer depends on that socket at all.
   const readAgainShortly = useCallback(() => {
     [4000, 10000, 20000].forEach((delay) =>
-      setTimeout(() => {
-        clearCache();
-        load();
-      }, delay)
+      timers.current.push(
+        setTimeout(() => {
+          clearCache();
+          load();
+        }, delay)
+      )
     );
   }, [load]);
 
@@ -388,7 +434,7 @@ export const Safe = () => {
                       (action.signers.includes(account.address) ? (
                         <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'><button
                           type='button'
-                          disabled={working === action.actionId}
+                          disabled={working !== 0 || proposing}
                           onClick={() =>
                             run(action.actionId, () =>
                               unsignAction(signer, address, action.actionId)
@@ -401,7 +447,7 @@ export const Safe = () => {
                       ) : (
                         <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'><button
                           type='button'
-                          disabled={working === action.actionId}
+                          disabled={working !== 0 || proposing}
                           onClick={() =>
                             run(action.actionId, () =>
                               signAction(signer, address, action.actionId)
@@ -416,7 +462,7 @@ export const Safe = () => {
                     {action.quorumReached && (
                       <Tip text='Makes it happen. Enough signatures are in, and any board member may press this.'><button
                         type='button'
-                        disabled={working === action.actionId}
+                        disabled={working !== 0 || proposing}
                         onClick={() =>
                           run(action.actionId, () =>
                             performAction(signer, address, action.actionId)
@@ -437,7 +483,7 @@ export const Safe = () => {
                     >
                       <button
                         type='button'
-                        disabled={working === action.actionId || action.signerCount > 0}
+                        disabled={working !== 0 || proposing || action.signerCount > 0}
                         onClick={() =>
                           run(action.actionId, () =>
                             discardAction(signer, address, action.actionId)
@@ -462,6 +508,8 @@ export const Safe = () => {
           signer={signer}
           tokens={overview.tokens}
           boardSize={overview.boardMembers.length}
+          disabled={working !== 0}
+          onBusyChange={setProposing}
           onProposed={() => {
             clearCache();
             load();

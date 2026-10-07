@@ -2,17 +2,50 @@
 // account and no server here: the Foundation's seven are compiled in, anything
 // else belongs to whoever typed it and never leaves their machine.
 
+import { Address } from '@multiversx/sdk-core';
 import { FOUNDATION_SAFES, KnownSafe } from 'config/safes';
 import { getLabels, mergeLabels } from './addressBook';
 
 const STORAGE_KEY = 'mvxsafe.savedSafes';
 
+/** More than anyone watches; a bigger import is cut here instead of freezing the tab. */
+export const MAX_SAFES = 500;
+
+/**
+ * An erd1 address with a valid checksum. The old pattern accepted any 58
+ * lowercase characters, so a mistyped address was added and then simply never
+ * loaded (web audit WEB-04, 7 Oct 2026).
+ */
+export const isValidSafeAddress = (address: string) => {
+  const text = String(address ?? '').trim();
+  return /^erd1[02-9ac-hj-np-z]{58}$/.test(text) && Address.isValid(text);
+};
+
+const nameOf = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.slice(0, 60) : 'Safe';
+
+/**
+ * Only what a list of safes can contain: a name and a valid address, each once.
+ * Storage is the visitor's own and can hold anything (another tab, an
+ * extension, a hand edit), and one null in it used to take the page down (WEB-05).
+ */
+const clean = (value: unknown): KnownSafe[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const safes: KnownSafe[] = [];
+  for (const entry of value) {
+    const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
+    if (!isValidSafeAddress(address) || seen.has(address)) continue;
+    seen.add(address);
+    safes.push({ name: nameOf(entry.name), address });
+  }
+  return safes;
+};
+
 const read = (): KnownSafe[] => {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return raw ? clean(JSON.parse(raw)) : [];
   } catch {
     // Private windows and blocked storage throw rather than return null.
     return [];
@@ -39,8 +72,9 @@ export const getAllSafes = (): KnownSafe[] => read();
 
 export const addSafe = (safe: KnownSafe) => {
   const saved = read();
+  if (!isValidSafeAddress(safe.address)) return;
   if (saved.some((entry) => entry.address === safe.address)) return;
-  write([...saved, safe]);
+  write([...saved, { name: nameOf(safe.name), address: safe.address.trim() }]);
 };
 
 export const removeSafe = (address: string) => {
@@ -52,9 +86,6 @@ export const isFoundationSafe = (address: string) =>
 
 export const nameFor = (address: string) =>
   getAllSafes().find((safe) => safe.address === address)?.name ?? '';
-
-export const isValidSafeAddress = (address: string) =>
-  /^erd1[0-9a-z]{58}$/.test(address.trim());
 
 /**
  * The list as a file, so it can move to another browser or another machine.
@@ -68,6 +99,11 @@ export const exportSafes = (): string =>
     2
   );
 
+/**
+ * Adds the safes in an exported file. Read once, merged in memory, written
+ * once: adding them one by one re-read and re-wrote the whole list each time,
+ * and 6,000 entries took 13 seconds of frozen tab (WEB-09).
+ */
 export const importSafes = (text: string): { added: number; skipped: number } => {
   let parsed: any;
   try {
@@ -80,22 +116,22 @@ export const importSafes = (text: string): { added: number; skipped: number } =>
     throw new Error('That file holds no list of safes.');
   }
 
-  // Names for addresses travel with the safes: they are the only thing in this
-  // app a person actually writes.
   mergeLabels(parsed?.labels);
 
+  const list = read();
+  const known = new Set(list.map((safe) => safe.address));
   let added = 0;
   let skipped = 0;
   for (const entry of incoming) {
-    const address = String(entry?.address ?? '').trim();
-    if (!isValidSafeAddress(address)) {
+    const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
+    if (!isValidSafeAddress(address) || known.has(address) || list.length >= MAX_SAFES) {
       skipped++;
       continue;
     }
-    const before = getAllSafes().length;
-    addSafe({ name: String(entry?.name ?? 'Safe').slice(0, 60), address });
-    if (getAllSafes().length > before) added++;
-    else skipped++;
+    known.add(address);
+    list.push({ name: nameOf(entry?.name), address });
+    added++;
   }
+  if (added > 0) write(list);
   return { added, skipped };
 };

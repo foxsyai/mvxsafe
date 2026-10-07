@@ -9,6 +9,8 @@ export const explainWalletFailure = (failure: unknown, what: string): string => 
   console.error('mvxsafe wallet failure:', failure);
   if (/user\s*(rejected|denied|cancel)|rejected by user|action_rejected|cancelled by user/i.test(message))
     return 'You refused it in your wallet, nothing was sent.';
+  if (/timeout|timed out|failed to fetch|network ?error|socket hang up/i.test(message))
+    return `${what} may still have gone through: the network's answer was lost. The page reads the chain again by itself; check it before trying again.`;
   if (/session|topic|relay|connection closed|disconnected|no matching key|expired/i.test(message))
     return 'The connection to your wallet was lost. Disconnect, connect again, and try once more.';
   if (!message) return `${what} did not go through, and the wallet gave no reason. Try again.`;
