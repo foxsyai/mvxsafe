@@ -9,11 +9,11 @@ const styles = {
   logo: 'logo flex items-center gap-3',
   // Below 360px wide (the smallest phones) the mark stands alone, or the
   // header has no room for "How it works" beside it.
-  text: 'text-lg font-semibold tracking-tight text-white max-[359px]:hidden',
+  text: 'text-lg font-semibold tracking-tight text-white max-[360px]:hidden',
   textHidden: 'hidden sm:flex',
   // Connected, the header also carries the wallet name, so the word gives way
   // a little earlier: below 400px.
-  textCompact: 'max-[399px]:hidden'
+  textCompact: 'max-[400px]:hidden'
 } satisfies Record<string, string>;
 
 interface LogoPropsType {

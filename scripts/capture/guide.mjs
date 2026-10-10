@@ -164,7 +164,7 @@ const seed = (safes, labels) =>
   );
 
 const connectedAs = (name) =>
-  document.body.innerText.includes('Disconnect') &&
+  Boolean(document.querySelector('[aria-label="Disconnect"]')) &&
   Boolean(document.querySelector('header')?.innerText.includes(name));
 
 const fill = async (placeholder, value, nth = 0) =>
@@ -183,10 +183,10 @@ await go('/');
 // --- 1. Without a wallet (pictures 1 to 4) ------------------------------------
 
 if (phase(1, 4)) {
-  if (await page.evaluate(hasText, 'Disconnect')) {
+  if (await page.evaluate(() => Boolean(document.querySelector('[aria-label="Disconnect"]')))) {
     await say('Disconnecting: the first pictures are taken without a wallet.', 'ok');
     await button('Disconnect').click();
-    await until(() => !document.body.innerText.includes('Disconnect'), null, 'a disconnect', 60000);
+    await until(() => !Boolean(document.querySelector('[aria-label="Disconnect"]')), null, 'a disconnect', 60000);
   }
   await say('Nothing to do: photographing the site without a wallet.', 'ok');
   await seed([], LABELS);
@@ -226,7 +226,7 @@ if (phase(5, 5) && wanted(5)) {
         [...root.querySelectorAll('*')].some(
           (el) => el.shadowRoot && (el.shadowRoot.textContent.includes(needle) || walk(el.shadowRoot))
         );
-      return walk(document) || document.body.innerText.includes('Disconnect');
+      return walk(document) || Boolean(document.querySelector('[aria-label="Disconnect"]'));
     },
     'Connect a wallet',
     'the wallet chooser'
@@ -335,10 +335,10 @@ if (phase(13, 14)) {
 
 if (phase(15, 18)) {
   // Disconnecting is done here, so nobody has to find the button.
-  if (await page.evaluate(hasText, 'Disconnect') && !(await page.evaluate(connectedAs, 'Bob'))) {
+  if (await page.evaluate(() => Boolean(document.querySelector('[aria-label="Disconnect"]'))) && !(await page.evaluate(connectedAs, 'Bob'))) {
     await say('Disconnecting Alice.', 'ok');
     await button('Disconnect').click();
-    await until(() => !document.body.innerText.includes('Disconnect'), null, 'the disconnect', 60000);
+    await until(() => !Boolean(document.querySelector('[aria-label="Disconnect"]')), null, 'the disconnect', 60000);
   }
   await say('Press Connect, choose MultiversX Web Wallet, and log in as Bob.');
   await until(connectedAs, 'Bob', 'Bob to connect');

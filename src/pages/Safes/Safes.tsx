@@ -283,6 +283,7 @@ export const Safes = () => {
             <button
               type='button'
               onClick={handleRefresh}
+              aria-label={loading ? `Reading ${done} of ${safes.length} safes` : undefined}
               className='w-full rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm whitespace-nowrap text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white sm:w-auto sm:min-w-[9.5rem]'
             >
               {loading ? (

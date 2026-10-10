@@ -62,7 +62,7 @@ export const AccountName = ({ address }: { address: string }) => {
     if (name || !element) return;
     const context = document.createElement('canvas').getContext?.('2d');
     const fit = () => {
-      if (window.matchMedia?.('(min-width: 640px)').matches || !context) {
+      if (window.matchMedia?.('(min-width: 40rem)').matches || !context) {
         setCount(MAX);
         return;
       }
@@ -71,7 +71,10 @@ export const AccountName = ({ address }: { address: string }) => {
       setCount(
         bestFit(
           address,
-          element.clientWidth,
+          // The fractional width: clientWidth rounds, and a text 0.03px too
+          // wide got a second ellipsis from `truncate`, hiding the address's
+          // real end (REV-01).
+          element.getBoundingClientRect().width,
           (text) => context.measureText(text).width
         )
       );

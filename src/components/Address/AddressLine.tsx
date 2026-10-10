@@ -73,7 +73,8 @@ export const AddressLine = ({
     setEditing(false);
   };
 
-  const shown = label || herotag || (short ? shortAddress(address, 10, 6) : address);
+  const shown =
+    label || herotag || (short ? shortAddress(address, 10, 6) : address);
 
   if (editing) {
     return (
@@ -114,9 +115,9 @@ export const AddressLine = ({
         rel='noreferrer'
         onClick={(event) => event.stopPropagation()}
         title={address}
-        className={
-          label || herotag ? 'hover:text-[#FF6E0A]' : 'font-mono hover:text-[#FF6E0A]'
-        }
+        // A full address is one 62-character word: on a phone it has to be
+        // allowed to wrap, or the whole page scrolls sideways (REV-02).
+        className={`${label || herotag ? '' : 'font-mono '}hover:text-[#FF6E0A]${short ? '' : ' min-w-0 break-all'}`}
       >
         {shown}
       </a>
@@ -135,7 +136,13 @@ export const AddressLine = ({
         className='text-[#6B7280] hover:text-[#FF6E0A]'
       >
         {copied ? (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' aria-hidden>
+          <svg
+            width='14'
+            height='14'
+            viewBox='0 0 24 24'
+            fill='none'
+            aria-hidden
+          >
             <path
               d='M5 13l4 4L19 7'
               stroke='currentColor'
@@ -145,7 +152,13 @@ export const AddressLine = ({
             />
           </svg>
         ) : (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' aria-hidden>
+          <svg
+            width='14'
+            height='14'
+            viewBox='0 0 24 24'
+            fill='none'
+            aria-hidden
+          >
             <rect
               x='9'
               y='9'
@@ -178,7 +191,13 @@ export const AddressLine = ({
           aria-label={label ? 'Change this name' : 'Give this address a name'}
           className='text-[#6B7280] hover:text-[#FF6E0A]'
         >
-          <svg width='13' height='13' viewBox='0 0 24 24' fill='none' aria-hidden>
+          <svg
+            width='13'
+            height='13'
+            viewBox='0 0 24 24'
+            fill='none'
+            aria-hidden
+          >
             <path
               d='M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z'
               stroke='currentColor'
