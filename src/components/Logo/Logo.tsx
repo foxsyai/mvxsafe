@@ -10,14 +10,18 @@ const styles = {
   // Below 360px wide (the smallest phones) the mark stands alone, or the
   // header has no room for "How it works" beside it.
   text: 'text-lg font-semibold tracking-tight text-white max-[359px]:hidden',
-  textHidden: 'hidden sm:flex'
+  textHidden: 'hidden sm:flex',
+  // Connected, the header also carries the wallet name, so the word gives way
+  // a little earlier: below 400px.
+  textCompact: 'max-[399px]:hidden'
 } satisfies Record<string, string>;
 
 interface LogoPropsType {
   hideTextOnMobile?: boolean;
+  compact?: boolean;
 }
 
-export const Logo = ({ hideTextOnMobile }: LogoPropsType) => (
+export const Logo = ({ hideTextOnMobile, compact }: LogoPropsType) => (
   <div className={styles.logo}>
     <svg width='30' height='30' viewBox='0 0 512 512' fill='none' aria-hidden>
       <path
@@ -35,7 +39,12 @@ export const Logo = ({ hideTextOnMobile }: LogoPropsType) => (
         strokeLinecap='round'
       />
     </svg>
-    <span className={classNames(styles.text, { [styles.textHidden]: hideTextOnMobile })}>
+    <span
+      className={classNames(styles.text, {
+        [styles.textHidden]: hideTextOnMobile,
+        [styles.textCompact]: compact
+      })}
+    >
       mvxsafe
     </span>
   </div>
