@@ -32,6 +32,7 @@ export const AddressLine = ({
   const [herotag, setHerotag] = useState('');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [refused, setRefused] = useState(false);
 
   // A name typed in one place should appear everywhere it is shown.
   useEffect(() => {
@@ -68,8 +69,15 @@ export const AddressLine = ({
   };
 
   const save = () => {
-    setLabel(address, draft);
-    setLocalLabel(draft.trim().slice(0, 40));
+    const stored = setLabel(address, draft);
+    // A name that looks like an address or mixes alphabets is not saved; say
+    // so, instead of silently dropping what was typed.
+    if (draft.trim() && !stored) {
+      setRefused(true);
+      return;
+    }
+    setLocalLabel(stored);
+    setRefused(false);
     setEditing(false);
   };
 
@@ -85,7 +93,10 @@ export const AddressLine = ({
         <input
           autoFocus
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setRefused(false);
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Enter') save();
             if (event.key === 'Escape') setEditing(false);
@@ -98,11 +109,20 @@ export const AddressLine = ({
         </button>
         <button
           type='button'
-          onClick={() => setEditing(false)}
+          onClick={() => {
+            setEditing(false);
+            setRefused(false);
+          }}
           className='text-xs text-[#6B7280] hover:text-white'
         >
           cancel
         </button>
+        {refused && (
+          <span role='alert' className='text-xs text-[#F87171]'>
+            Not saved: a name cannot look like an address or mix alphabets in
+            one word.
+          </span>
+        )}
       </span>
     );
   }

@@ -8,6 +8,14 @@ export const Header = () => {
   const isLoggedIn = useGetIsLoggedIn();
   return (
     <header className='border-b border-[#1F1F27] bg-[#0E0E12]'>
+      {/* The test network says so on every screen. On a phone the warning is a
+          strip of its own above the header, because inside the header row it
+          took the room the wallet name needs. */}
+      {networkName !== 'mainnet' && (
+        <div className='bg-[#FF6E0A]/15 px-4 py-1 text-center text-[11px] font-semibold tracking-widest text-[#FF8A3D] uppercase sm:hidden'>
+          {networkName}: test network, no real money
+        </div>
+      )}
       <div className='mx-auto flex w-full max-w-5xl items-center justify-between gap-6 px-4 py-4'>
         <Link to='/' className='shrink-0'>
           <Logo compact={isLoggedIn} />
@@ -25,8 +33,8 @@ export const Header = () => {
           </Link>
           {/* A status label, not a button: an outline with a dot, so it never
             looks like the filled Connect button beside it. Green for the real
-            network, orange for the play one, and the play one stays visible on
-            a phone too, because it is the warning. */}
+            network, orange for the play one. On a phone neither sits here:
+            the play one becomes the strip above the header. */}
           {networkName === 'mainnet' ? (
             <span className='hidden shrink-0 items-center gap-2 rounded-full border border-[#22C55E]/40 bg-[#22C55E]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#4ADE80] uppercase sm:inline-flex'>
               <span
@@ -36,7 +44,7 @@ export const Header = () => {
               {networkName}
             </span>
           ) : (
-            <span className='inline-flex shrink-0 items-center gap-2 rounded-full border border-[#FF6E0A]/50 bg-[#FF6E0A]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#FF8A3D] uppercase'>
+            <span className='hidden shrink-0 items-center gap-2 rounded-full border border-[#FF6E0A]/50 bg-[#FF6E0A]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#FF8A3D] uppercase sm:inline-flex'>
               <span
                 className='h-1.5 w-1.5 rounded-full bg-[#FF8A3D]'
                 aria-hidden
