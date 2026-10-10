@@ -244,7 +244,9 @@ export const Safes = () => {
     <div className='mx-auto w-full max-w-5xl px-4 py-10'>
       <div className='flex flex-wrap items-end justify-between gap-4'>
         {/* The intro runs the full width of the cards underneath; the buttons
-            keep their own row and all three share one width. */}
+            keep their own row and all three share one width. On a phone they
+            split the row in three equal columns, so the page never scrolls
+            sideways (it did while "Reading 5 of 7..." was showing). */}
         <div className='min-w-[18rem] flex-1'>
           <p className='text-xs font-semibold tracking-[0.25em] text-[#FF6E0A]'>
             MULTIVERSX MULTISIG
@@ -255,19 +257,19 @@ export const Safes = () => {
             you sit on the board of become yours to act on.
           </p>
         </div>
-        <div className='flex shrink-0 items-center gap-2'>
+        <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:shrink-0 sm:items-center'>
           <Tip text='Writes your list to a file: names and addresses only, nothing secret.'>
             <button
               type='button'
               onClick={handleExport}
               disabled={safes.length === 0}
-              className='min-w-[9.5rem] rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40'
+              className='w-full rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-40 sm:w-auto sm:min-w-[9.5rem]'
             >
               Export
             </button>
           </Tip>
           <Tip text='Reads a list back, on another browser or another machine. Safes already here are left alone.'>
-            <label className='min-w-[9.5rem] cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'>
+            <label className='w-full cursor-pointer rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white sm:w-auto sm:min-w-[9.5rem]'>
               Import
               <input
                 type='file'
@@ -281,9 +283,16 @@ export const Safes = () => {
             <button
               type='button'
               onClick={handleRefresh}
-              className='min-w-[9.5rem] rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm whitespace-nowrap text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white'
+              className='w-full rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm whitespace-nowrap text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white sm:w-auto sm:min-w-[9.5rem]'
             >
-              {loading ? `Reading ${done} of ${safes.length}...` : 'Refresh'}
+              {loading ? (
+                <>
+                  <span className='hidden sm:inline'>Reading </span>
+                  {done} of {safes.length}...
+                </>
+              ) : (
+                'Refresh'
+              )}
             </button>
           </Tip>
         </div>

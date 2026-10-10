@@ -1,7 +1,12 @@
 import { useCallback } from 'react';
 import { AddressLine } from 'components/Address';
 import { Tip } from 'components/Info';
-import { getAccountProvider, UnlockPanelManager, useGetAccount, useGetIsLoggedIn } from 'lib';
+import {
+  getAccountProvider,
+  UnlockPanelManager,
+  useGetAccount,
+  useGetIsLoggedIn
+} from 'lib';
 import { ALLOWED_WALLETS } from 'lib/sdkDapp/sdkDapp.constants';
 
 // Connecting proves which address you are, nothing more. It cannot move
@@ -42,7 +47,14 @@ export const ConnectButton = () => {
 
   return (
     <div className='flex items-center gap-3'>
-      <AddressLine address={address} className='text-xs text-[#9AA0A6]' />
+      {/* No room for the name on a phone; the board marks your own address
+          with YOU on every safe instead. */}
+      <span className='hidden sm:inline-flex'>
+        <AddressLine
+          address={address}
+          className='text-xs whitespace-nowrap text-[#9AA0A6]'
+        />
+      </span>
       <Tip text='Forgets your wallet here. Your safes stay in the list.'>
         <button
           type='button'

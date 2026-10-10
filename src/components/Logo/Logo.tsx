@@ -7,7 +7,9 @@ import classNames from 'classnames';
 // flashes while loading.
 const styles = {
   logo: 'logo flex items-center gap-3',
-  text: 'text-lg font-semibold tracking-tight text-white',
+  // Below 360px wide (the smallest phones) the mark stands alone, or the
+  // header has no room for "How it works" beside it.
+  text: 'text-lg font-semibold tracking-tight text-white max-[359px]:hidden',
   textHidden: 'hidden sm:flex'
 } satisfies Record<string, string>;
 

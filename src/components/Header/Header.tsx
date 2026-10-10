@@ -9,8 +9,13 @@ export const Header = () => (
       <Link to='/'>
         <Logo />
       </Link>
-      <div className='flex items-center gap-5'>
-        <Link to='/guide' className='text-sm text-[#9AA0A6] hover:text-white'>
+      {/* Tighter on a phone, and the link never wraps: connected, the header
+          used to push "How it works" onto two lines against the logo. */}
+      <div className='flex items-center gap-3 sm:gap-5'>
+        <Link
+          to='/guide'
+          className='text-sm whitespace-nowrap text-[#9AA0A6] hover:text-white'
+        >
           How it works
         </Link>
         {/* A status label, not a button: an outline with a dot, so it never
@@ -19,12 +24,18 @@ export const Header = () => (
             a phone too, because it is the warning. */}
         {networkName === 'mainnet' ? (
           <span className='hidden items-center gap-2 rounded-full border border-[#22C55E]/40 bg-[#22C55E]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#4ADE80] uppercase sm:inline-flex'>
-            <span className='h-1.5 w-1.5 rounded-full bg-[#4ADE80]' aria-hidden />
+            <span
+              className='h-1.5 w-1.5 rounded-full bg-[#4ADE80]'
+              aria-hidden
+            />
             {networkName}
           </span>
         ) : (
           <span className='inline-flex items-center gap-2 rounded-full border border-[#FF6E0A]/50 bg-[#FF6E0A]/10 px-3 py-1 text-xs font-semibold tracking-widest text-[#FF8A3D] uppercase'>
-            <span className='h-1.5 w-1.5 rounded-full bg-[#FF8A3D]' aria-hidden />
+            <span
+              className='h-1.5 w-1.5 rounded-full bg-[#FF8A3D]'
+              aria-hidden
+            />
             {networkName}
           </span>
         )}
