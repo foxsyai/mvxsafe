@@ -124,17 +124,28 @@ export const Safes = () => {
   // on "..." for good after a slow moment of the API (7 Oct 2026).
   const retryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => retryTimers.current.forEach(clearTimeout), []);
+
+  // Every pass over the list has a number, and only the newest one counts.
+  // Pressing Refresh while the list was reading used to leave the older pass
+  // running: its reads went on counting toward "N of 7" (up to "12 of 7") and
+  // its end switched the button back to Refresh while the new pass still read
+  // (10 Oct 2026).
+  const round = useRef(0);
+
   const retryLater = useCallback(
     (failed: KnownSafe[], connectedAddress: string, attempt: number) => {
       const delay = Math.min(30000, 5000 * Math.pow(2, attempt));
+      const mine = round.current;
       retryTimers.current.push(
         setTimeout(async () => {
           const still: KnownSafe[] = [];
           for (const safe of failed) {
-            if (!listAlive.current) return;
+            if (!listAlive.current || round.current !== mine) return;
             if (!(await readOne(safe, connectedAddress))) still.push(safe);
           }
-          if (still.length > 0 && listAlive.current) retryLater(still, connectedAddress, attempt + 1);
+          if (still.length > 0 && listAlive.current && round.current === mine) {
+            retryLater(still, connectedAddress, attempt + 1);
+          }
         }, delay)
       );
     },
@@ -143,6 +154,10 @@ export const Safes = () => {
 
   const load = useCallback(
     async (list: KnownSafe[], connectedAddress: string) => {
+      const mine = ++round.current;
+      // This pass reads every safe, so the retries an older pass left behind go.
+      retryTimers.current.forEach(clearTimeout);
+      retryTimers.current = [];
       setLoading(true);
       setDone(0);
       // Roles belong to one wallet: none survive a disconnect, a new wallet or
@@ -155,15 +170,19 @@ export const Safes = () => {
       const failed: KnownSafe[] = [];
       const worker = async () => {
         for (;;) {
-          // Left the list: stop, so the page now open is not queued behind it.
-          if (!listAlive.current) return;
+          // Left the list, or a newer pass started: stop, so nothing queues
+          // behind it and nothing counts twice.
+          if (!listAlive.current || round.current !== mine) return;
           const safe = pending.shift();
           if (!safe) return;
-          if (!(await readOne(safe, connectedAddress))) failed.push(safe);
+          const read = await readOne(safe, connectedAddress);
+          if (round.current !== mine) return;
+          if (!read) failed.push(safe);
           setDone((count) => count + 1);
         }
       };
       await Promise.all([worker(), worker(), worker()]);
+      if (round.current !== mine) return;
       setLoading(false);
       if (failed.length > 0 && listAlive.current) retryLater(failed, connectedAddress, 0);
     },
