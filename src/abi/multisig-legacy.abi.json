@@ -366,6 +366,44 @@
       ]
     },
     {
+      "name": "proposeSCUpgradeFromSource",
+      "mutability": "mutable",
+      "inputs": [
+        {
+          "name": "sc_address",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "BigUint"
+        },
+        {
+          "name": "source",
+          "type": "Address"
+        },
+        {
+          "name": "code_metadata",
+          "type": "CodeMetadata"
+        },
+        {
+          "name": "arguments",
+          "type": "variadic<bytes>",
+          "multi_arg": true
+        }
+      ],
+      "outputs": [
+        {
+          "type": "u32"
+        }
+      ],
+      "docs": [
+        "Replaces the code of a contract this safe owns with the code of `source`, once the",
+        "board has signed. The source is read in the SAFE's shard when the action is carried",
+        "out: a source in any other shard fails then, after the signatures, and uses the",
+        "action up. Proven on devnet against this exact bytecode (13 Oct 2026)."
+      ]
+    },
+    {
       "name": "deposit",
       "mutability": "mutable",
       "payableInTokens": [

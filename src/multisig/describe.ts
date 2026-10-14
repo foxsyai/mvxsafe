@@ -136,18 +136,88 @@ const tokenAmount = async (identifierBytes: Uint8Array, amount: bigint, nonce = 
 
 // --- arguments ---------------------------------------------------------------
 
+/** From 0.001 EGLD up, a number is also read as an amount of EGLD. */
+const READ_AS_EGLD_FROM = 10n ** 15n;
+
 /**
  * One argument of a call, as readably as it can be told apart: 32 bytes are an
  * address, a word is text, anything else a number, and long binary is hex.
+ *
+ * The chain does not say what a number means, only the target's ABI does. A
+ * large one is therefore written exactly AND read as EGLD, with that reading
+ * marked as one: "10,000,000,000,000,000 [0.01 EGLD at 18 decimals]". Never
+ * the EGLD figure alone, which would be wrong for a token of 6 decimals.
  */
-const describeArgument = (bytes: Uint8Array): string => {
+export const describeArgument = (bytes: Uint8Array): string => {
   if (bytes.length === 0) return '0';
   if (bytes.length === 32) return new Address(bytes).toBech32();
   const text = decodeText(bytes);
+  // One byte is a number far more often than a one-letter word: setTokenFee(100)
+  // travels as 0x64, which is also "d" (mvxvest v2, 14 Oct 2026). Both are said.
+  if (bytes.length === 1 && /^[A-Za-z]$/.test(text)) return `${bytes[0]} [or the text "${text}"]`;
   if (/^[A-Za-z][A-Za-z0-9_.\-]*$/.test(text)) return text;
-  if (bytes.length <= 32) return groupDigits(bytesToBigInt(bytes));
+  if (bytes.length <= 32) {
+    const value = bytesToBigInt(bytes);
+    return value >= READ_AS_EGLD_FROM
+      ? `${groupDigits(value)} [${formatUnits(value, 18)} EGLD at 18 decimals]`
+      : groupDigits(value);
+  }
   return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 };
+
+// --- code metadata -----------------------------------------------------------
+
+export interface MetadataFlags {
+  upgradeable: boolean;
+  readable: boolean;
+  payable: boolean;
+  payableBySc: boolean;
+}
+
+/**
+ * Code metadata as the decoder hands it back: a CodeMetadata object, or its
+ * two bytes. Null when it is neither.
+ */
+export const metadataOf = (value: any): MetadataFlags | null => {
+  if (value && typeof value.upgradeable === 'boolean') {
+    return {
+      upgradeable: value.upgradeable,
+      readable: Boolean(value.readable),
+      payable: Boolean(value.payable),
+      payableBySc: Boolean(value.payableBySc)
+    };
+  }
+  const bytes = bytesOf(value);
+  if (bytes?.length !== 2) return null;
+  return {
+    upgradeable: (bytes[0] & 0x01) !== 0,
+    readable: (bytes[0] & 0x04) !== 0,
+    payable: (bytes[1] & 0x02) !== 0,
+    payableBySc: (bytes[1] & 0x04) !== 0
+  };
+};
+
+const FLAG_WORDS: [keyof MetadataFlags, string][] = [
+  ['upgradeable', 'upgradeable'],
+  ['readable', 'readable'],
+  ['payable', 'payable'],
+  ['payableBySc', 'payable by smart contracts']
+];
+
+/** "upgradeable, readable, not payable, not payable by smart contracts" */
+export const describeMetadata = (flags: MetadataFlags): string =>
+  FLAG_WORDS.map(([flag, words]) =>
+    flags[flag] ? words : `not ${words}`
+  ).join(', ');
+
+/** What changes between two sets of flags, in words, or [] when nothing does. */
+export const metadataChanges = (
+  from: MetadataFlags,
+  to: MetadataFlags
+): string[] =>
+  FLAG_WORDS.filter(([flag]) => from[flag] !== to[flag]).map(
+    ([flag, words]) => `${to[flag] ? 'becomes' : 'stops being'} ${words}`
+  );
 
 const describeCallOf = (endpoint: Uint8Array, args: Uint8Array[]) =>
   `${visible(decodeText(endpoint))}(${args.map(describeArgument).join(', ')})`;
@@ -222,6 +292,15 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
     return `Send ${what} to ${to}${then}${alsoEgld}`;
   }
 
+  // Handing a contract to someone else: the safe stops being its owner, and
+  // the new owner alone may replace its code from then on.
+  if (name === 'ChangeOwnerAddress' && args.length === 1 && args[0].length === 32) {
+    const owner = new Address(args[0]).toBech32();
+    return to === safe
+      ? `Hand THIS SAFE over to ${owner}, who could then replace its code alone, without the board${alsoEgld}. ${DO_NOT_SIGN}`
+      : `Hand the contract ${to} over to ${owner}: the safe would no longer own it${alsoEgld}`;
+  }
+
   if (to === safe) {
     const builtIn = await describeOnItself(name, args);
     if (builtIn) return `${builtIn}${alsoEgld}`;
@@ -268,14 +347,16 @@ export const describeAction = async (action: any, safe: string): Promise<string>
       );
     }
     case 'SCUpgradeFromSource': {
-      const [target, amount, source, , args] = fields;
+      const [target, amount, source, metadata, args] = fields;
       const egld = toBigInt(amount);
-      if (egld === null) return `Unreadable upgrade. ${DO_NOT_SIGN}`;
+      const flags = metadataOf(metadata);
+      if (egld === null || !flags) return `Unreadable upgrade. ${DO_NOT_SIGN}`;
       const list = (args ?? []).map((arg: any) => describeArgument(bytesOf(arg) ?? new Uint8Array(0)));
       return (
         `Upgrade the contract ${asAddress(target)}, replacing its code with the code of ${asAddress(source)}` +
         (egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD to it` : '') +
-        `, with the arguments (${list.join(', ')})`
+        `, with the arguments (${list.join(', ')}). Afterwards it is ${describeMetadata(flags)}` +
+        (flags.upgradeable ? '' : `: it can never be changed again, by anyone. ${DO_NOT_SIGN}`)
       );
     }
     default:

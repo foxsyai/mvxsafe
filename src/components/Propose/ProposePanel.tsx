@@ -18,12 +18,14 @@ import { explainWalletFailure } from 'multisig/walletFailure';
 class FormError extends Error {}
 import { Info, Tip } from 'components/Info';
 import { TokenBalance } from 'multisig/reads';
+import { CallForm } from './CallForm';
+import { UpgradeForm } from './UpgradeForm';
 
 // Proposing changes nothing on its own: it puts a request in front of the board,
 // which then has to reach the quorum. Every field here ends up in the action
 // description the other signers read, so the wording of the form matters.
 
-type Kind = 'token' | 'egld' | 'addBoard' | 'addProposer' | 'remove' | 'quorum';
+type Kind = 'token' | 'egld' | 'addBoard' | 'addProposer' | 'remove' | 'quorum' | 'call' | 'upgrade';
 
 const TABS: { kind: Kind; label: string }[] = [
   { kind: 'token', label: 'Send tokens' },
@@ -31,7 +33,9 @@ const TABS: { kind: Kind; label: string }[] = [
   { kind: 'addBoard', label: 'Add board member' },
   { kind: 'addProposer', label: 'Add proposer' },
   { kind: 'remove', label: 'Remove member' },
-  { kind: 'quorum', label: 'Change quorum' }
+  { kind: 'quorum', label: 'Change quorum' },
+  { kind: 'call', label: 'Call a contract' },
+  { kind: 'upgrade', label: 'Upgrade a contract' }
 ];
 
 // One sentence per kind of action, shown next to the form rather than in a
@@ -46,7 +50,11 @@ const EXPLAIN: Record<Kind, string> = {
     'A proposer can only suggest actions, never approve them. Useful for someone who prepares payments while the board keeps the say over them.',
   remove: 'Take a board member or a proposer out. Needs the board\'s approval like anything else.',
   quorum:
-    'How many signatures an action needs. Raising it makes the safe stricter, lowering it makes it easier to use. It can never be higher than the number of board members.'
+    'How many signatures an action needs. Raising it makes the safe stricter, lowering it makes it easier to use. It can never be higher than the number of board members.',
+  call:
+    'Have the safe call a function of a contract, typically one it owns: set a fee, pause, unpause. The call is tried as the safe would send it before it can be proposed.',
+  upgrade:
+    "Replace the code of a contract the safe owns with the code of a source contract in the safe's shard. Its address and storage stay; only the code changes."
 };
 
 const input =
@@ -265,6 +273,31 @@ export const ProposePanel = ({
         {EXPLAIN[kind]}
       </p>
 
+      {/* A call and an upgrade have forms of their own, with their own checks. */}
+      {(kind === 'call' || kind === 'upgrade') &&
+        (kind === 'call' ? (
+          <CallForm
+            safe={safe}
+            signer={signer}
+            disabled={disabled}
+            disabledReason={disabledReason}
+            onBusyChange={onBusyChange}
+            onProposed={onProposed}
+          />
+        ) : (
+          <UpgradeForm
+            safe={safe}
+            signer={signer}
+            disabled={disabled}
+            disabledReason={disabledReason}
+            onBusyChange={onBusyChange}
+            onProposed={onProposed}
+          />
+        ))}
+
+      {kind !== 'call' && kind !== 'upgrade' && (
+      <>
+
       {kind === 'token' && (
         <div className={field}>
           <label className='text-xs text-[#6B7280]'>Token</label>
@@ -376,6 +409,8 @@ export const ProposePanel = ({
           </p>
         )}
       </div>
+      </>
+      )}
     </section>
   );
 };

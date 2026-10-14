@@ -17,19 +17,24 @@ import {
   AddressComputer,
   AddressValue,
   BigUIntValue,
-  BytesType,
   BytesValue,
+  CodeMetadata,
+  CodeMetadataValue,
   SmartContractTransactionsFactory,
   TransactionsFactoryConfig,
   U32Value,
   VariadicValue
 } from '@multiversx/sdk-core';
+import { blake2b } from '@noble/hashes/blake2b';
 import legacyAbiJson from '../abi/multisig-legacy.abi.json' with { type: 'json' };
 
 export const legacyAbi = Abi.create(legacyAbiJson);
 
-/** Gas that comfortably covers a proposal, a signature or a perform. */
-export const DEFAULT_GAS = 60000000n;
+// No gas here. Every transaction leaves these builders with a limit of 0 and
+// gets its real one from settleGas (gas.js) as the last step before signing: a
+// simulation plus a fifth, or a budget where the network cannot simulate. A
+// path that forgot would be refused by the network for want of gas, with
+// nothing spent. The flat 60M this used to set was ten times a signature.
 
 const factoryFor = (chainId) =>
   new SmartContractTransactionsFactory({
@@ -47,7 +52,7 @@ const call = async ({ chainId, sender, nonce, safe, fn, args, gasLimit }) => {
     {
       contract: parseAddress(safe, 'safe address'),
       function: fn,
-      gasLimit: gasLimit ?? DEFAULT_GAS,
+      gasLimit: gasLimit ?? 0n,
       arguments: args
     }
   );
@@ -125,6 +130,15 @@ const amountBytes = (raw) => {
   return BytesValue.fromHex(hex === '00' ? '' : hex);
 };
 
+/** An unsigned integer the way a contract reads one: big-endian, shortest form, 0 as nothing. */
+export const topEncode = (raw) => {
+  if (raw < 0n) throw new Error('A negative number cannot be written here.');
+  if (raw === 0n) return new Uint8Array(0);
+  let hex = raw.toString(16);
+  if (hex.length % 2) hex = '0' + hex;
+  return Uint8Array.from(hex.match(/../g), (pair) => parseInt(pair, 16));
+};
+
 // fromItems, NOT fromItemsCounted: the counted form writes the number of items
 // as an extra argument, which the contract then stored as the function name. The
 // proposal looked fine and the transfer quietly did nothing when performed.
@@ -188,6 +202,287 @@ export const buildProposeRemoveUser = (context, address) =>
 export const buildProposeChangeQuorum = (context, newQuorum) =>
   call({ ...context, fn: 'proposeChangeQuorum', args: [new U32Value(newQuorum)] });
 
+// --- shards, code and code metadata ------------------------------------------
+
+/**
+ * The shard an address lives in, out of the three that mainnet and devnet run.
+ * A contract lives in the shard of the account that deployed it.
+ */
+export const shardOf = (address) =>
+  new AddressComputer().getShardOfAddress(parseAddress(address));
+
+/**
+ * The code hash MultiversX gives a contract: blake2b-256 of its wasm. This is
+ * what the API reports (in base64) for every deployed contract, so a .wasm
+ * file can be checked against a release before it is deployed, and a deployed
+ * source against the file afterwards.
+ */
+export const codeHashOf = (bytes) =>
+  Array.from(blake2b(bytes, { dkLen: 32 }), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
+
+/**
+ * A code hash as 64 lowercase hex characters, from hex (with or without 0x,
+ * any case) or from the base64 the API uses. Null for anything else.
+ */
+export const normalizeCodeHash = (value) => {
+  const text = String(value ?? '').trim();
+  const hex = text.replace(/^0x/i, '');
+  if (/^[0-9a-fA-F]{64}$/.test(hex)) return hex.toLowerCase();
+  if (/^[A-Za-z0-9+/]{43}=$/.test(text)) {
+    const bytes = Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+    if (bytes.length === 32) {
+      return Array.from(bytes, (byte) =>
+        byte.toString(16).padStart(2, '0')
+      ).join('');
+    }
+  }
+  return null;
+};
+
+/**
+ * Code metadata as the four flags, from the two bytes on the wire:
+ *   first byte  0x01 upgradeable, 0x04 readable;
+ *   second byte 0x02 payable,     0x04 payable by smart contracts.
+ * So 0500 is upgradeable and readable, and nothing else.
+ */
+export const metadataFromHex = (hex) => {
+  const text = String(hex ?? '')
+    .trim()
+    .toLowerCase();
+  if (!/^[0-9a-f]{4}$/.test(text))
+    throw new Error(
+      `"${hex}" is not code metadata: it is two bytes, for example 0500.`
+    );
+  const { upgradeable, readable, payable, payableBySc } =
+    CodeMetadata.newFromBytes(
+      Uint8Array.from([
+        parseInt(text.slice(0, 2), 16),
+        parseInt(text.slice(2), 16)
+      ])
+    );
+  return { upgradeable, readable, payable, payableBySc };
+};
+
+export const metadataToHex = ({
+  upgradeable,
+  readable,
+  payable,
+  payableBySc
+}) =>
+  new CodeMetadata(
+    Boolean(upgradeable),
+    Boolean(readable),
+    Boolean(payable),
+    Boolean(payableBySc)
+  ).toString();
+
+const metadataOf = (value) =>
+  typeof value === 'string' ? metadataFromHex(value) : value;
+
+// --- arguments, written the way the target's ABI reads them -------------------
+
+/**
+ * One argument of a contract call as the bytes that travel, top-encoded the
+ * way a contract decodes its arguments:
+ *
+ *   egld     "0.01"       -> 2386f26fc10000   (an amount of EGLD, 18 decimals)
+ *   number   "10"         -> 0a               (any unsigned integer: BigUint, u64,
+ *                                              u32, u8, or an enum's discriminant)
+ *   address  "erd1..."    -> its 32 bytes
+ *   text     "FOXSY-5d5f3e" -> its UTF-8 bytes (names, token identifiers)
+ *   hex      "0x0102"     -> those bytes
+ *   bool     "true"       -> 01, and "false" -> nothing
+ *
+ * Zero is no bytes at all, which is how a contract reads 0, false or the first
+ * variant of an enum.
+ */
+export const encodeArgument = (kind, value) => {
+  const text = String(value ?? '').trim();
+  switch (kind) {
+    case 'egld':
+      return topEncode(toRawAmount(text, 18));
+    case 'number': {
+      if (!/^\d+$/.test(text)) {
+        throw new Error(
+          `"${text}" is not a whole number. Use digits only, for example 10.`
+        );
+      }
+      return topEncode(BigInt(text));
+    }
+    case 'address':
+      return parseAddress(text, 'address').getPublicKey();
+    case 'text':
+      return new TextEncoder().encode(String(value ?? ''));
+    case 'hex': {
+      const hex = text.replace(/^0x/i, '');
+      if (!/^([0-9a-fA-F]{2})*$/.test(hex)) {
+        throw new Error(
+          `"${text}" is not hex: pairs of 0-9 and a-f, for example 0x0102.`
+        );
+      }
+      return Uint8Array.from(hex.match(/../g) ?? [], (pair) =>
+        parseInt(pair, 16)
+      );
+    }
+    case 'bool':
+      if (/^(true|yes|1)$/i.test(text)) return Uint8Array.of(1);
+      if (/^(false|no|0)$/i.test(text)) return new Uint8Array(0);
+      throw new Error(`"${text}" is neither true nor false.`);
+    default:
+      throw new Error(`Unknown kind of argument: ${kind}.`);
+  }
+};
+
+const argumentBytes = (argument) =>
+  argument instanceof Uint8Array
+    ? argument
+    : encodeArgument(argument.kind, argument.value);
+
+/** The SDK's codec works on Buffers. */
+const bytesValue = (bytes) => new BytesValue(Buffer.from(bytes));
+
+/** An endpoint name as the contract exports it: a letter or _, then letters, digits and _. */
+const ENDPOINT = /^[A-Za-z_][A-Za-z0-9_]{0,254}$/;
+
+/**
+ * A call on a contract, typically one the safe owns: setFee, pauseCreation and
+ * the rest of an owner's endpoints. The function name is the FIRST item of the
+ * argument list, not an argument of its own, exactly as for a token; the
+ * arguments follow, already encoded.
+ *
+ *   proposeAsyncCall@<contract>@<egld or nothing>@<function>@<arguments...>
+ */
+export const buildProposeCall = async (
+  context,
+  { to, egld = '0', functionName, args = [] }
+) => {
+  const name = String(functionName ?? '').trim();
+  if (!ENDPOINT.test(name)) {
+    throw new Error(
+      name
+        ? `"${name}" is not a function name a contract can have.`
+        : 'Name the function to call, for example setFee.'
+    );
+  }
+  return call({
+    ...context,
+    fn: 'proposeAsyncCall',
+    args: [
+      parseAddress(to, 'contract address'),
+      new BigUIntValue(toRawAmount(egld || '0', 18)),
+      variadic([
+        BytesValue.fromUTF8(name),
+        ...args.map((arg) => bytesValue(argumentBytes(arg)))
+      ])
+    ]
+  });
+};
+
+/**
+ * Why an upgrade must not be proposed, or '' when it may. Checked by the
+ * builder and by the form alike, from the addresses alone:
+ *
+ * - The SOURCE must be in the safe's shard. performAction reads the source's
+ *   code in its own shard; a source anywhere else fails at perform, after
+ *   every signature, and uses the action up.
+ * - The new metadata must keep "upgradeable". Without it the contract can
+ *   never be changed again, by anyone, the board included.
+ * - The target is a contract, and not the safe itself.
+ */
+export const upgradeProblem = ({ safe, target, source, metadata }) => {
+  const targetAddress = parseAddress(target, 'contract address');
+  const sourceAddress = parseAddress(source, 'source address');
+  if (!targetAddress.isSmartContract())
+    return 'The contract to upgrade has to be a contract address (erd1qqqqqqqqqqqqqpgq...).';
+  if (!sourceAddress.isSmartContract())
+    return 'The source has to be a contract address (erd1qqqqqqqqqqqqqpgq...).';
+  if (
+    targetAddress.toBech32() === parseAddress(safe, 'safe address').toBech32()
+  ) {
+    return 'That is the safe itself. mvxsafe does not replace the code of the safe it is acting for.';
+  }
+  const sourceShard = shardOf(source);
+  const safeShard = shardOf(safe);
+  if (sourceShard !== safeShard) {
+    return `The source is in shard ${sourceShard} and the safe in shard ${safeShard}. The safe reads the source's code in its own shard when the upgrade is carried out, so this would fail then, after the signatures, and use the action up. Deploy the source from a wallet in shard ${safeShard}.`;
+  }
+  if (!metadataOf(metadata).upgradeable) {
+    return 'Without "upgradeable" the contract could never be changed again, by anyone, this board included. mvxsafe does not propose that.';
+  }
+  return '';
+};
+
+/**
+ * Replaces the code of a contract the safe owns with the code of `source`,
+ * which must already be deployed in the safe's shard. Nothing is sent with it
+ * and, for mvxvest, there are no arguments, since its upgrade takes none:
+ *
+ *   proposeSCUpgradeFromSource@<contract>@@<source>@0500
+ */
+export const buildProposeUpgrade = async (
+  context,
+  { target, source, metadata, args = [], amount = '0' }
+) => {
+  const problem = upgradeProblem({
+    safe: context.safe,
+    target,
+    source,
+    metadata
+  });
+  if (problem) throw new Error(problem);
+  const flags = metadataOf(metadata);
+  return call({
+    ...context,
+    fn: 'proposeSCUpgradeFromSource',
+    args: [
+      parseAddress(target, 'contract address'),
+      new BigUIntValue(toRawAmount(amount || '0', 18)),
+      parseAddress(source, 'source address'),
+      new CodeMetadataValue(
+        new CodeMetadata(
+          flags.upgradeable,
+          flags.readable,
+          flags.payable,
+          flags.payableBySc
+        )
+      ),
+      variadic(args.map((arg) => bytesValue(argumentBytes(arg))))
+    ]
+  });
+};
+
+/**
+ * Deploys the code an upgrade will copy, from the wallet of whoever prepares
+ * it, which must be in the safe's shard. The source itself is NOT upgradeable,
+ * so nobody can change the code between the board's signatures and the
+ * upgrade; readable, not payable, and by default without arguments, because
+ * mvxvest's constructor takes none.
+ */
+export const buildDeploySource = async (
+  { chainId, sender, nonce },
+  { bytecode, args = [] }
+) => {
+  const factory = new SmartContractTransactionsFactory({
+    config: new TransactionsFactoryConfig({ chainID: chainId })
+  });
+  const transaction = await factory.createTransactionForDeploy(
+    new Address(sender),
+    {
+      bytecode,
+      gasLimit: 0n,
+      arguments: args.map((arg) => bytesValue(argumentBytes(arg))),
+      isUpgradeable: false,
+      isReadable: true,
+      isPayable: false,
+      isPayableBySmartContract: false
+    }
+  );
+  transaction.nonce = BigInt(nonce);
+  return transaction;
+};
+
 // --- creating a safe ---------------------------------------------------------
 //
 // A new safe runs the same contract as the older mainnet safes, byte for byte, so everything
@@ -209,17 +504,12 @@ export const MULTISIG_CODE_HASH = '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE='
 export const MULTISIG_WASM_SHA256 =
   '394e33d9ea7e854edf39f59da30c3e65f5b975322f252ded0a5017c48234a9d5';
 
-/**
- * A deploy spends ALL the gas it is given: a mainnet safe burned its full 100M
- * with one member, the devnet test safe its full 200M with three. Most of the
- * fee pays for the 47,000 bytes of code; gas above that is priced at a hundredth,
- * so 250M costs about 0.0005 EGLD more than 200M, while running out would lose
- * the whole fee. Fee at 250M: about 0.073 EGLD.
- */
-export const DEPLOY_GAS = 250000000n;
-
-/** A mainnet handover used 5.2M of the 10M it was given. */
-export const HANDOVER_GAS = 10000000n;
+// A deploy spends ALL the gas it is given: a mainnet safe burned its full 100M
+// with one member, the devnet test safe its full 200M with three. So it is no
+// longer given a flat 250M but its simulation plus a fifth (settleGas), and the
+// handover, which cannot be simulated before the safe exists, the fixed cost
+// of ChangeOwnerAddress plus a fifth (handOverGas in gas.js). A mainnet
+// handover used 5.2M of the 10M it used to get.
 
 /** The address the safe will have, known before anything is sent. */
 export const predictSafeAddress = (deployer, nonce) =>
@@ -236,7 +526,7 @@ export const buildDeploySafe = async ({ chainId, sender, nonce }, { bytecode, qu
   });
   const transaction = await factory.createTransactionForDeploy(new Address(sender), {
     bytecode,
-    gasLimit: DEPLOY_GAS,
+    gasLimit: 0n,
     arguments: [
       new U32Value(quorum),
       ...board.map((member) => new AddressValue(parseAddress(member, 'board member')))
@@ -258,7 +548,7 @@ export const buildHandOver = async ({ chainId, sender, nonce, safe }) => {
   const transaction = await factory.createTransactionForExecute(new Address(sender), {
     contract: parseAddress(safe, 'safe address'),
     function: 'ChangeOwnerAddress',
-    gasLimit: HANDOVER_GAS,
+    gasLimit: 0n,
     arguments: [new AddressValue(parseAddress(safe, 'safe address'))]
   });
   transaction.nonce = BigInt(nonce);

@@ -20,6 +20,7 @@ import {
 } from '@multiversx/sdk-core';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { measureCall, performPlan, settleGas } from '../../src/multisig/gas.js';
 import {
   buildDiscard,
   buildPerform,
@@ -54,8 +55,13 @@ const load = (name) =>
 // drifted as soon as a transaction was still pending from an earlier run.
 const nonceOf = async (who) => Number((await api.getAccount(who.address)).nonce);
 
-const send = async (transaction, signer, label) => {
+// Gas the way the app gives it (src/multisig/gas.js): simulated plus a fifth,
+// or the budget passed for a perform the network cannot simulate.
+const send = async (transaction, signer, label, budget) => {
   transaction.nonce = BigInt(await nonceOf(signer));
+  if (!transaction.gasLimit || budget !== undefined) {
+    await settleGas(transaction, { provider: api, budget });
+  }
   transaction.signature = await signer.signTransaction(transaction);
   const hash = await api.sendTransaction(transaction);
   const deadline = Date.now() + 300000;
@@ -70,7 +76,7 @@ const send = async (transaction, signer, label) => {
     }
   }
   const ok = Boolean(onNetwork && onNetwork.status.isSuccessful());
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}`);
+  console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}  ${hash}  gas ${Number(transaction.gasLimit).toLocaleString('en-US')}`);
   if (!ok) throw new Error(`${label} did not succeed: ${hash}`);
   return onNetwork;
 };
@@ -101,7 +107,8 @@ const context = async (signer, safe) => ({
  */
 const actionIdFrom = (onNetwork) => {
   for (const result of onNetwork.smartContractResults ?? []) {
-    const data = typeof result.data === 'string' ? result.data : '';
+    // A string in older sdk-core, bytes in 15.
+    const data = typeof result.data === 'string' ? result.data : Buffer.from(result.data ?? []).toString();
     const parts = data.split('@').filter(Boolean);
     if (parts[0] === '6f6b' && parts[1]) return parseInt(parts[1], 16);
   }
@@ -118,7 +125,7 @@ const actionIdFrom = (onNetwork) => {
  * Written against whatever the quorum happens to be, so a run that left it at 3
  * does not break the next one.
  */
-const approveAndPerform = async (safe, actionId, others, label) => {
+const approveAndPerform = async (safe, actionId, others, label, call) => {
   const quorum = num(await view(safe, 'getQuorum'));
   const signatures = () =>
     view(safe, 'getActionSignerCount', [new U32Value(actionId)]).then(num);
@@ -127,10 +134,24 @@ const approveAndPerform = async (safe, actionId, others, label) => {
     await send(await buildSign(await context(who, safe), actionId), who, `${name} signs ${label}`);
   }
   const performer = others[0][0];
+  // A call that leaves the safe (a token transfer is one) gets the budget the
+  // safe page gives it, from what the call needs when tried as the safe.
+  // A plain EGLD transfer gets the transfer budget; what stays in the safe is
+  // simulated.
+  let budget;
+  if (call === 'egld') {
+    budget = performPlan({ name: 'SendTransferExecute', hasFunction: false }).gasLimit;
+    console.log(`       perform budget ${budget.toLocaleString('en-US')}`);
+  } else if (call) {
+    const { need, how } = await measureCall(api, { chainId: 'D', safe, to: call.to, data: call.data });
+    budget = performPlan({ name: 'SendAsyncCall', callNeed: need }).gasLimit;
+    console.log(`       need ${need?.toLocaleString('en-US') ?? 'unknown'} (${how}), perform budget ${budget.toLocaleString('en-US')}`);
+  }
   await send(
     await buildPerform(await context(performer, safe), actionId),
     performer,
-    `carry out ${label}`
+    `carry out ${label}`,
+    budget
   );
 };
 
@@ -250,7 +271,7 @@ const run = async () => {
     num(await view(safe, 'getActionSignerCount', [new U32Value(actionId)]))
   );
 
-  await approveAndPerform(safe, actionId, [[bob, 'bob'], [carol, 'carol']], 'the EGLD transfer');
+  await approveAndPerform(safe, actionId, [[bob, 'bob'], [carol, 'carol']], 'the EGLD transfer', 'egld');
   console.log(`  carol: ${egld(carolBefore)} -> ${egld(await balanceOf(carol))} xEGLD`);
 
   // 2. A token out, which on this build travels as an async ESDTTransfer.
@@ -266,7 +287,10 @@ const run = async () => {
     'alice proposes sending 0.5 WEGLD to carol'
   );
   const tokenAction = actionIdFrom(tokenProposed);
-  await approveAndPerform(safe, tokenAction, [[bob, 'bob'], [carol, 'carol']], 'the token transfer');
+  await approveAndPerform(safe, tokenAction, [[bob, 'bob'], [carol, 'carol']], 'the token transfer', {
+    to: carol.address.toBech32(),
+    data: `ESDTTransfer@${Buffer.from(TOKEN).toString('hex')}@06f05b59d3b20000`
+  });
   console.log(
     `  carol ${TOKEN}: ${egld(tokensBefore)} -> ${egld(await tokenAmount(carol.address))}`
   );

@@ -4,7 +4,6 @@ import { join } from 'path';
 import {
   buildDeploySafe,
   buildHandOver,
-  DEPLOY_GAS,
   MULTISIG_WASM_SHA256,
   predictSafeAddress
 } from 'multisig/legacyCalls';
@@ -39,7 +38,8 @@ describe('creating a safe', () => {
     );
     expect(createHash('sha256').update(text(tx.data)).digest('hex')).toBe(REAL_DEPLOY_DATA_SHA256);
     expect(tx.nonce).toBe(3n);
-    expect(tx.gasLimit).toBe(DEPLOY_GAS);
+    // No flat 250M any more: settleGas simulates it before signing.
+    expect(tx.gasLimit).toBe(0n);
     expect(tx.chainID).toBe('1');
     // A deploy goes to the system's deploy address, never to an account.
     expect(tx.receiver.toBech32()).toBe('erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu');

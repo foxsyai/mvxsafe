@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
+import { ActionChecks, performGas } from 'components/Pending/ActionChecks';
 import { ProposePanel } from 'components/Propose';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import {
@@ -80,6 +81,8 @@ const SafeView = ({ address }: { address: string }) => {
   const [stale, setStale] = useState(false);
   // True between a successful send and the read that shows its result.
   const [awaiting, setAwaiting] = useState(false);
+  // What a performer typed as the gas of an action the network cannot simulate.
+  const [gasText, setGasText] = useState<Record<number, string>>({});
 
   // Set by the create page: the deploy was just sent, so for a little while an
   // address that cannot be read yet is expected, not a failure.
@@ -470,7 +473,9 @@ const SafeView = ({ address }: { address: string }) => {
           </p>
         ) : (
           <div className='mt-3 space-y-3'>
-            {pending.map((action) => (
+            {pending.map((action) => {
+              const gas = performGas(action.perform, gasText[action.actionId]);
+              return (
               // Orange, unlike every other card: something is waiting here.
               <div key={action.actionId} className={pendingCard}>
                 <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -509,6 +514,13 @@ const SafeView = ({ address }: { address: string }) => {
                   </div>
                 )}
 
+                <ActionChecks
+                  action={action}
+                  showGas={isLoggedIn && canSign && action.quorumReached}
+                  gasText={gasText[action.actionId]}
+                  onGasText={(text) => setGasText((current) => ({ ...current, [action.actionId]: text }))}
+                />
+
                 {isLoggedIn && (canSign || canPropose) && (
                   <div className='mt-3 flex flex-wrap items-center gap-2'>
                     {canSign &&
@@ -543,10 +555,10 @@ const SafeView = ({ address }: { address: string }) => {
                     {action.quorumReached && (
                       <Tip text='Makes it happen. Enough signatures are in. Any board member may press this.'><button
                         type='button'
-                        disabled={working !== 0 || proposing || stale || awaiting}
+                        disabled={working !== 0 || proposing || stale || awaiting || Boolean(gas.problem)}
                         onClick={() =>
                           run(action.actionId, () =>
-                            performAction(signer, address, action.actionId)
+                            performAction(signer, address, action.actionId, gas.budget)
                           )
                         }
                         className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
@@ -578,7 +590,8 @@ const SafeView = ({ address }: { address: string }) => {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

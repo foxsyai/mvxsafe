@@ -1,3 +1,5 @@
+import { GasError } from './gas';
+
 // Turning what a wallet throws into something a person can act on.
 // A wallet can fail in three different ways and they need different answers, so
 // a refusal is told apart from a connection that died. Anything else is shown as
@@ -7,6 +9,10 @@ export const explainWalletFailure = (failure: unknown, what: string): string => 
   const message = String((failure as any)?.message ?? failure ?? '');
   // eslint-disable-next-line no-console
   console.error('mvxsafe wallet failure:', failure);
+  // The gas is settled before the wallet is asked anything, so a failure there
+  // is certain to have sent nothing, whatever its words: a timeout of the
+  // network's trial must not read as "may still have gone through".
+  if (failure instanceof GasError) return message;
   if (/user\s*(rejected|denied|cancel)|rejected by user|action_rejected|cancelled by user/i.test(message))
     return 'You refused it in your wallet, nothing was sent.';
   if (/timeout|timed out|failed to fetch|network ?error|socket hang up/i.test(message))

@@ -2,25 +2,31 @@
 // builders in legacyCalls.js, hands it to the connected wallet to sign, and
 // tracks it. Nothing here holds a key.
 
-import { Address, TransactionComputer } from '@multiversx/sdk-core';
+import { Address } from '@multiversx/sdk-core';
 import { signAndSendTransactions } from 'helpers/signAndSendTransactions';
-import { api, chainId, networkProvider } from './network';
+import { handOverGas, settleGas } from './gas';
 import {
   buildDeploySafe,
+  buildDeploySource,
   buildDiscard,
   buildHandOver,
   buildPerform,
   buildProposeAddBoardMember,
   buildProposeAddProposer,
+  buildProposeCall,
   buildProposeChangeQuorum,
   buildProposeEgld,
   buildProposeRemoveUser,
   buildProposeToken,
+  buildProposeUpgrade,
   buildSign,
   buildUnsign,
+  CodeMetadataFlags,
   MULTISIG_WASM_SHA256,
-  predictSafeAddress
+  predictSafeAddress,
+  TypedArgument
 } from './legacyCalls';
+import { api, chainId, networkProvider } from './network';
 
 export interface Signer {
   address: string;
@@ -62,20 +68,30 @@ const guardianOf = async (address: string): Promise<string> => {
   }
 };
 
-/** Several transactions from one sender, signed together, sent in nonce order. */
-const sendAll = async (transactions: any[], label: string) => {
+/**
+ * Several transactions from one sender, signed together, sent in nonce order.
+ * Each gets its gas here, last, after its guardian: a simulation plus a fifth,
+ * or the budget given for it where the network cannot simulate (gas.js).
+ */
+const sendAll = async (
+  transactions: any[],
+  label: string,
+  budgets: (bigint | undefined)[] = []
+) => {
   // A guarded account can only send transactions that name their guardian and
   // carry its signature. Without these three fields the wallet has nothing it
   // can co-sign, and the attempt dies as if it had been cancelled, which is
-  // exactly how it looked (6 Oct 2026). applyGuardian sets the
-  // guardian, version 2 and the guarded option; the wallet, or the web wallet's
-  // two factor page, adds the second signature.
+  // exactly how it looked (6 Oct 2026). settleGas sets the guardian, version 2
+  // and the guarded option BEFORE simulating, since the network will not even
+  // simulate a guarded account's transaction without them; the wallet, or the
+  // web wallet's two factor page, adds the second signature.
   const guardian = await guardianOf(transactions[0].sender.toBech32());
-  if (guardian) {
-    const computer = new TransactionComputer();
-    transactions.forEach((transaction) =>
-      computer.applyGuardian(transaction, new Address(guardian))
-    );
+  for (const [at, transaction] of transactions.entries()) {
+    await settleGas(transaction, {
+      provider: networkProvider,
+      guardian,
+      budget: budgets[at]
+    });
   }
 
   return signAndSendTransactions({
@@ -88,7 +104,8 @@ const sendAll = async (transactions: any[], label: string) => {
   });
 };
 
-const send = (transaction: any, label: string) => sendAll([transaction], label);
+const send = (transaction: any, label: string, budget?: bigint) =>
+  sendAll([transaction], label, [budget]);
 
 export const signAction = async (signer: Signer, safe: string, actionId: number) =>
   send(await buildSign(await contextOf(signer, safe), actionId), `Signing action ${actionId}`);
@@ -99,10 +116,20 @@ export const unsignAction = async (signer: Signer, safe: string, actionId: numbe
     `Removing your signature from action ${actionId}`
   );
 
-export const performAction = async (signer: Signer, safe: string, actionId: number) =>
+/**
+ * `budget` is the limit for an action the network cannot simulate (a call or
+ * an upgrade that leaves the safe); without one the perform is simulated.
+ */
+export const performAction = async (
+  signer: Signer,
+  safe: string,
+  actionId: number,
+  budget?: bigint
+) =>
   send(
     await buildPerform(await contextOf(signer, safe), actionId),
-    `Carrying out action ${actionId}`
+    `Carrying out action ${actionId}`,
+    budget
   );
 
 export const discardAction = async (signer: Signer, safe: string, actionId: number) =>
@@ -168,6 +195,53 @@ export const proposeChangeQuorum = async (
     'Proposing a new quorum'
   );
 
+export const proposeCall = async (
+  signer: Signer,
+  safe: string,
+  call: {
+    to: string;
+    egld?: string;
+    functionName: string;
+    args?: TypedArgument[];
+  }
+) =>
+  send(
+    await buildProposeCall(await contextOf(signer, safe), call),
+    `Proposing a call to ${call.functionName}`
+  );
+
+export const proposeUpgrade = async (
+  signer: Signer,
+  safe: string,
+  upgrade: {
+    target: string;
+    source: string;
+    metadata: CodeMetadataFlags;
+    args?: TypedArgument[];
+  }
+) =>
+  send(
+    await buildProposeUpgrade(await contextOf(signer, safe), upgrade),
+    'Proposing a contract upgrade'
+  );
+
+/**
+ * Deploys the source of an upgrade from the connected wallet. Returns the new
+ * contract's address, known before anything is sent, like a new safe's.
+ */
+export const deploySource = async (
+  signer: Signer,
+  bytecode: Uint8Array
+): Promise<string> => {
+  const { chainId: chain, sender, nonce } = await contextOf(signer, '');
+  const address = predictSafeAddress(sender, nonce);
+  await send(
+    await buildDeploySource({ chainId: chain, sender, nonce }, { bytecode }),
+    'Deploying the source'
+  );
+  return address;
+};
+
 // --- creating a safe ---------------------------------------------------------
 
 /**
@@ -206,11 +280,19 @@ export const createSafe = async (
   // The next nonce, so the network runs it right after the deploy, when the
   // contract exists and the sender still owns it.
   const handOver = await buildHandOver({ chainId, sender, nonce: nonce + 1, safe });
-  await sendAll([deploy, handOver], 'Creating the safe');
+  // The deploy is simulated. The handover cannot be, before the safe it hands
+  // over exists, so it gets the fixed cost of ChangeOwnerAddress.
+  await sendAll([deploy, handOver], 'Creating the safe', [
+    undefined,
+    handOverGas(handOver.data.length)
+  ]);
   return safe;
 };
 
-/** The second half on its own, for a safe whose handover never happened. */
+/**
+ * The second half on its own, for a safe whose handover never happened. By
+ * now the safe exists, so the network can simulate it.
+ */
 export const handOverSafe = async (signer: Signer, safe: string) =>
   send(await buildHandOver(await contextOf(signer, safe)), 'Handing the safe to itself');
 

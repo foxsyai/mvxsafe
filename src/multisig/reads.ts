@@ -8,6 +8,8 @@
 
 import { Address, SmartContractController } from '@multiversx/sdk-core';
 import { describeAction, toBigInt } from './describe';
+import { PerformPlan } from './gas';
+import { Check, inspectAction, UpgradeFacts } from './inspect';
 import { legacyAbi } from './legacyCalls';
 import { api, cached, chainId, isTransient, networkProvider } from './network';
 
@@ -59,7 +61,16 @@ export interface SafeOverview {
 
 export interface PendingAction {
   actionId: number;
+  // The next four are absent on actions built by older code and tests.
+  /** The kind of action, as the contract names it: SendAsyncCall, SCUpgradeFromSource... */
+  name?: string;
   description: string;
+  /** What was checked on chain about it, each green, amber or red. */
+  checks?: Check[];
+  /** For an upgrade: the code hashes and shards the card shows. */
+  upgrade?: UpgradeFacts;
+  /** How carrying it out gets its gas: simulated, or a budget the performer sees. */
+  perform?: PerformPlan;
   /** Signatures that count: only from addresses on the board today. */
   signerCount: number;
   /** Everyone who signed and still sits on the board. */
@@ -448,11 +459,18 @@ export const readPendingActions = async (address: string): Promise<PendingAction
     list.map(async (action: any) => {
       const everyone: string[] = (action.signers ?? []).map(asAddress).filter(Boolean);
       const signers = everyone.filter((signer) => board.has(signer));
+      const data = action.action_data ?? action.actionData;
+      const [description, inspection] = await Promise.all([
+        describeAction(data, address),
+        inspectAction(data, address)
+      ]);
       return {
         actionId: asNumber(action.action_id ?? action.actionId),
-        description:
-          (await describeAction(action.action_data ?? action.actionData, address)) +
-          membershipNote(action.action_data ?? action.actionData, state as any),
+        name: String(data?.name ?? data?.type ?? ''),
+        description: description + membershipNote(data, state as any),
+        checks: inspection.checks,
+        upgrade: inspection.upgrade,
+        perform: inspection.perform,
         signerCount: signers.length,
         signers,
         formerSigners: everyone.filter((signer) => !board.has(signer)),
