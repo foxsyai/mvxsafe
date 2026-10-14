@@ -265,8 +265,8 @@ export const UpgradeForm = ({
 
       <div className={field}>
         <label className={labelRow}>
-          Expected code hash
-          <Info text="The code hash published with the release. The proposal is only possible once the source's code hash is exactly this." />
+          Expected code hash of the source
+          <Info text='The code hash published with the release, the same as for the file. It is compared with the code of the source contract on chain, the one the board will vote to copy: the proposal is only possible once they match.' />
         </label>
         <input
           value={expected}
@@ -344,11 +344,8 @@ export const UpgradeForm = ({
         <p className='mt-3 text-xs text-[#6B7280]'>
           Carrying it out will be given {millions(plan.gasLimit)} gas:{' '}
           {millions(plan.parts.safe)} for the safe, {millions(plan.parts.call)}{' '}
-          for the upgrade, {millions(plan.parts.callback)} for the callback
-          {plan.raised
-            ? `, raised to ${millions(plan.gasLimit)} because on mainnet an upgrade keeps the figure proven on devnet until one has been measured here`
-            : ''}
-          . About {(Number(feeOf(plan.gasLimit, 16)) / 1e18).toFixed(4)} EGLD,
+          for the upgrade, {millions(plan.parts.callback)} for the callback .
+          About {(Number(feeOf(plan.gasLimit, 16)) / 1e18).toFixed(4)} EGLD,
           paid by whoever carries it out.
         </p>
       )}

@@ -142,9 +142,6 @@ export const ActionChecks = ({
             {plan.known
               ? ''
               : ', from a default because the need could not be measured'}
-            {plan.raised
-              ? `, raised to ${millions(plan.gasLimit)}: on mainnet an upgrade keeps the figure proven on devnet until one has been measured here`
-              : ''}
             . About{' '}
             {(Number(feeOf(typed.budget ?? plan.gasLimit, 16)) / 1e18).toFixed(
               4

@@ -13,7 +13,6 @@ import {
   feeOf,
   GasError,
   GUARDIAN_GAS,
-  MAINNET_UPGRADE_FLOOR,
   measureCall,
   performPlan,
   SAFE_OWN_GAS,
@@ -676,33 +675,18 @@ describe('mvxvest version 2: the token fee and the new EGLD fee', () => {
   });
 });
 
-describe('the first upgrades on mainnet', () => {
-  test('are given at least the 118,500,000 proven on devnet, and say they were raised', () => {
-    const plan = performPlan({
-      name: 'SCUpgradeFromSource',
-      codeBytes: 27332,
-      floor: MAINNET_UPGRADE_FLOOR
-    });
-    if (plan.simulate) throw new Error('should be a budget');
-    expect(plan.gasLimit).toBe(118500000n);
-    expect(plan.raised).toBe(true);
-  });
-
-  test('a budget above the floor is kept as it is', () => {
-    const plan = performPlan({
-      name: 'SCUpgradeFromSource',
-      codeBytes: 400000,
-      floor: MAINNET_UPGRADE_FLOOR
-    });
-    if (plan.simulate) throw new Error('should be a budget');
-    expect(plan.gasLimit).toBeGreaterThan(118500000n);
-    expect(plan.raised).toBe(false);
-  });
-
-  test('devnet has no floor', () => {
+// mvxvest's upgrade to version 2 on mainnet, 14 Oct 2026 (c6ef96cf…): the
+// upgrade used 8,501,645 where it ran and the callback 3,392,472, both exactly
+// devnet's. Mainnet's first upgrades had kept 118.5M until this measurement.
+describe('an upgrade on mainnet, measured', () => {
+  test('gets the budget devnet measured: 25.6M for version 2, 1.23 times its 20.8M floor', () => {
     const plan = performPlan({ name: 'SCUpgradeFromSource', codeBytes: 27332 });
     if (plan.simulate) throw new Error('should be a budget');
-    expect(plan.raised).toBe(false);
+    expect(plan.gasLimit).toBe(25600000n);
+    // What mainnet's upgrade used, with the margin, fits in what the call is given.
+    expect(withMargin(8501645n)).toBeLessThanOrEqual(plan.parts.call);
+    // The safe's part (5.82M), the lock (6.46M) and the upgrade (8.50M) fit too.
+    expect(5820000n + 6458200n + 8501645n).toBeLessThan(plan.gasLimit);
   });
 });
 
@@ -726,7 +710,14 @@ describe('setTokenFee 10 basis points, the vote planned for mainnet', () => {
     const sentence = await describeAction(
       {
         name: 'SendAsyncCall',
-        fields: [{ to: MVXVEST, egld_amount: 0n, endpoint_name: Buffer.from('setTokenFee'), arguments: [Uint8Array.of(0x0a)] }]
+        fields: [
+          {
+            to: MVXVEST,
+            egld_amount: 0n,
+            endpoint_name: Buffer.from('setTokenFee'),
+            arguments: [Uint8Array.of(0x0a)]
+          }
+        ]
       },
       SAFE
     );

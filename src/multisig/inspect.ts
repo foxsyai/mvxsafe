@@ -15,7 +15,6 @@ import {
 } from './describe';
 import {
   GasError,
-  MAINNET_UPGRADE_FLOOR,
   measureCall,
   MeasuredHow,
   performPlan,
@@ -27,7 +26,7 @@ import {
   PROTOCOL_BUILTINS,
   shardOf
 } from './legacyCalls';
-import { api, cached, chainId, networkName, networkProvider } from './network';
+import { api, cached, chainId, networkProvider } from './network';
 
 export type Tone = 'ok' | 'warn' | 'bad';
 
@@ -273,8 +272,7 @@ export const inspectUpgrade = async (
     },
     perform: performPlan({
       name: 'SCUpgradeFromSource',
-      codeBytes: sourceFacts?.codeBytes || undefined,
-      floor: networkName === 'mainnet' ? MAINNET_UPGRADE_FLOOR : undefined
+      codeBytes: sourceFacts?.codeBytes || undefined
     })
   };
 };
@@ -488,22 +486,25 @@ export const inspectAction = async (
 /** The hex a signer pasted, compared with the code the upgrade brings in. */
 export const expectedHashCheck = (
   pasted: string,
-  actual: string | null
+  actual: string | null,
+  /** What is compared: the source on chain, or the file before it is deployed. */
+  what: 'the source' | 'the file' = 'the source'
 ): Check | null => {
   if (!pasted.trim()) return null;
   const expected = normalizeCodeHash(pasted);
   if (!expected)
     return { tone: 'bad', text: 'That is not a code hash: 64 hex characters.' };
-  if (!actual)
+  if (!actual) {
     return {
       tone: 'bad',
-      text: 'The source has no code hash to compare with.'
+      text: `${what === 'the file' ? 'The file' : 'The source'} has no code hash to compare with.`
     };
+  }
   return expected === actual
-    ? { tone: 'ok', text: 'Matches the code hash of the source.' }
+    ? { tone: 'ok', text: `Matches the code hash of ${what}.` }
     : {
         tone: 'bad',
-        text: 'Does NOT match the code hash of the source. Do not sign.'
+        text: `Does NOT match the code hash of ${what}. Do not ${what === 'the file' ? 'deploy it' : 'sign'}.`
       };
 };
 

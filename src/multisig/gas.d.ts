@@ -22,8 +22,6 @@ export type PerformPlan =
       known: boolean;
       need: bigint;
       gasLimit: bigint;
-      /** True when a floor (MAINNET_UPGRADE_FLOOR) raised the limit above the budget. */
-      raised: boolean;
       parts: { safe: bigint; call: bigint; callback: bigint };
     };
 export declare const performPlan: (options: {
@@ -31,9 +29,7 @@ export declare const performPlan: (options: {
   codeBytes?: number;
   callNeed?: bigint | null;
   hasFunction?: boolean;
-  floor?: bigint;
 }) => PerformPlan;
-export declare const MAINNET_UPGRADE_FLOOR: bigint;
 
 export declare class GasError extends Error {
   /** True when the network answered and said no; false when it did not answer. */

@@ -17,8 +17,9 @@
 //      with 14M failed with "not enough gas" and used the action up,
 //      ebc77b1cec8f4f3978f761881fbcc074ea8e9837b6d09514b2dad779155f4b16).
 //
-// Every figure below was measured on devnet. Mainnet runs an older protocol
-// and spends gas differently in places (a token transfer to a wallet leaves
+// Every figure below was measured on devnet, and a call and an upgrade were
+// measured again on mainnet on 14 Oct 2026, the same to within 0.1M. Mainnet
+// still spends gas differently in places (a token transfer to a wallet leaves
 // with 0 gas and no callback there), so the performer always sees the budget
 // and can change it. See docs/upgrade-and-calls.md.
 
@@ -116,8 +117,7 @@ export const performPlan = ({
   name,
   codeBytes,
   callNeed,
-  hasFunction = true,
-  floor
+  hasFunction = true
 }) => {
   let need;
   let known = true;
@@ -142,28 +142,18 @@ export const performPlan = ({
   } else {
     return { simulate: true };
   }
-  const budget = performBudget(need, callback);
-  const raised =
-    floor !== undefined && floor !== null && BigInt(floor) > budget;
+  // Mainnet's first upgrades were given at least 118.5M until one had been
+  // measured there. mvxvest's, on 14 Oct 2026, used exactly what devnet had
+  // measured (8,501,645 for its 27,332 bytes, a callback of 3,392,472), so
+  // mainnet gets the same budget as devnet now.
   return {
     simulate: false,
     known,
     need,
-    gasLimit: raised ? BigInt(floor) : budget,
-    raised,
+    gasLimit: performBudget(need, callback),
     parts: { safe: SAFE_OWN_GAS, call: withMargin(need), callback }
   };
 };
-
-/**
- * What an upgrade on MAINNET is given at the least, until one has been
- * measured there: the 118,500,000 that worked on devnet before the need was
- * measured (handoff from mvxvest). Mainnet spends gas differently from devnet
- * in places, and a perform that runs out uses the action up, so the first
- * mainnet upgrade pays about 0.001 EGLD more rather than risk a new vote.
- * Decided 14 Oct 2026; remove once a mainnet upgrade has been measured.
- */
-export const MAINNET_UPGRADE_FLOOR = 118500000n;
 
 /** A failed trial, saying which kind: the network said no, or never answered. */
 export class GasError extends Error {

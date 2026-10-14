@@ -72,7 +72,7 @@ export const DeploySource = ({
     dataLength
   );
   const deployCost = `about ${(Number(deployFee) / 1e18).toFixed(4)} EGLD ${bytes ? 'for this file' : 'for a 26 KB contract'}`;
-  const hashCheck = hash ? expectedHashCheck(expected, hash) : null;
+  const hashCheck = hash ? expectedHashCheck(expected, hash, 'the file') : null;
   const safeShard = shardOf(safe);
   const walletShard = signer.address ? shardOf(signer.address) : -1;
   const shardOk = walletShard === safeShard;
@@ -185,8 +185,8 @@ export const DeploySource = ({
       {hash && (
         <div className={field}>
           <label className={labelRow}>
-            Expected code hash
-            <Info text='The code hash published with the release, for example in its codehash.txt. It has to match the file before the file can be deployed.' />
+            Expected code hash of the file
+            <Info text='The code hash published with the release, for example in its codehash.txt. It is compared with the .wasm on your computer, which can only be deployed once the two match.' />
           </label>
           <input
             value={expected}

@@ -302,17 +302,13 @@ describe('on mainnet', () => {
     network.networkName = 'devnet';
   });
 
-  test('an upgrade is carried out with 118.5M until one has been measured there, and the card says why', async () => {
+  test('an upgrade gets the same measured budget as on devnet, with no floor', async () => {
     network.networkName = 'mainnet';
     await show(upgrade(SOURCE), [ALICE, BOB]);
     expect(
       (screen.getByLabelText('Gas for action 5') as HTMLInputElement).value
-    ).toBe('118500000');
-    expect(
-      screen.getByText(
-        /raised to 118\.5M: on mainnet an upgrade keeps the figure proven on devnet/
-      )
-    ).toBeTruthy();
+    ).toBe('25300000');
+    expect(screen.queryByText(/raised to/)).toBeNull();
     await act(async () => {
       fireEvent.click(screen.getByText('Carry it out'));
     });
@@ -320,7 +316,7 @@ describe('on mainnet', () => {
       expect.anything(),
       SAFE,
       5,
-      118500000n
+      25300000n
     );
   });
 });

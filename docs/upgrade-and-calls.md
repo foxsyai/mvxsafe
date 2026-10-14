@@ -180,13 +180,59 @@ About 13.4M was consumed against a floor of about 16.2M (the safe's part, the 6.
 call), so 19.2M is 1.19 times the floor and 1.44 times the use. The call budgets stay as they
 are.
 
-For upgrades, decided on 14 October 2026: **on mainnet an upgrade is carried out with at least
-118,500,000**, the figure that worked on devnet before the need was measured, until an upgrade
-has been measured on mainnet. It costs about 0.001 EGLD more than the measured budget. Running out
-would use the action up and need a new vote. The card shows the figure as raised and says why
-(`MAINNET_UPGRADE_FLOOR` in `gas.js`). Calls keep their measured budgets. What an upgrade itself
-costs, compiling the new code where it runs, has not been measured on mainnet yet. Once the
-first mainnet upgrade has been read the same way, the floor can go.
+**An upgrade is measured on mainnet now too, and matches devnet.** Until it was, mainnet's
+upgrades were given at least 118,500,000. mvxvest's upgrade to version 2 (below) used exactly what
+devnet had measured, so that floor is gone. Every upgrade now gets its measured budget, 25.6M for
+version 2's 27,332 bytes.
+
+## On mainnet, 14 October 2026
+
+The safe `erd1qqqqqqqqqqqqqpgqe7jmywfkh74cam8uqnt762c54zuqgp6r6qlsul78u3` (2 of 3, shard 1) upgraded
+mvxvest (`erd1qqqqqqqqqqqqqpgqlzpdsymdk7zxekm9pvtpxja4gfx6trwluc2qgmllsu`, shard 0) to version 2,
+then voted its fees. All 13 transactions of the day went through mvxsafe.io, and every one was
+co-signed by its wallet's guardian.
+
+**The source.** The reproducible build `a7acbf22b8fdd8f1e624dfd1354aacae4ccb20c0ef5974e1946704359bab718a`
+(27,332 bytes) was deployed from a board member's wallet in shard 1 with "Deploy a source":
+`80eca3d4d8e1aba18f2dcf9ea7d2dfbb62ad85e2d26ded6fef436ef28cb1cea7`, simulated plus a fifth, 108,785,176
+gas, 0.0824 EGLD. Source `erd1qqqqqqqqqqqqqpgqzywreqymt6j00wta43v7zvmrk4yz5xal6qls2j5m2c`: its code hash
+read back from the chain is the release's, shard 1, not upgradeable. mvxvest checked it
+independently.
+
+**The upgrade, action #2**
+
+| Step | Gas | Used | Transaction |
+|---|---|---|---|
+| Propose | 6,358,302 | 5,256,917 | `dc2e1efb7d1f06d4213636564d8164ed970fafc40d2fc76d46591e26065cd85a` |
+| Sign | 5,199,419 | 4,291,181 | `ac483fc8c60aa78bd7e27ec6fb48532bd78c1c1dd5015d54321dbee8ec9423b4` |
+| Carry out (the 118.5M floor + 50,000) | 118,550,000 | all of it | `c6ef96cfc2e7318596f4e96702b80366d058dc5febbdf4380bd0a11517a34d41` |
+
+The proposal's data was byte for byte what mvxvest's own tool built. How the perform's gas was spent,
+beside the same upgrade on devnet (`f8e1e1f5…`):
+
+| | Mainnet | Devnet |
+|---|---|---|
+| The safe's own part | 5.82M | 5.8M |
+| The upgrade where it ran (`SCUpgrade`, answer `@00`) | 8,501,645 | 8.50M |
+| The safe's callback | 3,392,472 | 3,392,472 |
+
+The floor was about 20.8M; the measured budget, 25.6M, is 1.23 times it. Afterwards mvxvest runs
+`a7acbf22…`, still upgradeable, readable, not payable, owned by the safe. mvxvest checked its
+vestings, totals, surplus and settings against a snapshot from before: all unchanged.
+
+**The fee votes**
+
+| Action | Step | Gas | Transaction |
+|---|---|---|---|
+| #3 `setTokenFee@0a`, 0.1% | propose | 6,220,579 | `38775712eeaa6db1b71b3649c0859264a4838961739eeb33c10d0d32215b92be` |
+| | sign | 5,120,468 | `110383cd55e0e012b86a2c0bcff9e190863dca6408fc3da351fc0e7399ac7c9e` |
+| | carry out | 19,350,000 | `e23757543026efe1e2d211f288aef2d1f0edea5fd60be42ad1ff2cfafd92c509` |
+| #4 `setFee@016345785d8a0000`, 0.1 EGLD | propose | 6,252,019 | `3fac6dac88d8e1a50e7208f013eb733722a782311d80c5bdb4860c0b3146e6ca` |
+| | sign | 4,995,167 | `b9a24fcf7cd91748f0219b57e1696a49ba69348ff14844db42e6cf3648e9264d` |
+| | carry out | 19,450,000 | `15debcb51c664b19dde5a24ad96cddf14ce5380841418d112d0cdaa73335071e` |
+
+Afterwards `getTokenFee` answers 10 and `getFee` 10^17. The first mainnet vote, setFee 0 (action
+#1), is in the section above.
 
 ## The devnet rehearsal
 

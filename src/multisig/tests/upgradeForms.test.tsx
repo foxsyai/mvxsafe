@@ -213,6 +213,10 @@ describe('deploying a source', () => {
     render(<DeploySource safe={SAFE} signer={signer} onUse={onUse} />);
     await pick();
     type('64 hex characters from the release', hash);
+    // The panel's field checks the FILE, and says so.
+    expect(
+      screen.getByText('Matches the code hash of the file.')
+    ).toHaveAttribute('data-tone', 'ok');
     await act(async () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'Deploy the source' })
