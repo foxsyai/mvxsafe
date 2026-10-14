@@ -355,3 +355,26 @@ describe('proposing a call', () => {
     expect(screen.getByText('+ add a uris')).toBeInTheDocument();
   });
 });
+
+test('a function called without its arguments says where they go', async () => {
+  const { ErrEstimateTransactionCost } = jest.requireActual(
+    '@multiversx/sdk-core'
+  );
+  mockTrial.answer = async () => {
+    throw new ErrEstimateTransactionCost(
+      'user error: wrong number of arguments'
+    );
+  };
+  render(<CallForm safe={SAFE} signer={signer} onProposed={jest.fn()} />);
+  type('erd1qqqqqqqqqqqqqpgq...', TARGET);
+  type('setFee', 'setFee');
+  type('0', '0');
+  expect(
+    await screen.findByText(
+      /setFee expects arguments: add them under Arguments\. EGLD paid with the call is a payment, not an argument\./,
+      {},
+      { timeout: 3000 }
+    )
+  ).toBeInTheDocument();
+  expect(propose()).toBeDisabled();
+});

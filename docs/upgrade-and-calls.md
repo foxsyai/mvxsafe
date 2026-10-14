@@ -130,13 +130,35 @@ Mainnet runs an older protocol than devnet and spends gas differently in places.
 token transfer to a wallet left the test safe with 0 gas and no callback (`3d07d1d7…`), where
 devnet forwards everything and locks 6.46M. Every figure above is a devnet measurement.
 
-So, decided on 14 October 2026: **on mainnet an upgrade is carried out with at least
+**Calls are measured on mainnet now, and match devnet.** The first mainnet vote, setFee 0 on
+mvxvest, went through on 14 October 2026, all three transactions from guarded wallets:
+
+| Step | Gas | Used | Transaction |
+|---|---|---|---|
+| Propose (simulated, + a fifth + 50,000) | 6,017,533 | 4,972,943 | `5b79069670bc80bf8dda77e7f5995e90b614e27ad88ec2529848fcdce3ce9f6c` |
+| Sign | 5,155,861 | 4,254,883 | `fe2a82328e73013108a23a224c3c947cfe462da42df366213a8fbfc2962a8d8d` |
+| Carry out (19.2M + 50,000) | 19,250,000 | all of it | `88019b1a43688bdb913e7317d232986b99b6f6e98c5803e674a9592feca3bd9b` |
+
+How the perform's 19.25M was spent, beside the same vote on devnet (`d9e11c21…`):
+
+| | Mainnet | Devnet |
+|---|---|---|
+| The safe's own part | 6.02M | 6.08M |
+| Forwarded to mvxvest | 13.23M | 13.12M |
+| Used by setFee | 3.77M (the trial said 3.83M) | 3.77M |
+| Used by the safe's callback | 3,611,327 | 3,611,327 |
+
+About 13.4M was consumed against a floor of about 16.2M (the safe's part, the 6.46M lock and the
+call), so 19.2M is 1.19 times the floor and 1.44 times the use. The call budgets stay as they
+are.
+
+For upgrades, decided on 14 October 2026: **on mainnet an upgrade is carried out with at least
 118,500,000**, the figure that worked on devnet before the need was measured, until an upgrade
 has been measured on mainnet. It costs about 0.001 EGLD more than the measured budget. Running out
 would use the action up and need a new vote. The card shows the figure as raised and says why
-(`MAINNET_UPGRADE_FLOOR` in `gas.js`). Calls keep their measured budgets. The first mainnet vote
-of a call (setFee 0 is planned) shows in its callback SCR the lock mainnet uses; once an upgrade
-has been measured there too, the floor can go.
+(`MAINNET_UPGRADE_FLOOR` in `gas.js`). Calls keep their measured budgets. What an upgrade itself
+costs, compiling the new code where it runs, has not been measured on mainnet yet. Once the
+first mainnet upgrade has been read the same way, the floor can go.
 
 ## The devnet rehearsal
 

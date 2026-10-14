@@ -310,8 +310,8 @@ export const CallForm = ({
 
       <div className={field}>
         <label className={labelRow}>
-          EGLD sent with the call
-          <Info text='Usually nothing. Only for functions that ask to be paid, such as issuing a token.' />
+          EGLD paid with the call, not an argument
+          <Info text='A payment that goes with the call, usually nothing. Only for functions that ask to be paid, such as issuing a token. A fee or an amount the function takes as a value is an argument: add it under Arguments.' />
         </label>
         <input
           value={egld}
@@ -362,6 +362,18 @@ export const CallForm = ({
             call that fails.
           </p>
         )}
+        {/* Found in the first mainnet vote (14 Oct 2026): setFee 0 typed into
+            the payment field, and no argument. */}
+        {!disabled &&
+          trial &&
+          /wrong number of arguments/i.test(trial.text) && (
+            <p className={hint}>
+              {functionName} expects{' '}
+              {rows.length ? 'other arguments than these' : 'arguments'}: add
+              them under Arguments. EGLD paid with the call is a payment, not an
+              argument.
+            </p>
+          )}
         {busy && stuck && <StuckNote onStartOver={() => setBusy(false)} />}
       </div>
     </div>

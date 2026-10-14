@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Info } from 'components/Info';
 import { CheckLine, Hash } from 'components/Propose/shared';
-import { CALLBACK_GAS, feeOf, MAX_GAS, SAFE_OWN_GAS } from 'multisig/gas';
+import {
+  CALLBACK_GAS,
+  feeOf,
+  MAX_GAS,
+  performBudget,
+  SAFE_OWN_GAS
+} from 'multisig/gas';
 import type { PerformPlan } from 'multisig/gas';
 import { expectedHashCheck } from 'multisig/inspect';
 import { PendingAction } from 'multisig/reads';
@@ -130,8 +136,9 @@ export const ActionChecks = ({
             {plan.parts.callback > 0n
               ? `, ${millions(plan.parts.callback)} for the callback`
               : ''}
-            :{' '}
-            {millions(plan.parts.safe + plan.parts.call + plan.parts.callback)}
+            {/* The budget as sent, rounded up to 0.1M: adding the parts
+                showed 19.1M under a field of 19,200,000 (14 Oct 2026). */}
+            : {millions(performBudget(plan.need, plan.parts.callback))}
             {plan.known
               ? ''
               : ', from a default because the need could not be measured'}

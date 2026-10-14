@@ -324,3 +324,33 @@ describe('on mainnet', () => {
     );
   });
 });
+
+test('the line under the gas field adds up to the figure in the field', async () => {
+  // The first mainnet vote: setFee needed 3,833,535, and the line said 19.1M
+  // under a field of 19,200,000.
+  mockTrial.answer = async () => ({ gasLimit: 3833535 });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    roles: { [BOB]: 2 },
+    pending: [
+      {
+        id: 5,
+        action: {
+          kind: 'SendAsyncCall',
+          to: TARGET,
+          endpoint: 'setFee',
+          args: []
+        },
+        signers: [ALICE, BOB]
+      }
+    ]
+  });
+  await renderSafe(SAFE);
+  expect(
+    (screen.getByLabelText('Gas for action 5') as HTMLInputElement).value
+  ).toBe('19200000');
+  expect(
+    screen.getByText(/4\.6M for the call, 7M for the callback: 19\.2M/)
+  ).toBeTruthy();
+});
