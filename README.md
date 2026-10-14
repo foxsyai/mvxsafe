@@ -24,6 +24,14 @@ Reading and acting. Connect a wallet and, on a safe whose board you sit on, you 
 (tokens, EGLD, add or remove a member, change the quorum), sign, remove your signature, carry an action out once the quorum is reached and discard one. The whole cycle is proven end to end
 on a test network, by a script that uses the same builders the app ships.
 
+A safe can also act on contracts it owns: propose an upgrade from a source contract (and deploy
+that source from the release's `.wasm`), or a call such as `setFee`, typed by hand or from the
+contract's ABI. Every signer sees both code hashes, the shard check and the metadata in words before
+signing; what would fail after the signatures is refused before them. Gas follows one rule, never
+much more than needed: simulated where the network can, a measured budget where it cannot. All of
+it, the figures and the devnet rehearsal with its transactions, is in
+[docs/upgrade-and-calls.md](docs/upgrade-and-calls.md).
+
 A new safe can be created from the interface too: the wallet signs the deployment and then a
 second transaction that hands the safe to itself. The guide at /guide walks through all of it
 with pictures of the live site, taken by `scripts/capture/guide.mjs`.

@@ -1,0 +1,415 @@
+{
+  "hashes": [
+    {
+      "label": "deploy a 2-of-3 safe",
+      "hash": "cb7edda940a7692522929a9e44d26116cc6e0e351745242195604f536161ca66",
+      "gasLimit": "250000000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "hand the safe to itself",
+      "hash": "f6e718bd5fcd161a5dc21405b9b2ec7095f65cee81c0785be7c2541962898ee9",
+      "gasLimit": "10000000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "send 0.05 xEGLD into the safe",
+      "hash": "cffff5cc6143ef071e01b218fa56b3d962366a6c70a29f85e77be07d870b0c2d",
+      "gasLimit": "60000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "deploy the mvxvest copy (0500, no arguments)",
+      "hash": "a7187255780c61ef0cd7e4afaaa5a71adaa77fdde73c68b16be36ab3553ec549",
+      "gasLimit": "105538856",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "hand the mvxvest copy to the safe",
+      "hash": "f44879a1f5ed878e889f40a70275cce0461e2f4cde1c1ba2a1614dec6bdefe7b",
+      "gasLimit": "6209402",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose setFee 0.01 EGLD",
+      "hash": "5c5e6e9e5c024207da038381074b981b1ef727b6fe223ba376d863607405607d",
+      "gasLimit": "6019224",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign setFee 0.01 EGLD (#1)",
+      "hash": "aec656f6f6af8ff30df108d8db4b11bf83e4e7459d3c168051a473eb98ef2b0c",
+      "gasLimit": "5130996",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out setFee 0.01 EGLD (#1)",
+      "hash": "a65c9ed650fbb2e4d992727ffdfe8c65c6da3b8ea4b59b02519973528a8e54d8",
+      "gasLimit": "17300000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "deploy the source in shard 1",
+      "hash": "861359d3d151bf9e4c1eda38c1dbf44bc77f682fe4e69983a5153b0bcd1d7c96",
+      "gasLimit": "105538856",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose upgrade mvxvest from the source",
+      "hash": "cf9f95a4215997930c5ffec3d26e65113dd3fb74a919c2d8c9bde27a771b40c2",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign upgrade mvxvest from the source (#2)",
+      "hash": "93355db921a5a16f06d66d345d60bdf43cf5dac12eddd934b6eff0415c220562",
+      "gasLimit": "5174134",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out upgrade mvxvest from the source (#2)",
+      "hash": "18ac094df3a7484ad00e3efcd9cbf4a24e229bbe40d5ee88244adeb181b063c3",
+      "gasLimit": "118300000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "deploy the second build as a source in shard 1",
+      "hash": "57172988975c6bc1f037148369320f5a8ab99c6306a47ae7c5f4fde200d716a3",
+      "gasLimit": "105724976",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose upgrade mvxvest to the second build",
+      "hash": "bd26642bd5353b7fdf3726886966a6dc8d16a13abe64ee2aca056e4a8193054e",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign upgrade mvxvest to the second build (#4)",
+      "hash": "9d2450f6b31c1fd056802343ba84bdc0db9062de46e0a52ec701e47fb89616e6",
+      "gasLimit": "5050364",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out upgrade mvxvest to the second build (#4)",
+      "hash": "b91b6190b76a665ee1d8bdd70b4bc1f3472e1f25bcb882bfad863c5e9744a4cb",
+      "gasLimit": "23300000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose upgrade mvxvest back to the release build",
+      "hash": "71a7eea0d10050ea508eaeb2f35893dba8f3c73f68f1556820ecc382a31c3962",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign upgrade mvxvest back to the release build (#5)",
+      "hash": "b1dbbfb1173c8868ff39f24da5924316f9588d2a0052393530b042bd92331937",
+      "gasLimit": "5131776",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out upgrade mvxvest back to the release build (#5)",
+      "hash": "778cc307e28fb37afef20b3075c663cba1b79deef6252c91348f6fdf358988fd",
+      "gasLimit": "23300000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose setFee 0.01 EGLD",
+      "hash": "ad1a112c45c9cb7a51994220bdcfa51ec84a109eb17c8834586d814887d4cd82",
+      "gasLimit": "6046538",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign setFee 0.01 EGLD (#6)",
+      "hash": "67dcbebb222ff274090d0b802dcd0e6c42ec161473da6c3b8189c0a2a6f04305",
+      "gasLimit": "5130996",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out setFee 0.01 EGLD (#6)",
+      "hash": "d9e11c2143220259b70486658ab11886a01ab3a35b621388bcdf274ace4f7765",
+      "gasLimit": "19200000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose upgrade mvxvest from the source",
+      "hash": "58ca055000c0377850a1877f85f531764e2fa37bf7813e0995cd4237bbb9eec9",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose upgrade mvxvest from the source",
+      "hash": "ee262bbda77c6afcfffbdadea399e164c7143f627998ce3fa130de054bbe4c5b",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign upgrade mvxvest from the source (#8)",
+      "hash": "bffb2dfe7578879f675b6a674da2ac1a06f1d1eb39eab90175526df1f8cbed58",
+      "gasLimit": "5174134",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out upgrade mvxvest from the source (#8)",
+      "hash": "4aa294fd2ab589d84145b94be02ccc9aeafad39fce0d2cb30394beb7e48f4d21",
+      "gasLimit": "25300000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose by hand: an upgrade whose source is in shard 0",
+      "hash": "22159bfb1645599bd80b9a06d4a469e8d6e857bb12c261691d1f7d6dd65fc8b3",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose by hand: an upgrade that drops \"upgradeable\"",
+      "hash": "27a22c7fbb2dcbafd5d2e0096eb5594f7c90dccbdd40d71549178e86b96287d6",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose setFee 0.02 EGLD",
+      "hash": "606ae3748d2d72beb0832087c9fad7c3ccb3e8bce69126dea437f78259291bcf",
+      "gasLimit": "6126299",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "unsign #7",
+      "hash": "550f5adb54222a78a307a229f9f063e55bf1543fbb543dc8d8469cde28b46f62",
+      "gasLimit": "5023511",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "discard #7",
+      "hash": "a816721c8a355d94b71a63c71f1ea35b7e3dd2fafe1b0fd197db73627a012042",
+      "gasLimit": "4686880",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "unsign #9",
+      "hash": "0f49ee18fb4ccf3662f2fdce2e81cb06a11c390e74682787e7630c180884b554",
+      "gasLimit": "5065869",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "discard #9",
+      "hash": "6ece25aa1b45e850fb053b7cbe834022c799a1503cf17c52e1db4593c583b5df",
+      "gasLimit": "4686880",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "unsign #10",
+      "hash": "bc87cd9cc439df2a4e45473c11f645286ed99fb1aceeafe0f96bbd9b32f0e5ae",
+      "gasLimit": "5025162",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "discard #10",
+      "hash": "8eb7aa3c24ca39af8bb8102b608dba337b233f060f48e59a34b2e463ef3a4301",
+      "gasLimit": "4647825",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "unsign #11",
+      "hash": "74910dd81136c24aaee52ca343f4e89fc724120702f2508d56fc77eb7e597e82",
+      "gasLimit": "4900612",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "discard #11",
+      "hash": "2d133a5269673a29a6c13ec3398843155769673f4e0018e83543b98c98410315",
+      "gasLimit": "4607118",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose upgrade mvxvest to a7acbf22...",
+      "hash": "fb2bd7595a4ab1e7441ada3456a03d031ca3ed8914864d0d9241eb35dedc56ef",
+      "gasLimit": "6289008",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign upgrade mvxvest to a7acbf22... (#12)",
+      "hash": "98bfca14a4e435ffd59ca0bea8ce46d2502d45c949f43c8f6592f845c057896d",
+      "gasLimit": "5050364",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out upgrade mvxvest to a7acbf22... (#12)",
+      "hash": "f8e1e1f5b748b49d64f3ed6564c4f486b55d4749cec9039dc2ca48aa7fd40032",
+      "gasLimit": "25600000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "propose setTokenFee(100)",
+      "hash": "dc34c9154d23af82927ec580eda23e14f0e41e7c64791f83a4cbdc9343f5f879",
+      "gasLimit": "6030818",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign setTokenFee(100) (#13)",
+      "hash": "386545d53b6ba6874fa2a43cce2e0d380977303c81344bf7aae22ed4677194f4",
+      "gasLimit": "5173294",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out setTokenFee(100) (#13)",
+      "hash": "851cb78e7cff88d799138bd9c78122e4edb5d412006086d9d36c10ffa5cb63d9",
+      "gasLimit": "19300000",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "dave switches its guardian on",
+      "hash": "3b7c20953b3521e98a402f0648bb4f5e3a29a1030d831b81c893e3de562d9a6f",
+      "gasLimit": "381602",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "dave deploys a source (guarded)",
+      "hash": "dc4362671720c6b61ecb9b04a64d25b2b01f5df9b644a94b01bc5752a9a7d2e9",
+      "gasLimit": "108785176",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "propose pauseCreation, proposed and carried out by the guarded wallet",
+      "hash": "747b8d70b0b00c6be2558d6dfbc0c3dd0ec028ebe0342ee45391a8acdfa88322",
+      "gasLimit": "6089554",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "sign pauseCreation, proposed and carried out by the guarded wallet (#14)",
+      "hash": "b51bb0aa3efba51e69f570f5d52ecd642a443f830ed69137b5c15e681c5702c1",
+      "gasLimit": "5005335",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out pauseCreation, proposed and carried out by the guarded wallet (#14)",
+      "hash": "fb96f39364819bb18f9b91fc4c2af13309f6c8786fd746b71e0dd95e099b8408",
+      "gasLimit": "19350000",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "propose unpauseCreation, signed and carried out by the guarded wallet",
+      "hash": "2b36798da1c0f67dbcabfe1b5de84b123c267ab01e4d67d8188689988be8037f",
+      "gasLimit": "6010994",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "sign unpauseCreation, signed and carried out by the guarded wallet (#15)",
+      "hash": "3a970ed07f508fffb120173f1f52ecb53e2709847a3708f78403765261e0ac6f",
+      "gasLimit": "5074748",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "carry out unpauseCreation, signed and carried out by the guarded wallet (#15)",
+      "hash": "59129c9112ccc6ff86b05214fffe45d09ca646b1ca1bab094f86001dda5e8b9c",
+      "gasLimit": "19350000",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "propose upgrade from the guarded source, proposed and carried out by the guarded wallet",
+      "hash": "aded8332008b6d7f87700f6b47b728a5f137d28b3bbdda259790f64f79cdceb3",
+      "gasLimit": "6399008",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "sign upgrade from the guarded source, proposed and carried out by the guarded wallet (#16)",
+      "hash": "464214b76ffc53ee75ac7dba69e94e0c15a2339888ffb17d7a39c5f9da3360d6",
+      "gasLimit": "4965648",
+      "ok": true,
+      "guarded": false
+    },
+    {
+      "label": "carry out upgrade from the guarded source, proposed and carried out by the guarded wallet (#16)",
+      "hash": "9802ad89a129b7087c1b2fdb2b175b045ddae0d4caf778bc5e506b4414f6f17d",
+      "gasLimit": "25650000",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "dave proposes setFee 0.01 EGLD, to take it back",
+      "hash": "1c583620873bb6490d26f6dac1367b9c549c01613f0a8fea3b94228460fa4fd8",
+      "gasLimit": "6156538",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "dave takes his signature back (#17)",
+      "hash": "c446bf778dfe3685a9a147d928fbcc866a5212f30d69a8c4ea6991ffefe01c1f",
+      "gasLimit": "5051318",
+      "ok": true,
+      "guarded": true
+    },
+    {
+      "label": "dave discards it (#17)",
+      "hash": "36b775a77017aaa12b60a72f48b81f01362bb3fe05790b308bc37883da6bb31f",
+      "gasLimit": "4717118",
+      "ok": true,
+      "guarded": true
+    }
+  ],
+  "safe": "erd1qqqqqqqqqqqqqpgqa36jq897x6drcq8arsumtw7tns8f98t3xezs2vdjvf",
+  "vest": "erd1qqqqqqqqqqqqqpgqntmhxqa29ar4juhlprjjxaq790ykcj3uaujq2l9dzg",
+  "source": "erd1qqqqqqqqqqqqqpgqsy2ept5xx2cprx3htj0l5lwkk52hh9amxezsygtpgl",
+  "sourceB": "erd1qqqqqqqqqqqqqpgqhl2cqzx59s7t9j5n9svwvpgcd6e0tvwgxezsyw6deg",
+  "setFee": 6,
+  "upgrade": 8,
+  "redcards": [
+    9,
+    10,
+    11
+  ],
+  "guardedSource": "erd1qqqqqqqqqqqqqpgqxm3d8p4rlrhmmsrgtsgxjh3k3dr45t4qzc0s2yx3us"
+}
