@@ -110,7 +110,9 @@ let nextRowId = 1;
 export const newRow = (kind: ArgumentKind = 'number', slot?: Slot): ArgRow => ({
   id: nextRowId++,
   kind,
-  value: slot?.choices?.[0]?.value ?? '',
+  // A true-or-false row shows "false" from the start, so it holds it too
+  // (audit UPG-05, 14 Oct 2026).
+  value: slot?.choices?.[0]?.value ?? (kind === 'bool' ? 'false' : ''),
   slot
 });
 
@@ -198,7 +200,16 @@ export const ArgumentsEditor = ({
                 value={row.kind}
                 disabled={kinds.length < 2}
                 onChange={(event) =>
-                  update(row.id, { kind: event.target.value as ArgumentKind })
+                  update(row.id, {
+                    kind: event.target.value as ArgumentKind,
+                    // What the true-or-false select shows is what it holds.
+                    value:
+                      event.target.value === 'bool'
+                        ? 'false'
+                        : row.kind === 'bool'
+                          ? ''
+                          : row.value
+                  })
                 }
                 className={`${input} sm:w-44`}
               >

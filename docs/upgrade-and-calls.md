@@ -64,6 +64,24 @@ proposeAsyncCall@00000000000000000500f882d8136db7846cdb650b16134bb5424da58ddfe61
 proposeSCUpgradeFromSource@<contract hex>@@<source hex>@0500
 ```
 
+## Audited on 14 October 2026
+
+An adversarial audit of this code (scope `1e5b57d..7fda7bb`) proved six findings. Each one has a
+test in `src/__audit__/upgrade/` that failed before its fix and passes now.
+
+| | Severity | What it was | Fixed by |
+|---|---|---|---|
+| UPG-01 | high | `upgradeContract`, the built-in that replaces code, proposed as a call read as "Call upgradeContract(0x0061…, 1,280)" with green checks | The card says it replaces the code, gives the inline code's hash and the metadata in words, and shows a red check. The call form and builder refuse it and point to "Upgrade a contract". |
+| UPG-02 | high | An upgrade of the safe itself, proposed with another tool, was all green | A red check, and the sentence says THIS SAFE |
+| UPG-03 | medium | An argument that spells a word ("disabled") hid the number it also is (a 7.2 EGLD fee) | Up to 8 bytes, both readings are said |
+| UPG-04 | medium | Propose was enabled before the call had been tried | Propose waits for the trial's answer |
+| UPG-05 | low | A true-or-false argument showed "false" but held nothing | It holds "false" from the start |
+| UPG-06 | low | The source deploy tip said 0.04 EGLD whatever the file | Worked out from the file; 0.0800 for 26.5 KB |
+
+Not proven, noted: a call with very large inline arguments can be signed but not carried out (the
+stored action is too big). mvxsafe never builds such a call; the only built-in that needs one,
+`upgradeContract`, is now refused.
+
 ## Gas
 
 The rule: never more than about 1.5 times what is needed. Every limit is set in one place,

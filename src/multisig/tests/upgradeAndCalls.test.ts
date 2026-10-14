@@ -705,3 +705,31 @@ describe('the first upgrades on mainnet', () => {
     expect(plan.raised).toBe(false);
   });
 });
+
+// The planned mainnet vote, set to 0.1% on 14 Oct 2026: one byte 0x0a, which
+// is also a newline, so a text reading would show nothing at all.
+describe('setTokenFee 10 basis points, the vote planned for mainnet', () => {
+  const { describeAction } = jest.requireActual('multisig/describe');
+
+  test('is setTokenFee@0a, byte for byte', async () => {
+    const tx = await buildProposeCall(mainnet, {
+      to: MVXVEST,
+      functionName: 'setTokenFee',
+      args: [{ kind: 'number', value: '10' }]
+    });
+    expect(text(tx.data)).toBe(
+      'proposeAsyncCall@00000000000000000500f882d8136db7846cdb650b16134bb5424da58ddfe614@@736574546f6b656e466565@0a'
+    );
+  });
+
+  test('and reads on the card as 10', async () => {
+    const sentence = await describeAction(
+      {
+        name: 'SendAsyncCall',
+        fields: [{ to: MVXVEST, egld_amount: 0n, endpoint_name: Buffer.from('setTokenFee'), arguments: [Uint8Array.of(0x0a)] }]
+      },
+      SAFE
+    );
+    expect(sentence).toBe(`Call setTokenFee(10) on ${MVXVEST}`);
+  });
+});

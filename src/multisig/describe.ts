@@ -14,6 +14,7 @@
 //      and hidden characters are said out loud, never smoothed over.
 
 import { Address } from '@multiversx/sdk-core';
+import { codeHashOf } from './legacyCalls';
 import { api } from './network';
 
 const DO_NOT_SIGN = 'Do not sign without checking it in the explorer.';
@@ -155,7 +156,16 @@ export const describeArgument = (bytes: Uint8Array): string => {
   // One byte is a number far more often than a one-letter word: setTokenFee(100)
   // travels as 0x64, which is also "d" (mvxvest v2, 14 Oct 2026). Both are said.
   if (bytes.length === 1 && /^[A-Za-z]$/.test(text)) return `${bytes[0]} [or the text "${text}"]`;
-  if (/^[A-Za-z][A-Za-z0-9_.\-]*$/.test(text)) return text;
+  if (/^[A-Za-z][A-Za-z0-9_.\-]*$/.test(text)) {
+    // Up to 8 bytes, a word is just as likely an integer, the size of a u64 or
+    // a small amount: "disabled" is also 7,235,441,138,447,705,444, a fee of
+    // 7.2 EGLD (audit UPG-03, 14 Oct 2026). Both are said. Longer words (role
+    // names, identifiers) are far more likely text and stay text.
+    if (bytes.length > 8) return text;
+    const value = bytesToBigInt(bytes);
+    const asEgld = value >= READ_AS_EGLD_FROM ? `, ${formatUnits(value, 18)} EGLD at 18 decimals` : '';
+    return `${text} [or the number ${groupDigits(value)}${asEgld}]`;
+  }
   if (bytes.length <= 32) {
     const value = bytesToBigInt(bytes);
     return value >= READ_AS_EGLD_FROM
@@ -292,6 +302,24 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
     return `Send ${what} to ${to}${then}${alsoEgld}`;
   }
 
+  // Replacing a contract's code with code carried in the proposal itself, the
+  // built-in the SDK's own upgrade sends: upgradeContract@<code>@<metadata>.
+  // Said for what it is, as an upgrade from source is (audit UPG-01, 14 Oct
+  // 2026); mvxsafe itself only upgrades from a source the board can check.
+  if (name === 'upgradeContract' && args.length >= 2) {
+    const flags = metadataOf(args[1]);
+    if (!flags) return `Unreadable upgrade of ${to === safe ? 'THIS SAFE' : to}. ${DO_NOT_SIGN}`;
+    const rest = args.slice(2).map(describeArgument);
+    return (
+      `Replace the code of ${to === safe ? `THIS SAFE (${to})` : `the contract ${to}`} with ` +
+      `${args[0].length.toLocaleString('en-US')} bytes of code carried in the proposal itself, ` +
+      `code hash ${codeHashOf(args[0])}${alsoEgld}, with the arguments (${rest.join(', ')}). ` +
+      `Afterwards it is ${describeMetadata(flags)}` +
+      (flags.upgradeable ? '' : ': it can never be changed again, by anyone') +
+      `. ${DO_NOT_SIGN}`
+    );
+  }
+
   // Handing a contract to someone else: the safe stops being its owner, and
   // the new owner alone may replace its code from then on.
   if (name === 'ChangeOwnerAddress' && args.length === 1 && args[0].length === 32) {
@@ -352,11 +380,16 @@ export const describeAction = async (action: any, safe: string): Promise<string>
       const flags = metadataOf(metadata);
       if (egld === null || !flags) return `Unreadable upgrade. ${DO_NOT_SIGN}`;
       const list = (args ?? []).map((arg: any) => describeArgument(bytesOf(arg) ?? new Uint8Array(0)));
+      // The safe replacing its own code: as loud as handing it over (UPG-02).
+      const itself = asAddress(target) === safe;
       return (
-        `Upgrade the contract ${asAddress(target)}, replacing its code with the code of ${asAddress(source)}` +
+        (itself
+          ? `Upgrade THIS SAFE (${asAddress(target)}), the multisig the board signs with, replacing its code with the code of ${asAddress(source)}`
+          : `Upgrade the contract ${asAddress(target)}, replacing its code with the code of ${asAddress(source)}`) +
         (egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD to it` : '') +
         `, with the arguments (${list.join(', ')}). Afterwards it is ${describeMetadata(flags)}` +
-        (flags.upgradeable ? '' : `: it can never be changed again, by anyone. ${DO_NOT_SIGN}`)
+        (flags.upgradeable ? '' : ': it can never be changed again, by anyone') +
+        (itself || !flags.upgradeable ? `. ${DO_NOT_SIGN}` : '')
       );
     }
     default:

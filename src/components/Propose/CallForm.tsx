@@ -178,7 +178,11 @@ export const CallForm = ({
 
   const noCode = facts !== null && !facts.codeHash;
   const notOwner = facts?.codeHash && facts.ownerAddress !== safe;
-  const blocked = trial?.tone === 'bad' || noCode;
+  // Nothing is proposed before it has been tried: not during the wait after
+  // typing, not while the network answers (audit UPG-04, 14 Oct 2026).
+  const replacesCode = functionName === 'upgradeContract';
+  const blocked =
+    trial === null || trying || trial.tone === 'bad' || noCode || replacesCode;
 
   const submit = async () => {
     setError('');
@@ -289,6 +293,14 @@ export const CallForm = ({
         {functionName && !ENDPOINT.test(functionName) && (
           <p className='mt-1 text-xs text-[#F87171]'>
             That is not a function name a contract can have.
+          </p>
+        )}
+        {replacesCode && (
+          <p className='mt-1 text-xs text-[#F87171]'>
+            upgradeContract replaces the contract&apos;s code with code carried
+            in the proposal itself. Use &quot;Upgrade a contract&quot;: it
+            copies the code from a source the board can check against the
+            release.
           </p>
         )}
         {chosen?.docs && <p className={hint}>{chosen.docs}</p>}

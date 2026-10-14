@@ -366,6 +366,11 @@ export const buildProposeCall = async (
         : 'Name the function to call, for example setFee.'
     );
   }
+  // The code-replacing built-in: an upgrade goes through buildProposeUpgrade,
+  // from a source the board can check (audit UPG-01, 14 Oct 2026).
+  if (name === 'upgradeContract') {
+    throw new Error('upgradeContract replaces the contract\'s code. Propose an upgrade from a source instead.');
+  }
   return call({
     ...context,
     fn: 'proposeAsyncCall',

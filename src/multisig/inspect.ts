@@ -140,6 +140,14 @@ export const inspectUpgrade = async (
   const sourceShard = source ? shardOf(source) : -1;
   const checks: Check[] = [];
 
+  // The builder refuses it, but another tool can propose it (audit UPG-02).
+  if (target === safe) {
+    checks.push({
+      tone: 'bad',
+      text: 'This replaces the code of THIS SAFE, the multisig the board signs with. mvxsafe never proposes that; do not sign it unless every board member has checked the new code.'
+    });
+  }
+
   // The shard rule needs no network: it follows from the addresses.
   checks.push(
     sourceShard === safeShard
@@ -359,6 +367,16 @@ export const inspectCall = async (
   // A plain EGLD transfer: nothing to try, a wallet runs nothing.
   if (name === 'SendTransferExecute' && !hasFunction) {
     return { checks, perform: performPlan({ name, hasFunction }) };
+  }
+
+  // A code replacement dressed as a call (audit UPG-01, 14 Oct 2026). Its code
+  // cannot be checked against a release here, and a large one cannot even be
+  // carried out: the stored action is too big ("storage decode error").
+  if (new TextDecoder().decode(endpoint) === 'upgradeContract') {
+    checks.push({
+      tone: 'bad',
+      text: 'This replaces the contract\'s code with code carried in the proposal itself, not copied from a source. Its code hash is in the sentence above; a large code cannot be carried out at all. mvxsafe proposes upgrades only through "Upgrade a contract".'
+    });
   }
 
   let callNeed: bigint | null = null;

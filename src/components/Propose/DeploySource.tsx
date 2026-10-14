@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info, Tip } from 'components/Info';
 import { deploySource, Signer } from 'multisig/actions';
+import { feeOf, upgradeNeed, withMargin } from 'multisig/gas';
 import { expectedHashCheck, readAccountFacts } from 'multisig/inspect';
 import { codeHashOf, shardOf } from 'multisig/legacyCalls';
 import { forget } from 'multisig/network';
@@ -61,6 +62,16 @@ export const DeploySource = ({
   );
 
   const hash = bytes ? codeHashOf(bytes) : null;
+  // What the deploy costs: its data carries the whole code as hex, paid in
+  // full, then compiling it, at a hundredth (audit UPG-06, 14 Oct 2026; 26,540
+  // bytes cost 0.0799 EGLD on devnet). Before a file is picked, mvxvest's size.
+  const codeBytes = bytes?.length ?? 26540;
+  const dataLength = 2 * codeBytes + '@0500@0400'.length;
+  const deployFee = feeOf(
+    withMargin(50000n + 1500n * BigInt(dataLength) + upgradeNeed(codeBytes)),
+    dataLength
+  );
+  const deployCost = `about ${(Number(deployFee) / 1e18).toFixed(4)} EGLD ${bytes ? 'for this file' : 'for a 26 KB contract'}`;
   const hashCheck = hash ? expectedHashCheck(expected, hash) : null;
   const safeShard = shardOf(safe);
   const walletShard = signer.address ? shardOf(signer.address) : -1;
@@ -196,7 +207,9 @@ export const DeploySource = ({
       {error && <p className='mt-3 text-xs text-[#F87171]'>{error}</p>}
       {!deployed && (
         <div className='mt-4'>
-          <Tip text='Your wallet signs one deploy. It costs about 0.04 EGLD for a 26 KB contract and touches nothing of the safe.'>
+          <Tip
+            text={`Your wallet signs one deploy. It costs ${deployCost} and touches nothing of the safe.`}
+          >
             <button
               type='button'
               disabled={!canDeploy}
