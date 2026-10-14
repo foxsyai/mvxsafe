@@ -86,6 +86,10 @@ export declare const buildDeploySource: (
   options: { bytecode: Uint8Array; args?: (TypedArgument | Uint8Array)[] }
 ) => Promise<Transaction>;
 
+export declare const PROTOCOL_BUILTINS: Set<string>;
+export declare const builtInRefusal: (name: string) => string;
+export declare const isSystemContract: (address: string) => boolean;
+
 export declare const MULTISIG_CODE_HASH: string;
 export declare const MULTISIG_WASM_SHA256: string;
 export declare const predictSafeAddress: (deployer: string, nonce: number | bigint) => string;

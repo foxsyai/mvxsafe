@@ -21,7 +21,12 @@ import {
   performPlan,
   PerformPlan
 } from './gas';
-import { normalizeCodeHash, shardOf } from './legacyCalls';
+import {
+  isSystemContract,
+  normalizeCodeHash,
+  PROTOCOL_BUILTINS,
+  shardOf
+} from './legacyCalls';
 import { api, cached, chainId, networkName, networkProvider } from './network';
 
 export type Tone = 'ok' | 'warn' | 'bad';
@@ -346,6 +351,57 @@ export const trialCheck = (trial: Trial): Check => {
   }
 };
 
+/** The built-ins a safe uses every day: a token sent, and its own tokens moved, minted or burnt. */
+const TOKEN_MOVES_ON_ITSELF = new Set([
+  'ESDTNFTTransfer',
+  'MultiESDTNFTTransfer',
+  'ESDTLocalMint',
+  'ESDTLocalBurn'
+]);
+
+/**
+ * Red checks for what a call does outside a contract's own functions: a
+ * built-in of the network, or a system contract. Said loudly, since a
+ * compromised signer can use them to replace an owned contract's code, hand
+ * it away, or change a token's roles (audit UPG-01 and mvxvest's audit,
+ * 14 Oct 2026).
+ */
+export const builtInChecks = (
+  name: string,
+  to: string,
+  safe: string
+): Check[] => {
+  const checks: Check[] = [];
+  if (name === 'upgradeContract') {
+    checks.push({
+      tone: 'bad',
+      text: 'This replaces the contract\'s code with code carried in the proposal itself, not copied from a source. Its code hash is in the sentence above; a large code cannot be carried out at all. mvxsafe proposes upgrades only through "Upgrade a contract".'
+    });
+  } else if (name === 'ChangeOwnerAddress') {
+    checks.push({
+      tone: 'bad',
+      text: `This hands ${to === safe ? 'THIS SAFE' : 'the contract'} to a new owner. Afterwards the board can no longer change its code or call its owner functions, and cannot undo it.`
+    });
+  } else if (
+    PROTOCOL_BUILTINS.has(name) &&
+    name !== 'ESDTTransfer' &&
+    name !== 'ClaimDeveloperRewards' &&
+    !(to === safe && TOKEN_MOVES_ON_ITSELF.has(name))
+  ) {
+    checks.push({
+      tone: 'bad',
+      text: `${name} is a built-in function of the network, not a function of the contract: it acts on the account it is sent to. mvxsafe never proposes it. Check it in the explorer with every board member before signing.`
+    });
+  }
+  if (to && isSystemContract(to)) {
+    checks.push({
+      tone: 'bad',
+      text: 'This calls a system contract of the network (tokens, staking, governance). It can change who may mint, burn, freeze or own a token, or move stake. Check every argument against what the board agreed.'
+    });
+  }
+  return checks;
+};
+
 /**
  * A call that leaves the safe: whom it goes to, whether it works when the safe
  * sends it, and the gas a perform gets from that.
@@ -372,12 +428,7 @@ export const inspectCall = async (
   // A code replacement dressed as a call (audit UPG-01, 14 Oct 2026). Its code
   // cannot be checked against a release here, and a large one cannot even be
   // carried out: the stored action is too big ("storage decode error").
-  if (new TextDecoder().decode(endpoint) === 'upgradeContract') {
-    checks.push({
-      tone: 'bad',
-      text: 'This replaces the contract\'s code with code carried in the proposal itself, not copied from a source. Its code hash is in the sentence above; a large code cannot be carried out at all. mvxsafe proposes upgrades only through "Upgrade a contract".'
-    });
-  }
+  checks.push(...builtInChecks(new TextDecoder().decode(endpoint), to, safe));
 
   let callNeed: bigint | null = null;
   if (to && hasFunction) {

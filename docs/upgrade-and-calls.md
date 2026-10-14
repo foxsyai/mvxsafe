@@ -78,6 +78,16 @@ test in `src/__audit__/upgrade/` that failed before its fix and passes now.
 | UPG-05 | low | A true-or-false argument showed "false" but held nothing | It holds "false" from the start |
 | UPG-06 | low | The source deploy tip said 0.04 EGLD whatever the file | Worked out from the file; 0.0800 for 26.5 KB |
 
+mvxvest's own audit of the upgrade procedure found UPG-01 and UPG-02 too, and asked for the wider
+rule now in place:
+- **Every built-in function of the network** named in a call is red on the card and refused by the
+  call form: `upgradeContract`, `ChangeOwnerAddress`, `SetGuardian`, the NFT-management functions
+  and the rest of mainnet's list. The exceptions are what a safe does every day (a token sent, its
+  own tokens moved, minted or burnt) and `ClaimDeveloperRewards`, which can only pay the contract's
+  owner.
+- **A call to a system contract of the network** (tokens, staking, governance) is red on the card.
+  The form still allows it, since a token's owner needs it.
+
 Not proven, noted: a call with very large inline arguments can be signed but not carried out (the
 stored action is too big). mvxsafe never builds such a call; the only built-in that needs one,
 `upgradeContract`, is now refused.

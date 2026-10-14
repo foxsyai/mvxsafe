@@ -320,6 +320,12 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
     );
   }
 
+  // The one built-in a call may name, harmless: it pays the contract's
+  // developer rewards to its owner.
+  if (name === 'ClaimDeveloperRewards' && args.length === 0) {
+    return `Collect the developer rewards of ${to === safe ? 'this safe' : `the contract ${to}`} into its owner${alsoEgld}`;
+  }
+
   // Handing a contract to someone else: the safe stops being its owner, and
   // the new owner alone may replace its code from then on.
   if (name === 'ChangeOwnerAddress' && args.length === 1 && args[0].length === 32) {

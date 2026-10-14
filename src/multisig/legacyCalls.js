@@ -343,6 +343,63 @@ const argumentBytes = (argument) =>
 /** The SDK's codec works on Buffers. */
 const bytesValue = (bytes) => new BytesValue(Buffer.from(bytes));
 
+/**
+ * The network's built-in functions: they act on the account they are sent to,
+ * not through the contract's code (builtInCost on mainnet, 14 Oct 2026), plus
+ * upgradeContract, the VM's code replacement. A call naming one is refused by
+ * the call form and red on the card: a compromised signer could use them to
+ * replace an owned contract's code or hand it away (audit UPG-01, and
+ * mvxvest's own audit, 14 Oct 2026). Tokens leave the safe through their own
+ * builders, which do not go through here.
+ */
+export const PROTOCOL_BUILTINS = new Set([
+  'upgradeContract',
+  'ChangeOwnerAddress',
+  'ClaimDeveloperRewards',
+  'SetGuardian',
+  'GuardAccount',
+  'UnGuardAccount',
+  'SaveUserName',
+  'SaveKeyValue',
+  'ESDTTransfer',
+  'ESDTBurn',
+  'ESDTLocalMint',
+  'ESDTLocalBurn',
+  'ESDTNFTTransfer',
+  'ESDTNFTMultiTransfer',
+  'MultiESDTNFTTransfer',
+  'ESDTNFTCreate',
+  'ESDTNFTAddQuantity',
+  'ESDTNFTBurn',
+  'ESDTNFTAddUri',
+  'ESDTNFTUpdateAttributes',
+  'ESDTNFTChangeCreateOwner',
+  'ESDTNFTRecreate',
+  'ESDTNFTUpdate',
+  'ESDTNFTSetNewURIs',
+  'ESDTModifyCreator',
+  'ESDTModifyRoyalties'
+]);
+
+/** The one built-in a call may name: it can only pay the contract's developer rewards to its owner. */
+const CALLABLE_BUILTINS = new Set(['ClaimDeveloperRewards']);
+
+/** Why a call may not name this function, or '' when it may. */
+export const builtInRefusal = (name) => {
+  if (!PROTOCOL_BUILTINS.has(name) || CALLABLE_BUILTINS.has(name)) return '';
+  if (name === 'upgradeContract') {
+    return 'upgradeContract replaces the contract\'s code with code carried in the proposal itself. Use "Upgrade a contract": it copies the code from a source the board can check against the release.';
+  }
+  return `${name} is a built-in function of the network, not a function of the contract, and mvxsafe does not propose it. Tokens leave the safe through "Send tokens", upgrades go through "Upgrade a contract".`;
+};
+
+/**
+ * A system contract of the network (tokens, staking, governance, delegation):
+ * 0000000000000000 0001 ... ffff, where an ordinary contract has 0500.
+ */
+export const isSystemContract = (address) =>
+  /^00000000000000000001[0-9a-f]{40}ffff$/.test(parseAddress(address).toHex());
+
 /** An endpoint name as the contract exports it: a letter or _, then letters, digits and _. */
 const ENDPOINT = /^[A-Za-z_][A-Za-z0-9_]{0,254}$/;
 
@@ -366,11 +423,8 @@ export const buildProposeCall = async (
         : 'Name the function to call, for example setFee.'
     );
   }
-  // The code-replacing built-in: an upgrade goes through buildProposeUpgrade,
-  // from a source the board can check (audit UPG-01, 14 Oct 2026).
-  if (name === 'upgradeContract') {
-    throw new Error('upgradeContract replaces the contract\'s code. Propose an upgrade from a source instead.');
-  }
+  const refusal = builtInRefusal(name);
+  if (refusal) throw new Error(refusal);
   return call({
     ...context,
     fn: 'proposeAsyncCall',

@@ -11,7 +11,12 @@ import {
   trialAsSafe,
   trialCheck
 } from 'multisig/inspect';
-import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
+import {
+  builtInRefusal,
+  isSystemContract,
+  parseAddress,
+  toRawAmount
+} from 'multisig/legacyCalls';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import {
   ArgRow,
@@ -180,7 +185,10 @@ export const CallForm = ({
   const notOwner = facts?.codeHash && facts.ownerAddress !== safe;
   // Nothing is proposed before it has been tried: not during the wait after
   // typing, not while the network answers (audit UPG-04, 14 Oct 2026).
-  const replacesCode = functionName === 'upgradeContract';
+  // A built-in of the network is not a contract's function: refused, with the
+  // way to do it instead (audit UPG-01 and mvxvest's audit, 14 Oct 2026).
+  const builtIn = builtInRefusal(functionName);
+  const replacesCode = Boolean(builtIn);
   const blocked =
     trial === null || trying || trial.tone === 'bad' || noCode || replacesCode;
 
@@ -225,6 +233,14 @@ export const CallForm = ({
           <p className='mt-1 text-xs text-[#F87171]'>
             That is not a contract address.
           </p>
+        )}
+        {targetOk && isSystemContract(target) && (
+          <CheckLine
+            check={{
+              tone: 'bad',
+              text: 'This is a system contract of the network (tokens, staking, governance). A call here can change who may mint, burn, freeze or own a token, or move stake: the signers will see it in red.'
+            }}
+          />
         )}
         {noCode && (
           <CheckLine
@@ -295,14 +311,7 @@ export const CallForm = ({
             That is not a function name a contract can have.
           </p>
         )}
-        {replacesCode && (
-          <p className='mt-1 text-xs text-[#F87171]'>
-            upgradeContract replaces the contract&apos;s code with code carried
-            in the proposal itself. Use &quot;Upgrade a contract&quot;: it
-            copies the code from a source the board can check against the
-            release.
-          </p>
-        )}
+        {builtIn && <p className='mt-1 text-xs text-[#F87171]'>{builtIn}</p>}
         {chosen?.docs && <p className={hint}>{chosen.docs}</p>}
       </div>
 
