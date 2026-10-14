@@ -284,11 +284,6 @@ const SafeView = ({ address }: { address: string }) => {
   const tokens = overview?.tokens ?? [];
   const primary = featuredToken(tokens);
   const others = tokens.filter((token) => token !== primary);
-  const sharedTickers = new Set(
-    tokens
-      .map((token) => token.ticker)
-      .filter((ticker, at, all) => all.indexOf(ticker) !== at)
-  );
 
   return (
     <div className='mx-auto w-full max-w-5xl px-4 py-10'>
@@ -427,7 +422,7 @@ const SafeView = ({ address }: { address: string }) => {
           </p>
         </div>
         <div className={card}>
-          <p className={label}>{primary ? primary.ticker : 'Tokens'}</p>
+          <p className={label}>{primary ? primary.identifier : 'Tokens'}</p>
           <p className='mt-1 text-2xl font-semibold text-white'>
             {primary
               ? primary.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })
@@ -683,10 +678,10 @@ const SafeView = ({ address }: { address: string }) => {
             </li>
             {[primary, ...others].filter(Boolean).map((token: any) => (
               <li key={token.identifier} className='flex justify-between'>
-                {/* Two tokens can share a ticker; then only the identifier tells them apart. */}
-                <span className='text-[#9AA0A6]'>
-                  {sharedTickers.has(token.ticker) ? token.identifier : token.ticker}
-                </span>
+                {/* Always the identifier: anyone can send the safe a token
+                    with any ticker, and a contract the safe owns pays its
+                    fees in whatever token it handles (14 Oct 2026). */}
+                <span className='text-[#9AA0A6] [overflow-wrap:anywhere]'>{token.identifier}</span>
                 <span className='text-white'>
                   {token.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                   {token.valueUsd ? (

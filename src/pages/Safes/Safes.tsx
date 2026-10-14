@@ -387,7 +387,7 @@ export const Safes = () => {
               <dl className='mt-4 flex items-start justify-between gap-6 text-sm'>
                 <div>
                   <dt className='text-xs text-[#6B7280]'>
-                    {primary ? primary.ticker : 'EGLD'}
+                    {primary ? primary.identifier : 'EGLD'}
                   </dt>
                   <dd className='mt-1 text-white'>
                     {card

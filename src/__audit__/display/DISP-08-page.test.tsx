@@ -26,7 +26,9 @@ test('control: both tokens are listed in the holdings', async () => {
 
 test('two different tokens must not be listed under the same bare name', async () => {
   await renderSafe(SAFE);
-  expect(screen.getAllByText('FOXSY').length).toBeLessThan(2);
+  // queryAll, not getAll: since 14 Oct 2026 the bare name is not shown at all,
+  // which getAll would report as an error.
+  expect(screen.queryAllByText('FOXSY').length).toBeLessThan(2);
 });
 
 test('the token select of the propose form must not offer two identical choices', async () => {
