@@ -216,7 +216,7 @@ describe('a pending call on a contract the safe owns', () => {
       )
     ).toBeTruthy();
     expect(tones()).toEqual([
-      'ok: Tried just now as the safe would send it: it works, and needs 3,800,000 gas.',
+      'ok: Tried just now as the safe would send it: it works and needs 3,800,000 gas.',
       'ok: The safe owns the contract it calls.'
     ]);
   });

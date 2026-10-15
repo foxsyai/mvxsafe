@@ -99,7 +99,7 @@ describe('the card', () => {
   test('handing an owned contract to a new owner is red', async () => {
     const checks = await red(call(TARGET, 'ChangeOwnerAddress', [pk(CAROL)]));
     expect(checks.map((check) => check.text).join(' ')).toMatch(
-      /new owner.*cannot undo it/
+      /new owner.*cannot undo this/
     );
   });
 

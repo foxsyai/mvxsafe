@@ -191,7 +191,7 @@ export const inspectUpgrade = async (
     ) {
       checks.push({
         tone: 'bad',
-        text: `The source is upgradeable: its owner ${sourceFacts.ownerAddress || '(unknown)'} can replace its code before this is carried out, and the upgrade would copy whatever is there then. A source should be deployed not upgradeable.`
+        text: `The source is upgradeable: its owner ${sourceFacts.ownerAddress || '(unknown)'} can replace its code before this is carried out. The upgrade would copy whatever is there then. A source should be deployed not upgradeable.`
       });
     }
   }
@@ -316,7 +316,7 @@ export const trialCheck = (trial: Trial): Check => {
     case 'tried':
       return {
         tone: 'ok',
-        text: `Tried just now as the safe would send it: it works, and needs ${trial.need?.toLocaleString('en-US')} gas.`
+        text: `Tried just now as the safe would send it: it works and needs ${trial.need?.toLocaleString('en-US')} gas.`
       };
     case 'token':
       return {
@@ -331,7 +331,7 @@ export const trialCheck = (trial: Trial): Check => {
     case 'fee':
       return {
         tone: 'warn',
-        text: 'It could not be tried in advance: the network wants the safe to hold about 0.0061 EGLD to try a call, and it holds less. The gas below is a default.'
+        text: 'It could not be tried in advance: the network wants the safe to hold about 0.0061 EGLD to try a call; it holds less. The gas below is a default.'
       };
     case 'refused':
       // Red, but advisory on a pending card: the contract's state can change
@@ -378,7 +378,7 @@ export const builtInChecks = (
   } else if (name === 'ChangeOwnerAddress') {
     checks.push({
       tone: 'bad',
-      text: `This hands ${to === safe ? 'THIS SAFE' : 'the contract'} to a new owner. Afterwards the board can no longer change its code or call its owner functions, and cannot undo it.`
+      text: `This hands ${to === safe ? 'THIS SAFE' : 'the contract'} to a new owner. Afterwards the board can no longer change its code or call its owner functions. It cannot undo this.`
     });
   } else if (
     PROTOCOL_BUILTINS.has(name) &&
@@ -394,7 +394,7 @@ export const builtInChecks = (
   if (to && isSystemContract(to)) {
     checks.push({
       tone: 'bad',
-      text: 'This calls a system contract of the network (tokens, staking, governance). It can change who may mint, burn, freeze or own a token, or move stake. Check every argument against what the board agreed.'
+      text: 'This calls a system contract of the network (tokens, staking, governance). It can change who may mint, burn, freeze or own a token. It can also move stake. Check every argument against what the board agreed.'
     });
   }
   return checks;

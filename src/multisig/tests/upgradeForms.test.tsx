@@ -260,7 +260,7 @@ describe('proposing a call', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('setFee@2386f26fc10000')).toBeInTheDocument();
     expect(
-      await screen.findByText(/it works, and needs 3,800,000 gas/)
+      await screen.findByText(/it works and needs 3,800,000 gas/)
     ).toHaveAttribute('data-tone', 'ok');
     expect(
       screen.getByText('The safe owns this contract.')

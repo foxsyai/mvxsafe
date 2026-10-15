@@ -65,7 +65,7 @@ describe('control', () => {
     fill();
     expect(
       await screen.findByText(
-        /it works, and needs 3,800,000 gas/,
+        /it works and needs 3,800,000 gas/,
         {},
         { timeout: 3000 }
       )
