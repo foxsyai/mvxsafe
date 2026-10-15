@@ -59,6 +59,25 @@ export const Guide = () => (
     <h1 className='mt-2 text-3xl font-semibold text-white'>
       A safe that needs more than one person
     </h1>
+    {/* First, for someone who only signs what others propose. */}
+    <div className='mt-6 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
+      <h2 className='text-base font-semibold text-white'>
+        If you only have to sign
+      </h2>
+      <p className='mt-2 text-sm text-[#9AA0A6]'>
+        Someone else proposes and you approve. That is four steps, on a single
+        page:{' '}
+        <a
+          href='/mvxsafe-for-signers.pdf'
+          target='_blank'
+          rel='noreferrer'
+          className='text-[#FF6E0A] hover:underline'
+        >
+          download the signer's guide (PDF)
+        </a>
+        .
+      </p>
+    </div>
     <p className={body}>
       A multisig safe is an account on MultiversX that nobody controls alone. A
       small group, called the board, decides together: any member can propose
@@ -271,30 +290,12 @@ export const Guide = () => (
       </ul>
     </div>
 
-    <div className='mt-12 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
-      <h2 className='text-base font-semibold text-white'>
-        If you only have to sign
-      </h2>
-      <p className='mt-2 text-sm text-[#9AA0A6]'>
-        Someone else proposes and you approve. That is four steps, on a single
-        page:{' '}
-        <a
-          href='/mvxsafe-for-signers.pdf'
-          target='_blank'
-          rel='noreferrer'
-          className='text-[#FF6E0A] hover:underline'
-        >
-          download the signer's guide (PDF)
-        </a>
-        .
-      </p>
-      <p className='mt-3 text-sm text-[#9AA0A6]'>
-        Everything else lives in the{' '}
-        <Link to='/' className='text-[#FF6E0A] hover:underline'>
-          list of safes
-        </Link>
-        .
-      </p>
-    </div>
+    <p className='mt-12 text-sm text-[#9AA0A6]'>
+      Everything else lives in the{' '}
+      <Link to='/' className='text-[#FF6E0A] hover:underline'>
+        list of safes
+      </Link>
+      .
+    </p>
   </div>
 );
