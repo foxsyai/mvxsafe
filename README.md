@@ -99,6 +99,19 @@ two imports that were never published. The template's own README is kept at
 Pin `@multiversx/sdk-core` to 15.x: `sdk-dapp` 5.7 does not accept 16.
 The multisig API is identical in both.
 
+## Contributing
+
+Pull requests into `main` are welcome. When one is a candidate to merge, a maintainer adds the
+label `merge-check`. That starts two checks, which must both pass. The pull request also needs a
+maintainer's approval:
+
+- **CI** (`mvxsafe/ci`): lint, types, the tests and the build.
+- **An AI review** (`mvxsafe/review`): Claude Code reads the change, comments on what it finds and
+  gives a verdict. A blocking finding keeps the pull request from merging.
+
+Opening or updating a pull request starts nothing on its own. A commit pushed after the checks
+needs the label again. A change to `.github/` or `scripts/ci/` is checked by hand.
+
 ## Licence
 
 GPL-3.0-or-later, inherited from the template.
