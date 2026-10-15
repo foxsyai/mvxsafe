@@ -22,14 +22,21 @@ esac
 
 cd "$HERE"
 
-# What goes live on mainnet must be what is on GitHub: no uncommitted changes,
-# and a commit that origin/main already contains.
-if [ "$NETWORK" = mainnet ]; then
-  git diff --quiet HEAD -- || { echo "REFUSING: uncommitted changes. Commit and push first."; exit 1; }
-  git fetch -q origin main
-  git merge-base --is-ancestor HEAD origin/main ||
-    { echo "REFUSING: $(git rev-parse --short HEAD) is not on origin/main. Push it first."; exit 1; }
-fi
+# What goes live must be what is on GitHub, on every network (both sites show
+# their commit): no changed or untracked file (Vite copies all of public/ into
+# the build), and a commit that origin/main already contains. The same gate as
+# mvxvest.io's (its third audit, O4 and O5, 14 Oct 2026).
+[ -z "$(git status --porcelain --untracked-files=all -- .)" ] || { echo "REFUSING: uncommitted changes. Commit and push first."; git status --short -- .; exit 1; }
+git fetch -q origin main
+git merge-base --is-ancestor HEAD origin/main ||
+  { echo "REFUSING: $(git rev-parse --short HEAD) is not on origin/main. Push it first."; exit 1; }
+
+# Exactly the locked dependencies, and nothing ships that fails lint or its
+# tests, run against the network's own config.
+pnpm install --frozen-lockfile
+pnpm -s "copy-$NETWORK-config"
+npx eslint src --max-warnings 0
+npx jest --silent
 
 echo "Building for $NETWORK..."
 pnpm "build-$NETWORK"
