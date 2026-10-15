@@ -70,7 +70,10 @@ let lastRefill = Date.now();
 
 const refill = () => {
   const now = Date.now();
-  tokens = Math.min(BURST, tokens + ((now - lastRefill) / 1000) * RATE_PER_SECOND);
+  tokens = Math.min(
+    BURST,
+    tokens + ((now - lastRefill) / 1000) * RATE_PER_SECOND
+  );
   lastRefill = now;
 };
 
@@ -80,10 +83,13 @@ const refill = () => {
 let pumpTimer: ReturnType<typeof setTimeout> | undefined;
 const pumpIn = (ms: number) => {
   if (pumpTimer) return;
-  pumpTimer = setTimeout(() => {
-    pumpTimer = undefined;
-    pump();
-  }, Math.max(0, ms));
+  pumpTimer = setTimeout(
+    () => {
+      pumpTimer = undefined;
+      pump();
+    },
+    Math.max(0, ms)
+  );
 };
 
 const pump = () => {
@@ -142,7 +148,9 @@ class ApiError extends Error {
 const worthRetrying = (error: any) => {
   if (error instanceof ApiError) return error.retryable;
   const text = String(error?.message ?? error ?? '');
-  return /\b(429|502|503|504)\b|Too Many Requests|timeout|timed out|Network|Failed to fetch/i.test(text);
+  return /\b(429|502|503|504)\b|Too Many Requests|timeout|timed out|Network|Failed to fetch/i.test(
+    text
+  );
 };
 
 /**
@@ -178,12 +186,19 @@ const fetchWithTimeout = (url: string): Promise<Response> => {
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       controller.abort();
-      reject(new ApiError(`${url} timed out after ${REQUEST_TIMEOUT_MS / 1000} s`, undefined, true));
+      reject(
+        new ApiError(
+          `${url} timed out after ${REQUEST_TIMEOUT_MS / 1000} s`,
+          undefined,
+          true
+        )
+      );
     }, REQUEST_TIMEOUT_MS);
   });
-  return Promise.race([fetch(url, { signal: controller.signal }), timeout]).finally(() =>
-    clearTimeout(timer)
-  );
+  return Promise.race([
+    fetch(url, { signal: controller.signal }),
+    timeout
+  ]).finally(() => clearTimeout(timer));
 };
 
 // Bumped by clearCache and forget: an answer that was asked for before a
@@ -197,7 +212,10 @@ const forgottenIn = new Map<string, number>();
  * Runs `work` behind the queue and remembers its answer for a minute. Two
  * components asking for the same thing share one request rather than making two.
  */
-export const cached = async <T>(key: string, work: () => Promise<T>): Promise<T> => {
+export const cached = async <T>(
+  key: string,
+  work: () => Promise<T>
+): Promise<T> => {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value as T;
 
@@ -210,7 +228,10 @@ export const cached = async <T>(key: string, work: () => Promise<T>): Promise<T>
     for (let round = 0; round < MAX_ATTEMPTS; round++) {
       try {
         const value = await schedule(work);
-        if (startedIn >= clearedIn && (forgottenIn.get(key) ?? -1) <= startedIn) {
+        if (
+          startedIn >= clearedIn &&
+          (forgottenIn.get(key) ?? -1) <= startedIn
+        ) {
           cache.set(key, { at: Date.now(), value });
         }
         return value;
@@ -218,7 +239,10 @@ export const cached = async <T>(key: string, work: () => Promise<T>): Promise<T>
         lastError = error;
         if (!worthRetrying(error)) break;
         if (isRateLimit(error)) {
-          pausedUntil = Math.max(pausedUntil, Date.now() + 2000 * Math.pow(2, round));
+          pausedUntil = Math.max(
+            pausedUntil,
+            Date.now() + 2000 * Math.pow(2, round)
+          );
         }
         await wait(600 * Math.pow(2, round));
       }
@@ -272,7 +296,11 @@ export const api = async <T>(path: string): Promise<T> =>
     } catch (failure: any) {
       if (failure instanceof ApiError) throw failure;
       // fetch rejects only when the request never got an answer: worth retrying.
-      throw new ApiError(`${path}: ${failure?.message ?? 'network error'}`, undefined, true);
+      throw new ApiError(
+        `${path}: ${failure?.message ?? 'network error'}`,
+        undefined,
+        true
+      );
     }
     if (!response.ok) {
       throw new ApiError(

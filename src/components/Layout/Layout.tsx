@@ -8,7 +8,9 @@ import { Header } from '../Header';
 export const Layout = ({ children }: PropsWithChildren) => (
   <div className='flex min-h-screen flex-col bg-[#0E0E12]'>
     <Header />
-    <main className='flex flex-grow items-stretch justify-center'>{children}</main>
+    <main className='flex flex-grow items-stretch justify-center'>
+      {children}
+    </main>
     <Footer />
   </div>
 );

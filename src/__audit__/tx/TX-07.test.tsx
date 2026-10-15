@@ -53,8 +53,12 @@ const propose = async (amount: string) => {
       onProposed={onProposed}
     />
   );
-  fireEvent.change(screen.getByPlaceholderText('erd1...'), { target: { value: BOB } });
-  fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: amount } });
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), {
+    target: { value: BOB }
+  });
+  fireEvent.change(screen.getByPlaceholderText('0.00'), {
+    target: { value: amount }
+  });
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Propose' }));
   });

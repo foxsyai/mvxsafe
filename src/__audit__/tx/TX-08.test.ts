@@ -24,11 +24,11 @@
 // and nonce logic; only the wallet, the account fetch and the network send are
 // fakes. Nothing touches a network.
 import { Transaction } from '@multiversx/sdk-core';
+import { getAccount } from '@multiversx/sdk-dapp/out/methods/account/getAccount';
 import { DappProvider } from '@multiversx/sdk-dapp/out/providers/DappProvider/DappProvider';
 import { setAccountProvider } from '@multiversx/sdk-dapp/out/providers/helpers/accountProvider';
 import { setAccount } from '@multiversx/sdk-dapp/out/store/actions/account/accountActions';
 import { loginAction } from '@multiversx/sdk-dapp/out/store/actions/sharedActions/sharedActions';
-import { getAccount } from '@multiversx/sdk-dapp/out/methods/account/getAccount';
 import { signAndSendTransactions } from 'helpers/signAndSendTransactions';
 import { buildSign } from 'multisig/legacyCalls';
 
@@ -60,7 +60,9 @@ jest.mock('@multiversx/sdk-dapp/out/managers/TransactionManager', () => ({
           network.failNext = false;
           throw new Error('Request failed with status code 429');
         }
-        network.sent.push(...transactions.map((transaction) => String(transaction.nonce)));
+        network.sent.push(
+          ...transactions.map((transaction) => String(transaction.nonce))
+        );
         return transactions;
       },
       track: async () => 'session'
@@ -76,24 +78,39 @@ const rawProvider = {
   getType: () => 'extension',
   getAddress: async () => ALICE,
   signTransactions: async (transactions: Transaction[]) => {
-    wallet.asked.push(...transactions.map((transaction) => String(transaction.nonce)));
-    for (const transaction of transactions) transaction.signature = new Uint8Array(64);
+    wallet.asked.push(
+      ...transactions.map((transaction) => String(transaction.nonce))
+    );
+    for (const transaction of transactions)
+      transaction.signature = new Uint8Array(64);
     return transactions;
   }
 };
 
-const fromTheChain = () => ({ chainId: 'D', sender: ALICE, nonce: CHAIN_NONCE, safe: SAFE });
+const fromTheChain = () => ({
+  chainId: 'D',
+  sender: ALICE,
+  nonce: CHAIN_NONCE,
+  safe: SAFE
+});
 
 beforeAll(() => {
   loginAction({ address: ALICE, providerType: 'extension' } as any);
-  setAccount({ address: ALICE, nonce: CHAIN_NONCE, balance: '1946050635000000000', isGuarded: false } as any);
+  setAccount({
+    address: ALICE,
+    nonce: CHAIN_NONCE,
+    balance: '1946050635000000000',
+    isGuarded: false
+  } as any);
   setAccountProvider(new DappProvider(rawProvider as any));
 });
 
 describe('TX-08: a failed send does not push every later transaction one nonce ahead', () => {
   test('the first send fails after the wallet signed nonce 10', async () => {
     const first = await buildSign(fromTheChain(), 7);
-    await expect(signAndSendTransactions({ transactions: [first] })).rejects.toThrow('429');
+    await expect(
+      signAndSendTransactions({ transactions: [first] })
+    ).rejects.toThrow('429');
     expect(wallet.asked).toEqual(['10']);
     expect(network.sent).toEqual([]);
   });

@@ -5,8 +5,8 @@
 // also switched the button back to "Refresh" while the newest was still reading.
 import '../../../__audit__/web/fixSetImmediate';
 import '@testing-library/jest-dom';
-import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Address } from '@multiversx/sdk-core';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { readCard } from 'multisig/reads';
 import { Safes } from 'pages/Safes/Safes';
@@ -15,7 +15,9 @@ jest.mock('lib', () => ({
   useGetIsLoggedIn: () => false,
   useGetAccount: () => ({ address: '', nonce: 0 })
 }));
-jest.mock('components/Address', () => ({ AddressLine: ({ address }: { address: string }) => <span>{address}</span> }));
+jest.mock('components/Address', () => ({
+  AddressLine: ({ address }: { address: string }) => <span>{address}</span>
+}));
 jest.mock('multisig/reads', () => ({
   ...jest.requireActual('multisig/reads'),
   readCard: jest.fn(),
@@ -40,15 +42,34 @@ beforeEach(() => {
     (address: string) =>
       new Promise((resolve) =>
         waiting.push(() =>
-          resolve({ address, tokens: [], egld: 1, quorum: 2, worthUsd: 0, boardSize: 3, pendingCount: 0, actionCount: 4, viewer: '', needsViewer: 0, readyCount: 0 })
+          resolve({
+            address,
+            tokens: [],
+            egld: 1,
+            quorum: 2,
+            worthUsd: 0,
+            boardSize: 3,
+            pendingCount: 0,
+            actionCount: 4,
+            viewer: '',
+            needsViewer: 0,
+            readyCount: 0
+          })
         )
       )
   );
 });
 
-const refreshButton = () => screen.getByRole('button', { name: /Reading \d+ of \d+ safes|^Refresh$/ });
-const label = () => refreshButton().getAttribute('aria-label') ?? refreshButton().textContent ?? '';
-const settle = () => act(async () => { await new Promise((done) => setTimeout(done, 0)); });
+const refreshButton = () =>
+  screen.getByRole('button', { name: /Reading \d+ of \d+ safes|^Refresh$/ });
+const label = () =>
+  refreshButton().getAttribute('aria-label') ??
+  refreshButton().textContent ??
+  '';
+const settle = () =>
+  act(async () => {
+    await new Promise((done) => setTimeout(done, 0));
+  });
 
 const release = async (count: number, seen: Array<[string, number]>) => {
   for (let i = 0; i < count && waiting.length > 0; i++) {
@@ -87,6 +108,7 @@ test('pressing Refresh again while reading never counts past the number of safes
     if (count) expect(Number(count[1])).toBeLessThanOrEqual(Number(count[2]));
   }
   // The button says Refresh only once nothing is being read any more.
-  for (const [text, running] of seen) if (text === 'Refresh') expect(running).toBe(0);
+  for (const [text, running] of seen)
+    if (text === 'Refresh') expect(running).toBe(0);
   expect(seen[seen.length - 1][0]).toBe('Refresh');
 });

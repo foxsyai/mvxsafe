@@ -13,13 +13,28 @@ import { readPendingActions } from 'multisig/reads';
 import { ALICE, BOB, CAROL, SAFE, useChain, useFailing } from './fixtures';
 import { connectAs, renderSafe } from './renderSafe';
 
-const pending = [{ id: 4, action: { kind: 'SendTransferExecute' as const, to: ALICE, egld: 10n ** 16n }, signers: [ALICE] }];
+const pending = [
+  {
+    id: 4,
+    action: {
+      kind: 'SendTransferExecute' as const,
+      to: ALICE,
+      egld: 10n ** 16n
+    },
+    signers: [ALICE]
+  }
+];
 
 afterEach(() => useFailing([]));
 
 test('control: when the read works, the action is listed', async () => {
   connectAs(BOB);
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], roles: { [BOB]: 2 }, pending });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    roles: { [BOB]: 2 },
+    pending
+  });
   await renderSafe(SAFE);
   expect(screen.getByText('#4')).toBeTruthy();
   expect(screen.queryByText('Nothing is waiting for a signature.')).toBeNull();
@@ -28,13 +43,21 @@ test('control: when the read works, the action is listed', async () => {
 test('readPendingActions must not answer "no pending actions" when the contract could not be read', async () => {
   useChain({ quorum: 2, board: [ALICE, BOB, CAROL], pending });
   useFailing(['getPendingActionFullInfo']);
-  const answer = await readPendingActions(SAFE).then((list) => list, () => 'rejected');
+  const answer = await readPendingActions(SAFE).then(
+    (list) => list,
+    () => 'rejected'
+  );
   expect(answer).not.toEqual([]);
 });
 
 test('the page must not say "Nothing is waiting for a signature." when the read failed', async () => {
   connectAs(BOB);
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], roles: { [BOB]: 2 }, pending });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    roles: { [BOB]: 2 },
+    pending
+  });
   useFailing(['getPendingActionFullInfo']);
   await renderSafe(SAFE);
   expect(screen.queryByText('Nothing is waiting for a signature.')).toBeNull();

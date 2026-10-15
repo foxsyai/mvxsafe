@@ -19,12 +19,19 @@ jest.mock('multisig/addressBook', () => ({
   readHerotag: () => Promise.resolve('')
 }));
 
-const ADDRESS = 'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
+const ADDRESS =
+  'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
 
 // The widths Chrome measured for this address in the header's font, by the
 // length of the fitted text: 3+3 is 11 characters, up to 6+6 at 17.
-const SATOSHI_12PX: Record<number, number> = { 11: 66.588, 13: 79.177, 15: 92.689, 17: 104.305 };
-const widthOf = (text: string) => SATOSHI_12PX[text.length] ?? text.length * 6.1;
+const SATOSHI_12PX: Record<number, number> = {
+  11: 66.588,
+  13: 79.177,
+  15: 92.689,
+  17: 104.305
+};
+const widthOf = (text: string) =>
+  SATOSHI_12PX[text.length] ?? text.length * 6.1;
 
 // The box the button really has, in CSS pixels. clientWidth reports it rounded,
 // as Chrome does; getBoundingClientRect reports it as it is.
@@ -36,9 +43,28 @@ beforeAll(() => {
     get: () => Math.round(box)
   });
   HTMLElement.prototype.getBoundingClientRect = () =>
-    ({ width: box, height: 16, top: 0, left: 0, right: box, bottom: 16, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    ({
+      width: box,
+      height: 16,
+      top: 0,
+      left: 0,
+      right: box,
+      bottom: 16,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    }) as DOMRect;
   // A phone: the (min-width: 640px) query does not match, so the room is measured.
-  window.matchMedia = () => ({ matches: false, media: '', onchange: null, addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false });
+  window.matchMedia = () => ({
+    matches: false,
+    media: '',
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false
+  });
   (HTMLCanvasElement.prototype as any).getContext = () => ({
     font: '',
     measureText: (text: string) => ({ width: widthOf(text) })

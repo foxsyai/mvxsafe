@@ -20,7 +20,16 @@ const SITE = process.env.SITE || '';
 const BUILD = resolve(process.env.BUILD || 'build');
 const ORIGIN = SITE || 'https://app.test';
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.wasm': 'application/wasm' };
+const TYPES = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.woff2': 'font/woff2',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.json': 'application/json',
+  '.wasm': 'application/wasm'
+};
 
 if (!SITE && !existsSync(join(BUILD, 'index.html'))) {
   console.log(`No build at ${BUILD}: pass BUILD=<dir> or SITE=<url>.`);
@@ -28,15 +37,21 @@ if (!SITE && !existsSync(join(BUILD, 'index.html'))) {
 }
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
-const context = await browser.newContext({ viewport: { width: 375, height: 700 } });
+const context = await browser.newContext({
+  viewport: { width: 375, height: 700 }
+});
 const page = await context.newPage();
 await page.route('**/*', (route) => {
   const url = new URL(route.request().url());
   if (url.origin === ORIGIN) {
     if (SITE) return route.continue();
     let file = join(BUILD, decodeURIComponent(url.pathname));
-    if (!existsSync(file) || statSync(file).isDirectory()) file = join(BUILD, 'index.html');
-    return route.fulfill({ body: readFileSync(file), contentType: TYPES[extname(file)] || 'application/octet-stream' });
+    if (!existsSync(file) || statSync(file).isDirectory())
+      file = join(BUILD, 'index.html');
+    return route.fulfill({
+      body: readFileSync(file),
+      contentType: TYPES[extname(file)] || 'application/octet-stream'
+    });
   }
   return route.abort();
 });
@@ -50,15 +65,32 @@ for (const width of [320, 375, 390, 412, 430]) {
   const result = await page.evaluate(() => {
     const limit = window.innerWidth;
     const culprits = [...document.querySelectorAll('body *')]
-      .filter((el) => el.getBoundingClientRect().right > limit + 0.5 && !el.querySelector('*'))
+      .filter(
+        (el) =>
+          el.getBoundingClientRect().right > limit + 0.5 &&
+          !el.querySelector('*')
+      )
       .slice(0, 2)
-      .map((el) => `<${el.tagName.toLowerCase()}> ${el.getBoundingClientRect().width.toFixed(0)}px "${(el.textContent || '').trim().slice(0, 40)}"`);
-    return { scrollWidth: document.documentElement.scrollWidth, limit, culprits };
+      .map(
+        (el) =>
+          `<${el.tagName.toLowerCase()}> ${el.getBoundingClientRect().width.toFixed(0)}px "${(el.textContent || '').trim().slice(0, 40)}"`
+      );
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      limit,
+      culprits
+    };
   });
   const sideways = result.scrollWidth > result.limit;
   if (sideways && width < 418) failed = true;
-  console.log(`${width}px: page is ${result.scrollWidth}px wide, ${sideways ? 'SCROLLS SIDEWAYS' : 'fits'}${result.culprits.length ? `; widest: ${result.culprits.join(', ')}` : ''}`);
+  console.log(
+    `${width}px: page is ${result.scrollWidth}px wide, ${sideways ? 'SCROLLS SIDEWAYS' : 'fits'}${result.culprits.length ? `; widest: ${result.culprits.join(', ')}` : ''}`
+  );
 }
 await browser.close();
-console.log(failed ? '\nREV-02 reproduces: the safe page scrolls sideways on a phone.' : '\nThe safe page fits a phone.');
+console.log(
+  failed
+    ? '\nREV-02 reproduces: the safe page scrolls sideways on a phone.'
+    : '\nThe safe page fits a phone.'
+);
 process.exit(failed ? 1 : 0);

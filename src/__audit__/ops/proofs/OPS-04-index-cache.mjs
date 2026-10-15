@@ -12,10 +12,15 @@
 //
 //   node src/__audit__/ops/proofs/OPS-04-index-cache.mjs
 const HOST = process.env.HOST || 'https://mvxsafe.io';
-const paths = ['/', '/safe/erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p'];
+const paths = [
+  '/',
+  '/safe/erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p'
+];
 
 const revalidates = (cc) =>
-  /\bno-store\b/.test(cc) || /\bno-cache\b/.test(cc) || (/\bmax-age=0\b/.test(cc) && /\bmust-revalidate\b/.test(cc));
+  /\bno-store\b/.test(cc) ||
+  /\bno-cache\b/.test(cc) ||
+  (/\bmax-age=0\b/.test(cc) && /\bmust-revalidate\b/.test(cc));
 
 let bad = 0;
 for (const p of paths) {
@@ -25,13 +30,19 @@ for (const p of paths) {
   const ageH = lm === '(absent)' ? NaN : (Date.now() - Date.parse(lm)) / 3.6e6;
   const heuristic = Number.isNaN(ageH) ? 'n/a' : `${(ageH / 10).toFixed(1)} h`;
   const ok = revalidates(cc);
-  console.log(`${ok ? 'ok ' : 'BAD'} GET ${HOST}${p} -> ${r.status} ${r.headers.get('content-type')}`);
+  console.log(
+    `${ok ? 'ok ' : 'BAD'} GET ${HOST}${p} -> ${r.status} ${r.headers.get('content-type')}`
+  );
   console.log(`      Cache-Control: ${cc}`);
-  console.log(`      Last-Modified: ${lm} (age ${Number.isNaN(ageH) ? '?' : ageH.toFixed(1)} h, heuristic freshness ${heuristic})`);
+  console.log(
+    `      Last-Modified: ${lm} (age ${Number.isNaN(ageH) ? '?' : ageH.toFixed(1)} h, heuristic freshness ${heuristic})`
+  );
   if (!ok) bad++;
 }
 if (bad) {
-  console.log(`\nBUG (OPS-04): ${bad} document response(s) can be served stale from the browser cache after a deploy`);
+  console.log(
+    `\nBUG (OPS-04): ${bad} document response(s) can be served stale from the browser cache after a deploy`
+  );
   process.exit(1);
 }
 console.log('\nOK: the entry document is always revalidated');

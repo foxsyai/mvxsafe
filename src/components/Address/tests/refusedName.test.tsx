@@ -11,14 +11,19 @@ jest.mock('multisig/addressBook', () => ({
   readHerotag: () => Promise.resolve('')
 }));
 
-const ADDRESS = 'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
+const ADDRESS =
+  'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
 
 beforeEach(() => window.localStorage.clear());
 
 const typeName = (name: string) => {
   render(<AddressLine address={ADDRESS} nameable />);
-  fireEvent.click(screen.getByRole('button', { name: 'Give this address a name' }));
-  fireEvent.change(screen.getByPlaceholderText('A name for this address'), { target: { value: name } });
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Give this address a name' })
+  );
+  fireEvent.change(screen.getByPlaceholderText('A name for this address'), {
+    target: { value: name }
+  });
   fireEvent.click(screen.getByRole('button', { name: 'save' }));
 };
 
@@ -31,6 +36,10 @@ test('control: an ordinary name is saved and shown', () => {
 test('a name that looks like an address is refused, with a reason, and the box stays open', () => {
   typeName('erd1qqqqqq...abcd');
   expect(getLabel(ADDRESS)).toBe('');
-  expect(screen.getByRole('alert')).toHaveTextContent(/cannot look like an address/);
-  expect(screen.getByPlaceholderText('A name for this address')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    /cannot look like an address/
+  );
+  expect(
+    screen.getByPlaceholderText('A name for this address')
+  ).toBeInTheDocument();
 });

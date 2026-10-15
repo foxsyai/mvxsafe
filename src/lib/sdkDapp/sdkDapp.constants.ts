@@ -14,5 +14,9 @@ export {
  * (ops audit OPS-09, 7 Oct 2026); passkey wallets are not offered for a tool
  * that moves treasuries.
  */
-export const ALLOWED_WALLETS = ['walletConnect', 'extension', 'ledger', 'crossWindow'];
-
+export const ALLOWED_WALLETS = [
+  'walletConnect',
+  'extension',
+  'ledger',
+  'crossWindow'
+];

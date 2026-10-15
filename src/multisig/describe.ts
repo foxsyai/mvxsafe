@@ -27,7 +27,8 @@ export const bytesOf = (value: any): Uint8Array | null => {
   if (ArrayBuffer.isView(value)) {
     return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   }
-  if (value.type === 'Buffer' && Array.isArray(value.data)) return new Uint8Array(value.data);
+  if (value.type === 'Buffer' && Array.isArray(value.data))
+    return new Uint8Array(value.data);
   return null;
 };
 
@@ -39,9 +40,12 @@ export const bytesOf = (value: any): Uint8Array | null => {
 export const toBigInt = (value: any): bigint | null => {
   if (value === null || value === undefined) return 0n;
   if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return Number.isSafeInteger(value) ? BigInt(value) : null;
+  if (typeof value === 'number')
+    return Number.isSafeInteger(value) ? BigInt(value) : null;
   const text =
-    typeof value.toFixed === 'function' ? value.toFixed() : String(value?.toString?.() ?? value);
+    typeof value.toFixed === 'function'
+      ? value.toFixed()
+      : String(value?.toString?.() ?? value);
   return /^-?\d+$/.test(text) ? BigInt(text) : null;
 };
 
@@ -67,8 +71,10 @@ const asAddress = (value: any): string => {
  * one name look like another.
  */
 export const visible = (text: string): string =>
-  text.replace(/[^\x20-\x7E]/gu, (char) =>
-    `[U+${char.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}]`
+  text.replace(
+    /[^\x20-\x7E]/gu,
+    (char) =>
+      `[U+${char.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}]`
   );
 
 const decodeText = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
@@ -82,11 +88,14 @@ export const formatUnits = (raw: bigint, decimals: number): string => {
   const base = 10n ** BigInt(decimals);
   const whole = (value / base).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const fraction =
-    decimals > 0 ? (value % base).toString().padStart(decimals, '0').replace(/0+$/, '') : '';
+    decimals > 0
+      ? (value % base).toString().padStart(decimals, '0').replace(/0+$/, '')
+      : '';
   return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`;
 };
 
-const groupDigits = (raw: bigint) => raw.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const groupDigits = (raw: bigint) =>
+  raw.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // --- tokens ------------------------------------------------------------------
 
@@ -103,17 +112,28 @@ export interface TokenMeta {
  * under /tokens; NFTs, SFTs and MetaESDT (anything moved with a nonce) under
  * /collections. Only a well-formed identifier is ever put in a URL.
  */
-export const readTokenMeta = async (identifier: string, withNonce: boolean): Promise<TokenMeta> => {
+export const readTokenMeta = async (
+  identifier: string,
+  withNonce: boolean
+): Promise<TokenMeta> => {
   if (!TOKEN_ID.test(identifier)) return { decimals: null };
-  const path = withNonce ? `/collections/${identifier}` : `/tokens/${identifier}`;
+  const path = withNonce
+    ? `/collections/${identifier}`
+    : `/tokens/${identifier}`;
   try {
     const answer = await api<{ decimals?: number; type?: string }>(path);
-    if (answer?.type === 'NonFungibleESDT' || answer?.type === 'SemiFungibleESDT') {
+    if (
+      answer?.type === 'NonFungibleESDT' ||
+      answer?.type === 'SemiFungibleESDT'
+    ) {
       return { decimals: 0 };
     }
     const decimals = answer?.decimals;
     return {
-      decimals: Number.isInteger(decimals) && decimals! >= 0 && decimals! <= 32 ? decimals! : null
+      decimals:
+        Number.isInteger(decimals) && decimals! >= 0 && decimals! <= 32
+          ? decimals!
+          : null
     };
   } catch {
     return { decimals: null };
@@ -121,7 +141,11 @@ export const readTokenMeta = async (identifier: string, withNonce: boolean): Pro
 };
 
 /** "0.1 WEGLD-a28c59", or the raw number with a warning when decimals are unknown. */
-const tokenAmount = async (identifierBytes: Uint8Array, amount: bigint, nonce = 0n) => {
+const tokenAmount = async (
+  identifierBytes: Uint8Array,
+  amount: bigint,
+  nonce = 0n
+) => {
   const identifier = decodeText(identifierBytes);
   const shown = visible(identifier);
   const withNonce = nonce > 0n ? ` nonce ${nonce}` : '';
@@ -155,7 +179,8 @@ export const describeArgument = (bytes: Uint8Array): string => {
   const text = decodeText(bytes);
   // One byte is a number far more often than a one-letter word: setTokenFee(100)
   // travels as 0x64, which is also "d" (mvxvest v2, 14 Oct 2026). Both are said.
-  if (bytes.length === 1 && /^[A-Za-z]$/.test(text)) return `${bytes[0]} [or the text "${text}"]`;
+  if (bytes.length === 1 && /^[A-Za-z]$/.test(text))
+    return `${bytes[0]} [or the text "${text}"]`;
   if (/^[A-Za-z][A-Za-z0-9_.\-]*$/.test(text)) {
     // Up to 8 bytes, a word is just as likely an integer, the size of a u64 or
     // a small amount: "disabled" is also 7,235,441,138,447,705,444, a fee of
@@ -163,7 +188,10 @@ export const describeArgument = (bytes: Uint8Array): string => {
     // names, identifiers) are far more likely text and stay text.
     if (bytes.length > 8) return text;
     const value = bytesToBigInt(bytes);
-    const asEgld = value >= READ_AS_EGLD_FROM ? `, ${formatUnits(value, 18)} EGLD at 18 decimals` : '';
+    const asEgld =
+      value >= READ_AS_EGLD_FROM
+        ? `, ${formatUnits(value, 18)} EGLD at 18 decimals`
+        : '';
     return `${text} [or the number ${groupDigits(value)}${asEgld}]`;
   }
   if (bytes.length <= 32) {
@@ -245,31 +273,49 @@ const readCall = (data: any): CallData => ({
   to: asAddress(data?.to),
   egld: toBigInt(data?.egld_amount),
   endpoint: bytesOf(data?.endpoint_name) ?? new Uint8Array(0),
-  args: (data?.arguments ?? []).map((arg: any) => bytesOf(arg) ?? new Uint8Array(0))
+  args: (data?.arguments ?? []).map(
+    (arg: any) => bytesOf(arg) ?? new Uint8Array(0)
+  )
 });
 
 /** Built-in token functions the safe runs on ITSELF, with the real recipient inside. */
-const describeOnItself = async (name: string, args: Uint8Array[]): Promise<string | null> => {
+const describeOnItself = async (
+  name: string,
+  args: Uint8Array[]
+): Promise<string | null> => {
   switch (name) {
     case 'ESDTNFTTransfer': {
       // token, nonce, amount, receiver, then optionally a function and its arguments
       if (args.length < 4 || args[3].length !== 32) return null;
-      const what = await tokenAmount(args[0], bytesToBigInt(args[2]), bytesToBigInt(args[1]));
-      const then = args.length > 4 ? `, then call ${describeCallOf(args[4], args.slice(5))} there` : '';
+      const what = await tokenAmount(
+        args[0],
+        bytesToBigInt(args[2]),
+        bytesToBigInt(args[1])
+      );
+      const then =
+        args.length > 4
+          ? `, then call ${describeCallOf(args[4], args.slice(5))} there`
+          : '';
       return `Send ${what} to ${new Address(args[3]).toBech32()}${then}`;
     }
     case 'MultiESDTNFTTransfer': {
       // receiver, count, count times (token, nonce, amount), then optionally a call
       if (args.length < 2 || args[0].length !== 32) return null;
       const count = Number(bytesToBigInt(args[1]));
-      if (!Number.isInteger(count) || count < 1 || args.length < 2 + count * 3) return null;
+      if (!Number.isInteger(count) || count < 1 || args.length < 2 + count * 3)
+        return null;
       const parts: string[] = [];
       for (let at = 0; at < count; at++) {
         const [token, nonce, amount] = args.slice(2 + at * 3, 5 + at * 3);
-        parts.push(await tokenAmount(token, bytesToBigInt(amount), bytesToBigInt(nonce)));
+        parts.push(
+          await tokenAmount(token, bytesToBigInt(amount), bytesToBigInt(nonce))
+        );
       }
       const rest = args.slice(2 + count * 3);
-      const then = rest.length > 0 ? `, then call ${describeCallOf(rest[0], rest.slice(1))} there` : '';
+      const then =
+        rest.length > 0
+          ? `, then call ${describeCallOf(rest[0], rest.slice(1))} there`
+          : '';
       return `Send ${parts.join(' and ')} to ${new Address(args[0]).toBech32()}${then}`;
     }
     case 'ESDTLocalMint':
@@ -287,7 +333,8 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
   const { to, egld, endpoint, args } = readCall(data);
   if (!to || egld === null) return `Unreadable action. ${DO_NOT_SIGN}`;
   const name = decodeText(endpoint);
-  const alsoEgld = egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD with it` : '';
+  const alsoEgld =
+    egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD with it` : '';
 
   if (!name && args.length === 0) {
     return egld > 0n
@@ -298,7 +345,10 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
   // A token leaving the safe: ESDTTransfer, run for the recipient.
   if (name === 'ESDTTransfer' && args.length >= 2) {
     const what = await tokenAmount(args[0], bytesToBigInt(args[1]));
-    const then = args.length > 2 ? `, then call ${describeCallOf(args[2], args.slice(3))} there` : '';
+    const then =
+      args.length > 2
+        ? `, then call ${describeCallOf(args[2], args.slice(3))} there`
+        : '';
     return `Send ${what} to ${to}${then}${alsoEgld}`;
   }
 
@@ -308,7 +358,8 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
   // 2026); mvxsafe itself only upgrades from a source the board can check.
   if (name === 'upgradeContract' && args.length >= 2) {
     const flags = metadataOf(args[1]);
-    if (!flags) return `Unreadable upgrade of ${to === safe ? 'THIS SAFE' : to}. ${DO_NOT_SIGN}`;
+    if (!flags)
+      return `Unreadable upgrade of ${to === safe ? 'THIS SAFE' : to}. ${DO_NOT_SIGN}`;
     const rest = args.slice(2).map(describeArgument);
     return (
       `Replace the code of ${to === safe ? `THIS SAFE (${to})` : `the contract ${to}`} with ` +
@@ -328,7 +379,11 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
 
   // Handing a contract to someone else: the safe stops being its owner, and
   // the new owner alone may replace its code from then on.
-  if (name === 'ChangeOwnerAddress' && args.length === 1 && args[0].length === 32) {
+  if (
+    name === 'ChangeOwnerAddress' &&
+    args.length === 1 &&
+    args[0].length === 32
+  ) {
     const owner = new Address(args[0]).toBech32();
     return to === safe
       ? `Hand THIS SAFE over to ${owner}, who could then replace its code alone, without the board${alsoEgld}. ${DO_NOT_SIGN}`
@@ -350,7 +405,10 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
  * Plain language for one decoded action. Async because a token's decimals have
  * to be looked up before its amount can be written truthfully.
  */
-export const describeAction = async (action: any, safe: string): Promise<string> => {
+export const describeAction = async (
+  action: any,
+  safe: string
+): Promise<string> => {
   if (!action) return `Unknown action. ${DO_NOT_SIGN}`;
   const name = String(action.name ?? action.type ?? 'Unknown');
   const fields = action.fields ?? [];
@@ -373,7 +431,9 @@ export const describeAction = async (action: any, safe: string): Promise<string>
       const [amount, source, , args] = fields;
       const egld = toBigInt(amount);
       if (egld === null) return `Unreadable deploy. ${DO_NOT_SIGN}`;
-      const list = (args ?? []).map((arg: any) => describeArgument(bytesOf(arg) ?? new Uint8Array(0)));
+      const list = (args ?? []).map((arg: any) =>
+        describeArgument(bytesOf(arg) ?? new Uint8Array(0))
+      );
       return (
         `Deploy a new contract with the code of ${asAddress(source)}` +
         (egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD to it` : '') +
@@ -385,7 +445,9 @@ export const describeAction = async (action: any, safe: string): Promise<string>
       const egld = toBigInt(amount);
       const flags = metadataOf(metadata);
       if (egld === null || !flags) return `Unreadable upgrade. ${DO_NOT_SIGN}`;
-      const list = (args ?? []).map((arg: any) => describeArgument(bytesOf(arg) ?? new Uint8Array(0)));
+      const list = (args ?? []).map((arg: any) =>
+        describeArgument(bytesOf(arg) ?? new Uint8Array(0))
+      );
       // The safe replacing its own code: as loud as handing it over (UPG-02).
       const itself = asAddress(target) === safe;
       return (
@@ -394,7 +456,9 @@ export const describeAction = async (action: any, safe: string): Promise<string>
           : `Upgrade the contract ${asAddress(target)}, replacing its code with the code of ${asAddress(source)}`) +
         (egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD to it` : '') +
         `, with the arguments (${list.join(', ')}). Afterwards it is ${describeMetadata(flags)}` +
-        (flags.upgradeable ? '' : ': it can never be changed again, by anyone') +
+        (flags.upgradeable
+          ? ''
+          : ': it can never be changed again, by anyone') +
         (itself || !flags.upgradeable ? `. ${DO_NOT_SIGN}` : '')
       );
     }

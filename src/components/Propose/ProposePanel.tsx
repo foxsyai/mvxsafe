@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Info, Tip } from 'components/Info';
 import {
   proposeAddBoardMember,
   proposeAddProposer,
@@ -11,21 +12,31 @@ import {
 import { formatUnits } from 'multisig/describe';
 import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
 import { isAccountAddress } from 'multisig/newSafe';
-import { membershipNote, membershipProblem } from 'multisig/reads';
+import {
+  membershipNote,
+  membershipProblem,
+  TokenBalance
+} from 'multisig/reads';
 import { explainWalletFailure } from 'multisig/walletFailure';
+import { CallForm } from './CallForm';
+import { UpgradeForm } from './UpgradeForm';
 
 /** A problem with what was typed, found before the wallet was asked anything. */
 class FormError extends Error {}
-import { Info, Tip } from 'components/Info';
-import { TokenBalance } from 'multisig/reads';
-import { CallForm } from './CallForm';
-import { UpgradeForm } from './UpgradeForm';
 
 // Proposing changes nothing on its own: it puts a request in front of the board,
 // which then has to reach the quorum. Every field here ends up in the action
 // description the other signers read, so the wording of the form matters.
 
-type Kind = 'token' | 'egld' | 'addBoard' | 'addProposer' | 'remove' | 'quorum' | 'call' | 'upgrade';
+type Kind =
+  | 'token'
+  | 'egld'
+  | 'addBoard'
+  | 'addProposer'
+  | 'remove'
+  | 'quorum'
+  | 'call'
+  | 'upgrade';
 
 const TABS: { kind: Kind; label: string }[] = [
   { kind: 'token', label: 'Send tokens' },
@@ -48,11 +59,11 @@ const EXPLAIN: Record<Kind, string> = {
     'A board member can propose actions, sign them and carry them out. Adding one is itself an action the board has to approve.',
   addProposer:
     'A proposer can only suggest actions, never approve them. Useful for someone who prepares payments while the board keeps the say over them.',
-  remove: 'Take a board member or a proposer out. Needs the board\'s approval like anything else.',
+  remove:
+    "Take a board member or a proposer out. Needs the board's approval like anything else.",
   quorum:
     'How many signatures an action needs. Raising it makes the safe stricter, lowering it makes it easier to use. It can never be higher than the number of board members.',
-  call:
-    'Have the safe call a function of a contract, typically one it owns: set a fee, pause, unpause. The call is tried as the safe would send it before it can be proposed.',
+  call: 'Have the safe call a function of a contract, typically one it owns: set a fee, pause, unpause. The call is tried as the safe would send it before it can be proposed.',
   upgrade:
     "Replace the code of a contract the safe owns with the code of a source contract in the safe's shard. Its address and storage stay; only the code changes."
 };
@@ -125,7 +136,11 @@ export const ProposePanel = ({
     setError('');
     // What can be checked without the wallet is checked first, and said plainly.
     try {
-      if (kind !== 'quorum') parseAddress(to, kind === 'token' || kind === 'egld' ? 'recipient' : 'address');
+      if (kind !== 'quorum')
+        parseAddress(
+          to,
+          kind === 'token' || kind === 'egld' ? 'recipient' : 'address'
+        );
       if (kind === 'egld') toRawAmount(amount, 18);
       if (kind === 'token' && token) toRawAmount(amount, token.decimals);
       // A membership change that does nothing, or that the contract would
@@ -160,13 +175,23 @@ export const ProposePanel = ({
             );
           }
           reachedWallet = true;
-          await proposeSendToken(signer, safe, to, token.identifier, amount, token.decimals);
+          await proposeSendToken(
+            signer,
+            safe,
+            to,
+            token.identifier,
+            amount,
+            token.decimals
+          );
           break;
         }
         case 'egld': {
           // Same rule as tokens (TX-07): the safe cannot send what it does not
           // hold, and finding out at "Carry it out" costs every signer a fee.
-          if (egldBalance !== undefined && toRawAmount(amount, 18) > BigInt(egldBalance || '0')) {
+          if (
+            egldBalance !== undefined &&
+            toRawAmount(amount, 18) > BigInt(egldBalance || '0')
+          ) {
             throw new FormError(
               `The safe holds ${formatUnits(BigInt(egldBalance || '0'), 18)} EGLD, less than that.`
             );
@@ -190,7 +215,9 @@ export const ProposePanel = ({
         case 'quorum': {
           const value = Number(quorum);
           if (!Number.isInteger(value) || value < 1 || value > boardSize) {
-            throw new FormError(`The quorum has to be a whole number between 1 and ${boardSize}.`);
+            throw new FormError(
+              `The quorum has to be a whole number between 1 and ${boardSize}.`
+            );
           }
           reachedWallet = true;
           await proposeChangeQuorum(signer, safe, value);
@@ -227,7 +254,11 @@ export const ProposePanel = ({
     const name = ACTION_NAME[kind];
     if (!name) return '';
     const subject = kind === 'quorum' ? Number(quorum) : to.trim();
-    if (kind === 'quorum' ? !Number.isInteger(subject) || !quorum : !isAccountAddress(String(subject))) {
+    if (
+      kind === 'quorum'
+        ? !Number.isInteger(subject) || !quorum
+        : !isAccountAddress(String(subject))
+    ) {
       return '';
     }
     const note = membershipNote(
@@ -236,7 +267,9 @@ export const ProposePanel = ({
     );
     return note.replace(/^ \(/, '').replace(/\)$/, '');
   })();
-  const noteIsWarning = /refuse|lock|every action|changes nothing/.test(changeNote);
+  const noteIsWarning = /refuse|lock|every action|changes nothing/.test(
+    changeNote
+  );
 
   const needsAddress = kind !== 'quorum';
   const needsAmount = kind === 'token' || kind === 'egld';
@@ -248,7 +281,8 @@ export const ProposePanel = ({
         <Info text='Proposing puts a request in front of the board. It costs a small network fee and changes nothing on its own.' />
       </h2>
       <p className={hint}>
-        Nothing moves until the signatures reach the quorum and somebody carries it out.
+        Nothing moves until the signatures reach the quorum and somebody carries
+        it out.
       </p>
 
       <div className='mt-4 flex flex-wrap gap-2'>
@@ -296,120 +330,129 @@ export const ProposePanel = ({
         ))}
 
       {kind !== 'call' && kind !== 'upgrade' && (
-      <>
+        <>
+          {kind === 'token' && (
+            <div className={field}>
+              <label className='text-xs text-[#6B7280]'>Token</label>
+              <select
+                value={tokenId}
+                onChange={(event) => setTokenId(event.target.value)}
+                className={input}
+              >
+                {tokens.length === 0 && (
+                  <option value=''>This safe holds no tokens</option>
+                )}
+                {tokens.map((candidate) => (
+                  <option
+                    key={candidate.identifier}
+                    value={candidate.identifier}
+                  >
+                    {/* The identifier, not the ticker: two tokens can share a ticker. */}
+                    {candidate.identifier} (
+                    {candidate.amount.toLocaleString('en-US')})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-      {kind === 'token' && (
-        <div className={field}>
-          <label className='text-xs text-[#6B7280]'>Token</label>
-          <select
-            value={tokenId}
-            onChange={(event) => setTokenId(event.target.value)}
-            className={input}
-          >
-            {tokens.length === 0 && <option value=''>This safe holds no tokens</option>}
-            {tokens.map((candidate) => (
-              <option key={candidate.identifier} value={candidate.identifier}>
-                {/* The identifier, not the ticker: two tokens can share a ticker. */}
-                {candidate.identifier} ({candidate.amount.toLocaleString('en-US')})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+          {needsAddress && (
+            <div className={field}>
+              <label className='flex items-center text-xs text-[#6B7280]'>
+                {kind === 'addBoard' || kind === 'addProposer'
+                  ? 'Address to add'
+                  : kind === 'remove'
+                    ? 'Address to remove'
+                    : 'Recipient'}
+                <Info text='A MultiversX address, starting with erd1. Check it twice: the board approves exactly what is written here.' />
+              </label>
+              <input
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+                placeholder='erd1...'
+                className={`${input} font-mono`}
+              />
+            </div>
+          )}
 
-      {needsAddress && (
-        <div className={field}>
-          <label className='flex items-center text-xs text-[#6B7280]'>
-            {kind === 'addBoard' || kind === 'addProposer'
-              ? 'Address to add'
-              : kind === 'remove'
-                ? 'Address to remove'
-                : 'Recipient'}
-            <Info text='A MultiversX address, starting with erd1. Check it twice: the board approves exactly what is written here.' />
-          </label>
-          <input
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-            placeholder='erd1...'
-            className={`${input} font-mono`}
-          />
-        </div>
-      )}
+          {needsAmount && (
+            <div className={field}>
+              <label className='flex items-center text-xs text-[#6B7280]'>
+                Amount
+                <Info text='Written the way you would say it, for example 1500.5. The decimals are handled for you.' />
+              </label>
+              <input
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder='0.00'
+                className={input}
+              />
+            </div>
+          )}
 
-      {needsAmount && (
-        <div className={field}>
-          <label className='flex items-center text-xs text-[#6B7280]'>
-            Amount
-            <Info text='Written the way you would say it, for example 1500.5. The decimals are handled for you.' />
-          </label>
-          <input
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            placeholder='0.00'
-            className={input}
-          />
-        </div>
-      )}
+          {kind === 'quorum' && (
+            <div className={field}>
+              <label className='flex items-center text-xs text-[#6B7280]'>
+                New quorum
+                <Info text='The number of signatures every future action will need.' />
+              </label>
+              <input
+                value={quorum}
+                onChange={(event) => setQuorum(event.target.value)}
+                placeholder={String(boardSize)}
+                className={input}
+              />
+              <p className={hint}>
+                How many signatures an action needs. The board has {boardSize}{' '}
+                members.
+              </p>
+            </div>
+          )}
 
-      {kind === 'quorum' && (
-        <div className={field}>
-          <label className='flex items-center text-xs text-[#6B7280]'>
-            New quorum
-            <Info text='The number of signatures every future action will need.' />
-          </label>
-          <input
-            value={quorum}
-            onChange={(event) => setQuorum(event.target.value)}
-            placeholder={String(boardSize)}
-            className={input}
-          />
-          <p className={hint}>
-            How many signatures an action needs. The board has {boardSize} members.
-          </p>
-        </div>
-      )}
-
-      {changeNote && (
-        <p
-          className={`mt-3 rounded-lg px-3 py-2 text-xs ${
-            noteIsWarning
-              ? 'border border-[#FBBF24]/30 bg-[#FBBF24]/5 text-[#FBBF24]'
-              : 'border border-[#2A2A32] text-[#9AA0A6]'
-          }`}
-        >
-          {changeNote.charAt(0).toUpperCase() + changeNote.slice(1)}.
-        </p>
-      )}
-
-      {error && <p className='mt-3 text-xs text-[#F87171]'>{error}</p>}
-
-      <div className='mt-4'>
-        <Tip text='Puts the request in front of the board. Your wallet will ask you to sign this proposal, which costs a small network fee and moves nothing by itself.'>
-          <button
-            type='button'
-            disabled={busy || disabled}
-            onClick={submit}
-            className='rounded-lg bg-[#FF6E0A] px-5 py-2 text-sm font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
-          >
-            {busy ? 'Waiting for your wallet...' : 'Propose'}
-          </button>
-        </Tip>
-        {disabled && !busy && disabledReason && <p className={hint}>{disabledReason}</p>}
-        {busy && stuck && (
-          <p className='mt-3 text-xs text-[#6B7280]'>
-            Your wallet has not answered. If you dismissed the request,{' '}
-            <button
-              type='button'
-              onClick={() => setBusy(false)}
-              className='text-[#FF6E0A] hover:underline'
+          {changeNote && (
+            <p
+              className={`mt-3 rounded-lg px-3 py-2 text-xs ${
+                noteIsWarning
+                  ? 'border border-[#FBBF24]/30 bg-[#FBBF24]/5 text-[#FBBF24]'
+                  : 'border border-[#2A2A32] text-[#9AA0A6]'
+              }`}
             >
-              start over
-            </button>
-            . If you did sign it, it is on its way and will appear above by itself.
-          </p>
-        )}
-      </div>
-      </>
+              {changeNote.charAt(0).toUpperCase() + changeNote.slice(1)}.
+            </p>
+          )}
+
+          {error && <p className='mt-3 text-xs text-[#F87171]'>{error}</p>}
+
+          <div className='mt-4'>
+            <Tip text='Puts the request in front of the board. Your wallet will ask you to sign this proposal, which costs a small network fee and moves nothing by itself.'>
+              <button
+                type='button'
+                disabled={busy || disabled}
+                onClick={submit}
+                className='rounded-lg bg-[#FF6E0A] px-5 py-2 text-sm font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
+              >
+                {busy ? 'Waiting for your wallet...' : 'Propose'}
+              </button>
+            </Tip>
+            {disabled && !busy && disabledReason && (
+              <p className={hint}>{disabledReason}</p>
+            )}
+            {busy && stuck && (
+              <p className='mt-3 text-xs text-[#6B7280]'>
+                Your wallet has not answered. If you dismissed the request,{' '}
+                <button
+                  type='button'
+                  onClick={() => setBusy(false)}
+                  className='text-[#FF6E0A] hover:underline'
+                >
+                  start over
+                </button>
+                . If you did sign it, it is on its way and will appear above by
+                itself.
+              </p>
+            )}
+          </div>
+        </>
       )}
     </section>
   );

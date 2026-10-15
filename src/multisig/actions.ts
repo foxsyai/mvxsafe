@@ -42,7 +42,9 @@ export interface Signer {
 const contextOf = async (signer: Signer, safe: string) => {
   let nonce = signer.nonce;
   try {
-    const account = await networkProvider.getAccount(new Address(signer.address));
+    const account = await networkProvider.getAccount(
+      new Address(signer.address)
+    );
     nonce = Number(account.nonce);
   } catch {
     // Fall back to what the page knows, rather than refusing to act at all.
@@ -57,9 +59,10 @@ const contextOf = async (signer: Signer, safe: string) => {
  */
 const guardianOf = async (address: string): Promise<string> => {
   try {
-    const account = await api<{ isGuarded?: boolean; activeGuardianAddress?: string }>(
-      `/accounts/${address}?withGuardianInfo=true`
-    );
+    const account = await api<{
+      isGuarded?: boolean;
+      activeGuardianAddress?: string;
+    }>(`/accounts/${address}?withGuardianInfo=true`);
     return account?.isGuarded ? (account.activeGuardianAddress ?? '') : '';
   } catch {
     // Unknown, so send it unguarded. A guarded account will simply refuse it,
@@ -107,10 +110,21 @@ const sendAll = async (
 const send = (transaction: any, label: string, budget?: bigint) =>
   sendAll([transaction], label, [budget]);
 
-export const signAction = async (signer: Signer, safe: string, actionId: number) =>
-  send(await buildSign(await contextOf(signer, safe), actionId), `Signing action ${actionId}`);
+export const signAction = async (
+  signer: Signer,
+  safe: string,
+  actionId: number
+) =>
+  send(
+    await buildSign(await contextOf(signer, safe), actionId),
+    `Signing action ${actionId}`
+  );
 
-export const unsignAction = async (signer: Signer, safe: string, actionId: number) =>
+export const unsignAction = async (
+  signer: Signer,
+  safe: string,
+  actionId: number
+) =>
   send(
     await buildUnsign(await contextOf(signer, safe), actionId),
     `Removing your signature from action ${actionId}`
@@ -132,7 +146,11 @@ export const performAction = async (
     budget
   );
 
-export const discardAction = async (signer: Signer, safe: string, actionId: number) =>
+export const discardAction = async (
+  signer: Signer,
+  safe: string,
+  actionId: number
+) =>
   send(
     await buildDiscard(await contextOf(signer, safe), actionId),
     `Discarding action ${actionId}`
@@ -167,19 +185,31 @@ export const proposeSendToken = async (
     'Proposing a token transfer'
   );
 
-export const proposeAddBoardMember = async (signer: Signer, safe: string, member: string) =>
+export const proposeAddBoardMember = async (
+  signer: Signer,
+  safe: string,
+  member: string
+) =>
   send(
     await buildProposeAddBoardMember(await contextOf(signer, safe), member),
     'Proposing a new board member'
   );
 
-export const proposeAddProposer = async (signer: Signer, safe: string, proposer: string) =>
+export const proposeAddProposer = async (
+  signer: Signer,
+  safe: string,
+  proposer: string
+) =>
   send(
     await buildProposeAddProposer(await contextOf(signer, safe), proposer),
     'Proposing a new proposer'
   );
 
-export const proposeRemoveUser = async (signer: Signer, safe: string, user: string) =>
+export const proposeRemoveUser = async (
+  signer: Signer,
+  safe: string,
+  user: string
+) =>
   send(
     await buildProposeRemoveUser(await contextOf(signer, safe), user),
     'Proposing to remove a member'
@@ -249,13 +279,17 @@ export const deploySource = async (
  * it is byte for byte the one the app was tested against.
  */
 const loadSafeCode = async (): Promise<Uint8Array> => {
-  const response = await fetch('/contracts/multisig.wasm', { cache: 'no-store' });
+  const response = await fetch('/contracts/multisig.wasm', {
+    cache: 'no-store'
+  });
   if (!response.ok) {
     throw new Error('The contract code could not be loaded. Nothing was sent.');
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const hex = Array.from(digest, (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
   if (hex !== MULTISIG_WASM_SHA256) {
     throw new Error(
       'The contract code is not the one this app was tested with, so it was refused. Nothing was sent.'
@@ -276,10 +310,18 @@ export const createSafe = async (
   const bytecode = await loadSafeCode();
   const { chainId, sender, nonce } = await contextOf(signer, '');
   const safe = predictSafeAddress(sender, nonce);
-  const deploy = await buildDeploySafe({ chainId, sender, nonce }, { bytecode, quorum, board });
+  const deploy = await buildDeploySafe(
+    { chainId, sender, nonce },
+    { bytecode, quorum, board }
+  );
   // The next nonce, so the network runs it right after the deploy, when the
   // contract exists and the sender still owns it.
-  const handOver = await buildHandOver({ chainId, sender, nonce: nonce + 1, safe });
+  const handOver = await buildHandOver({
+    chainId,
+    sender,
+    nonce: nonce + 1,
+    safe
+  });
   // The deploy is simulated. The handover cannot be, before the safe it hands
   // over exists, so it gets the fixed cost of ChangeOwnerAddress.
   await sendAll([deploy, handOver], 'Creating the safe', [
@@ -294,5 +336,7 @@ export const createSafe = async (
  * now the safe exists, so the network can simulate it.
  */
 export const handOverSafe = async (signer: Signer, safe: string) =>
-  send(await buildHandOver(await contextOf(signer, safe)), 'Handing the safe to itself');
-
+  send(
+    await buildHandOver(await contextOf(signer, safe)),
+    'Handing the safe to itself'
+  );

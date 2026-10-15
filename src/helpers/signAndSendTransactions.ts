@@ -30,7 +30,8 @@ export const signAndSendTransactions = async ({
     // person thought it had failed (tx audit TX-08, proven on devnet). So the
     // nonce goes back to the first one this attempt used.
     const first = transactions.reduce(
-      (lowest, transaction) => (transaction.nonce < lowest ? transaction.nonce : lowest),
+      (lowest, transaction) =>
+        transaction.nonce < lowest ? transaction.nonce : lowest,
       transactions[0].nonce
     );
     setAccountNonce(Number(first));
@@ -42,11 +43,17 @@ export const signAndSendTransactions = async ({
   // (6 Oct 2026).
   // Which safes changed: the receivers (a safe for every multisig call, the
   // new safe for a handover), so pages re-read those and nothing else.
-  const addresses = [...new Set(transactions.map((transaction) => transaction.receiver.toBech32()))];
+  const addresses = [
+    ...new Set(
+      transactions.map((transaction) => transaction.receiver.toBech32())
+    )
+  ];
   let settledAt = 0;
   const settled = async () => {
     settledAt = Date.now();
-    window.dispatchEvent(new CustomEvent('mvxsafe:settled', { detail: { addresses } }));
+    window.dispatchEvent(
+      new CustomEvent('mvxsafe:settled', { detail: { addresses } })
+    );
   };
   // The clock is a safety net: skipped when the SDK reported it moments ago.
   const settledOnClock = () => {

@@ -39,13 +39,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // The repository root, four levels above this file.
-const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(
+  /\/$/,
+  ''
+);
 const ROUNDS = Number(process.env.ROUNDS || 5);
 const DELAY = process.env.NPM_DELAY || '1.5';
 
 const tmp = mkdtempSync(join(tmpdir(), 'mvxsafe-ops01-'));
 const wt = join(tmp, 'worktree');
-execFileSync('git', ['-C', APP, 'worktree', 'add', '--detach', wt, 'HEAD'], { stdio: 'pipe' });
+execFileSync('git', ['-C', APP, 'worktree', 'add', '--detach', wt, 'HEAD'], {
+  stdio: 'pipe'
+});
 symlinkSync(join(APP, 'node_modules'), join(wt, 'node_modules'));
 
 // FIXED=1 applies the suggested fix inside the throwaway worktree (copy first,
@@ -55,10 +60,13 @@ if (process.env.FIXED) {
   const pkgPath = join(wt, 'package.json');
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
   for (const net of ['devnet', 'testnet', 'mainnet']) {
-    pkg.scripts[`build-${net}`] = `npm run copy-${net}-config && tsc && vite build`;
+    pkg.scripts[`build-${net}`] =
+      `npm run copy-${net}-config && tsc && vite build`;
   }
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-  console.log('FIXED=1: worktree package.json patched to "npm run copy-<net>-config && tsc && vite build"');
+  console.log(
+    'FIXED=1: worktree package.json patched to "npm run copy-<net>-config && tsc && vite build"'
+  );
 }
 
 const networkOfBundle = () => {
@@ -74,7 +82,10 @@ const networkOfConfig = () => {
   return m ? m[1] : 'unknown';
 };
 const setConfig = (net) =>
-  copyFileSync(join(wt, 'src/config', `config.${net}.ts`), join(wt, 'src/config/index.ts'));
+  copyFileSync(
+    join(wt, 'src/config', `config.${net}.ts`),
+    join(wt, 'src/config/index.ts')
+  );
 const build = (env = {}) =>
   spawnSync('pnpm', ['build-mainnet'], {
     cwd: wt,
@@ -85,22 +96,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const wrong = [];
 try {
-  console.log(`worktree ${wt} at ${execFileSync('git', ['-C', wt, 'rev-parse', '--short', 'HEAD']).toString().trim()}`);
-  console.log(`\nPart A: pnpm build-mainnet with src/config/index.ts on devnet, ${ROUNDS} rounds, warm machine`);
+  console.log(
+    `worktree ${wt} at ${execFileSync('git', ['-C', wt, 'rev-parse', '--short', 'HEAD']).toString().trim()}`
+  );
+  console.log(
+    `\nPart A: pnpm build-mainnet with src/config/index.ts on devnet, ${ROUNDS} rounds, warm machine`
+  );
   for (let i = 1; i <= ROUNDS; i++) {
     setConfig('devnet');
     const started = Date.now();
     const r = build();
     const net = networkOfBundle();
-    console.log(`  round ${i}: exit ${r.status} in ${((Date.now() - started) / 1000).toFixed(1)} s, bundle network = ${net}`);
+    console.log(
+      `  round ${i}: exit ${r.status} in ${((Date.now() - started) / 1000).toFixed(1)} s, bundle network = ${net}`
+    );
     if (net !== 'mainnet') wrong.push(`part A round ${i}: ${net}`);
   }
 
-  console.log(`\nPart B: same command, npm needs ${DELAY} s to start (cold cache / busy machine)`);
+  console.log(
+    `\nPart B: same command, npm needs ${DELAY} s to start (cold cache / busy machine)`
+  );
   const shim = join(tmp, 'shim');
   mkdirSync(shim);
-  const realNpm = execFileSync('sh', ['-c', 'command -v npm'], { encoding: 'utf8' }).trim();
-  writeFileSync(join(shim, 'npm'), `#!/bin/sh\nsleep ${DELAY}\nexec ${realNpm} "$@"\n`);
+  const realNpm = execFileSync('sh', ['-c', 'command -v npm'], {
+    encoding: 'utf8'
+  }).trim();
+  writeFileSync(
+    join(shim, 'npm'),
+    `#!/bin/sh\nsleep ${DELAY}\nexec ${realNpm} "$@"\n`
+  );
   chmodSync(join(shim, 'npm'), 0o755);
   setConfig('devnet');
   const started = Date.now();
@@ -114,12 +138,16 @@ try {
   if (net !== 'mainnet') wrong.push(`part B (npm ${DELAY} s slower): ${net}`);
 } finally {
   await sleep(500);
-  execFileSync('git', ['-C', APP, 'worktree', 'remove', '--force', wt], { stdio: 'pipe' });
+  execFileSync('git', ['-C', APP, 'worktree', 'remove', '--force', wt], {
+    stdio: 'pipe'
+  });
   rmSync(tmp, { recursive: true, force: true });
 }
 
 if (wrong.length) {
-  console.log(`\nBUG (OPS-01): a "mainnet" build came out with another network: ${wrong.join('; ')}`);
+  console.log(
+    `\nBUG (OPS-01): a "mainnet" build came out with another network: ${wrong.join('; ')}`
+  );
   process.exit(1);
 }
 console.log('\nOK: every mainnet build contained the mainnet config');

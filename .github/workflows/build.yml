@@ -1,4 +1,5 @@
-# The only workflow this project needs: does it typecheck and build?
+# The only workflow this project needs: is it clean, does it typecheck, do the
+# tests pass and does it build?
 #
 # The template we forked shipped deploy-mainnet, deploy-devnet, deploy-testnet,
 # deploy-next, deploy-integration and two e2e workflows, all aimed at
@@ -30,7 +31,14 @@ jobs:
       # has to exist before anything typechecks.
       - name: Choose the network config
         run: pnpm copy-mainnet-config
+      # main was made lint-clean on 15 Oct 2026; this keeps it so.
+      - name: Lint and format
+        run: |
+          npx eslint src --max-warnings 0
+          npx prettier --check src
       - name: Typecheck
         run: npx tsc --noEmit
+      - name: Tests
+        run: npx jest --silent
       - name: Build
         run: npx vite build

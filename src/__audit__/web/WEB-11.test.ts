@@ -32,5 +32,7 @@ test('an answer that arrives after Refresh does not overwrite the fresh one', as
   expect(await before).toBe('stale');
 
   // Whoever reads next must get what Refresh fetched, not the older answer.
-  expect(await cached('quorum:safe', async () => 'a third read, not expected')).toBe('fresh');
+  expect(
+    await cached('quorum:safe', async () => 'a third read, not expected')
+  ).toBe('fresh');
 });

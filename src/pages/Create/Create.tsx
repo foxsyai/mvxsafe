@@ -35,7 +35,9 @@ export const Create = () => {
   useEffect(() => {
     if (isLoggedIn && account.address) {
       setRows((current) =>
-        current.includes(account.address) || current[0] ? current : [account.address, ...current.slice(1)]
+        current.includes(account.address) || current[0]
+          ? current
+          : [account.address, ...current.slice(1)]
       );
     }
   }, [isLoggedIn, account.address]);
@@ -58,7 +60,9 @@ export const Create = () => {
   }, [busy]);
 
   const setRow = (index: number, value: string) =>
-    setRows((current) => current.map((row, at) => (at === index ? value : row)));
+    setRows((current) =>
+      current.map((row, at) => (at === index ? value : row))
+    );
 
   const create = async () => {
     setProblem('');
@@ -81,15 +85,20 @@ export const Create = () => {
       <Link to='/' className='text-sm text-[#9AA0A6] hover:text-[#FF6E0A]'>
         &larr; All safes
       </Link>
-      <p className='mt-6 text-xs font-semibold tracking-[0.25em] text-[#FF6E0A]'>NEW SAFE</p>
+      <p className='mt-6 text-xs font-semibold tracking-[0.25em] text-[#FF6E0A]'>
+        NEW SAFE
+      </p>
       <h1 className='mt-2 text-3xl font-semibold text-white'>Create a safe</h1>
       <p className='mt-2 text-sm text-[#9AA0A6]'>
-        Choose who sits on the board and how many of them have to sign before anything moves.
-        The safe belongs to nobody once it exists, not even to you: only the board, together.
+        Choose who sits on the board and how many of them have to sign before
+        anything moves. The safe belongs to nobody once it exists, not even to
+        you: only the board, together.
       </p>
 
       <section className={`${card} mt-8`}>
-        <label className='text-xs text-[#6B7280]'>Name, kept in this browser only</label>
+        <label className='text-xs text-[#6B7280]'>
+          Name, kept in this browser only
+        </label>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -117,7 +126,11 @@ export const Create = () => {
                     <button
                       type='button'
                       aria-label='Remove this member'
-                      onClick={() => setRows((current) => current.filter((_, at) => at !== index))}
+                      onClick={() =>
+                        setRows((current) =>
+                          current.filter((_, at) => at !== index)
+                        )
+                      }
                       className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#6B7280] hover:bg-[#FF6E0A]/10 hover:text-[#FF6E0A]'
                     >
                       &times;
@@ -126,7 +139,9 @@ export const Create = () => {
                 )}
               </div>
               {check.rowErrors[index] && (
-                <p className='mt-1 text-xs text-[#F87171]'>{check.rowErrors[index]}</p>
+                <p className='mt-1 text-xs text-[#F87171]'>
+                  {check.rowErrors[index]}
+                </p>
               )}
               {row.trim() === account.address && isLoggedIn && (
                 <p className={hint}>That is you.</p>
@@ -158,14 +173,18 @@ export const Create = () => {
             }}
             className='rounded-lg border border-[#2A2A32] bg-[#0E0E12] px-3 py-2 text-sm text-white'
           >
-            {Array.from({ length: Math.max(size, 1) }, (_, at) => at + 1).map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
+            {Array.from({ length: Math.max(size, 1) }, (_, at) => at + 1).map(
+              (value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              )
+            )}
           </select>
           <span className='text-sm text-[#9AA0A6]'>
-            {size > 0 ? `of ${size} board member${size === 1 ? '' : 's'}` : 'once the board has members'}
+            {size > 0
+              ? `of ${size} board member${size === 1 ? '' : 's'}`
+              : 'once the board has members'}
           </span>
         </div>
 
@@ -184,16 +203,21 @@ export const Create = () => {
       </section>
 
       <section className={`${card} mt-6`}>
-        <h2 className='text-sm font-semibold text-white'>What happens when you press Create</h2>
+        <h2 className='text-sm font-semibold text-white'>
+          What happens when you press Create
+        </h2>
         <ol className='mt-3 list-decimal space-y-2 pl-5 text-sm text-[#9AA0A6]'>
           <li>
-            Your wallet asks you to sign <span className='text-white'>two transactions</span>: the
-            first creates the safe, the second hands it to itself, so that nobody, you included,
-            can ever change its code alone.
+            Your wallet asks you to sign{' '}
+            <span className='text-white'>two transactions</span>: the first
+            creates the safe, the second hands it to itself, so that nobody, you
+            included, can ever change its code alone.
           </li>
           <li>
-            The network fee is about <span className='text-white'>0.073 EGLD</span>, paid from your
-            wallet. The safe starts empty; anyone can send it EGLD or tokens afterwards.
+            The network fee is about{' '}
+            <span className='text-white'>0.073 EGLD</span>, paid from your
+            wallet. The safe starts empty; anyone can send it EGLD or tokens
+            afterwards.
           </li>
         </ol>
 
@@ -218,7 +242,9 @@ export const Create = () => {
                     ? `Create a ${quorum} of ${size} safe`
                     : 'Create the safe'}
               </button>
-              {check.blocker && !busy && <p className={hint}>{check.blocker}</p>}
+              {check.blocker && !busy && (
+                <p className={hint}>{check.blocker}</p>
+              )}
               {busy && stuck && (
                 <p className={hint}>
                   Your wallet has not answered. If you dismissed the request,{' '}
@@ -237,7 +263,8 @@ export const Create = () => {
             <div className='flex flex-wrap items-center gap-3'>
               <ConnectButton />
               <span className='text-xs text-[#6B7280]'>
-                Connect the wallet that will pay the fee and sign the two transactions.
+                Connect the wallet that will pay the fee and sign the two
+                transactions.
               </span>
             </div>
           )}

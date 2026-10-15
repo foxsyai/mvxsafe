@@ -2,20 +2,14 @@
   "recordedAt": "2026-10-07T08:51:42.090Z",
   "safeA": {
     "address": "erd1qqqqqqqqqqqqqpgqfhtkpf9warq5w7eny4az9epxt26gxyvgaujqlz7cqq",
-    "getQuorum": [
-      "AQ=="
-    ],
+    "getQuorum": ["AQ=="],
     "getAllBoardMembers": [
       "I1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
       "ZoQrW3e4CsGsmWkeZ2xNnvJ1ilQLMM/MZIH8LduTNkU=",
       "xyBRBQRBxLCwdTyO4/wdxaPPIX+Zv82pWG/fZ7Eu3HI="
     ],
-    "getNumProposers": [
-      ""
-    ],
-    "getActionLastIndex": [
-      "Dw=="
-    ],
+    "getNumProposers": [""],
+    "getActionLastIndex": ["Dw=="],
     "getPendingActionFullInfo": [
       "AAAAAQZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAAAAAAMRVNEVFRyYW5zZmVyAAAAAgAAAAxGT1hTWS1iYjg0YjEAAAAF6NSlEAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
       "AAAAAgZmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAAAAAAMRVNEVFRyYW5zZmVyAAAABQAAAAxXRUdMRC1hMjhjNTkAAAAIAWNFeF2KAAAAAAAUc3dhcFRva2Vuc0ZpeGVkSW5wdXQAAAAMV0VHTEQtYTI4YzU5AAAAAQEAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ=",
@@ -40,19 +34,13 @@
   },
   "safeB": {
     "address": "erd1qqqqqqqqqqqqqpgqlyf6f9xptftuaceks5rh0ru9u598mkv6aujqgu4hyw",
-    "getQuorum": [
-      "AQ=="
-    ],
+    "getQuorum": ["AQ=="],
     "getAllBoardMembers": [
       "ZoQrW3e4CsGsmWkeZ2xNnvJ1ilQLMM/MZIH8LduTNkU=",
       "xyBRBQRBxLCwdTyO4/wdxaPPIX+Zv82pWG/fZ7Eu3HI="
     ],
-    "getNumProposers": [
-      ""
-    ],
-    "getActionLastIndex": [
-      "Ag=="
-    ],
+    "getNumProposers": [""],
+    "getActionLastIndex": ["Ag=="],
     "getPendingActionFullInfo": [
       "AAAAAQVmhCtbd7gKwayZaR5nbE2e8nWKVAswz8xkgfwt25M2RQAAAAcjhvJvwQAAAAAAAAAAAAAAAAABI1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ="
     ],
@@ -60,14 +48,8 @@
       "erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3",
       "erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug"
     ],
-    "getActionValidSignerCount_1": [
-      ""
-    ],
-    "quorumReached_1": [
-      ""
-    ],
-    "getActionSigners_1": [
-      "I1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ="
-    ]
+    "getActionValidSignerCount_1": [""],
+    "quorumReached_1": [""],
+    "getActionSigners_1": ["I1xYBuUT8GQgC2OHQpFeRTjvdWxqHxDnEVkJIvOp7yQ="]
   }
 }

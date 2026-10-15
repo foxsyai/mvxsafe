@@ -8,12 +8,17 @@
 
 import { Address } from '@multiversx/sdk-core';
 
-export const ALICE = 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3';
-export const BOB = 'erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug';
-export const CAROL = 'erd1ydw9sph9z0cxggqtvwr59y27g5uw7atvdg03pec3tyyj9uafaujqsx035a';
-export const SAFE = 'erd1qqqqqqqqqqqqqpgqlwavx7tm30262mt7jhwu8qmwaj0z2yzpxezshvnjyy';
+export const ALICE =
+  'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3';
+export const BOB =
+  'erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug';
+export const CAROL =
+  'erd1ydw9sph9z0cxggqtvwr59y27g5uw7atvdg03pec3tyyj9uafaujqsx035a';
+export const SAFE =
+  'erd1qqqqqqqqqqqqqpgqlwavx7tm30262mt7jhwu8qmwaj0z2yzpxezshvnjyy';
 /** The ESDT system smart contract, where tokens are issued and roles are granted. */
-export const ESDT_SYSTEM_SC = 'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
+export const ESDT_SYSTEM_SC =
+  'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
 
 const concat = (...parts: Uint8Array[]) => {
   const total = parts.reduce((n, p) => n + p.length, 0);
@@ -40,13 +45,16 @@ export const bigBytes = (value: bigint): Uint8Array => {
   return Uint8Array.from(Buffer.from(hex, 'hex'));
 };
 
-export const utf8 = (text: string) => Uint8Array.from(Buffer.from(text, 'utf8'));
-const addressBytes = (bech32: string) => Address.newFromBech32(bech32).getPublicKey();
+export const utf8 = (text: string) =>
+  Uint8Array.from(Buffer.from(text, 'utf8'));
+const addressBytes = (bech32: string) =>
+  Address.newFromBech32(bech32).getPublicKey();
 
 // --- nested encodings --------------------------------------------------------
 const nestedBytes = (data: Uint8Array) => concat(u32be(data.length), data);
 const nestedBigUint = (value: bigint) => nestedBytes(bigBytes(value));
-const nestedList = (items: Uint8Array[]) => concat(u32be(items.length), ...items);
+const nestedList = (items: Uint8Array[]) =>
+  concat(u32be(items.length), ...items);
 
 export interface CallData {
   to: string;
@@ -55,9 +63,15 @@ export interface CallData {
   args?: (string | Uint8Array)[];
 }
 
-const asBytes = (v: string | Uint8Array) => (typeof v === 'string' ? utf8(v) : v);
+const asBytes = (v: string | Uint8Array) =>
+  typeof v === 'string' ? utf8(v) : v;
 
-const callActionData = ({ to, egld = 0n, endpoint = '', args = [] }: CallData) =>
+const callActionData = ({
+  to,
+  egld = 0n,
+  endpoint = '',
+  args = []
+}: CallData) =>
   concat(
     addressBytes(to),
     nestedBigUint(egld),
@@ -69,8 +83,21 @@ export type ActionSpec =
   | { kind: 'AddBoardMember' | 'AddProposer' | 'RemoveUser'; address: string }
   | { kind: 'ChangeQuorum'; quorum: number }
   | ({ kind: 'SendTransferExecute' | 'SendAsyncCall' } & CallData)
-  | { kind: 'SCDeployFromSource'; amount?: bigint; source: string; codeMetadata?: Uint8Array; args?: (string | Uint8Array)[] }
-  | { kind: 'SCUpgradeFromSource'; scAddress: string; amount?: bigint; source: string; codeMetadata?: Uint8Array; args?: (string | Uint8Array)[] };
+  | {
+      kind: 'SCDeployFromSource';
+      amount?: bigint;
+      source: string;
+      codeMetadata?: Uint8Array;
+      args?: (string | Uint8Array)[];
+    }
+  | {
+      kind: 'SCUpgradeFromSource';
+      scAddress: string;
+      amount?: bigint;
+      source: string;
+      codeMetadata?: Uint8Array;
+      args?: (string | Uint8Array)[];
+    };
 
 const DISCRIMINANT: Record<ActionSpec['kind'], number> = {
   AddBoardMember: 1,
@@ -123,8 +150,16 @@ export interface PendingSpec {
 }
 
 /** One top-level ActionFullInfo, one entry of getPendingActionFullInfo's answer. */
-export const encodeActionFullInfo = ({ id, action, signers = [] }: PendingSpec) =>
-  concat(u32be(id), encodeAction(action), nestedList(signers.map(addressBytes)));
+export const encodeActionFullInfo = ({
+  id,
+  action,
+  signers = []
+}: PendingSpec) =>
+  concat(
+    u32be(id),
+    encodeAction(action),
+    nestedList(signers.map(addressBytes))
+  );
 
 // --- the network, replaced -----------------------------------------------------
 
@@ -141,7 +176,11 @@ export interface ChainState {
 }
 
 /** Answers a contract query the way the API would, from a described chain state. */
-export const queryAnswer = (state: ChainState, fn: string, args: Uint8Array[] = []): Uint8Array[] => {
+export const queryAnswer = (
+  state: ChainState,
+  fn: string,
+  args: Uint8Array[] = []
+): Uint8Array[] => {
   switch (fn) {
     case 'getQuorum':
       return [bigBytes(BigInt(state.quorum))];
@@ -150,7 +189,14 @@ export const queryAnswer = (state: ChainState, fn: string, args: Uint8Array[] = 
     case 'getNumProposers':
       return [bigBytes(BigInt(state.proposers ?? 0))];
     case 'getActionLastIndex':
-      return [bigBytes(BigInt(state.lastActionIndex ?? Math.max(0, ...state.pending.map((p) => p.id))))];
+      return [
+        bigBytes(
+          BigInt(
+            state.lastActionIndex ??
+              Math.max(0, ...state.pending.map((p) => p.id))
+          )
+        )
+      ];
     case 'getAllBoardMembers':
       return state.board.map(addressBytes);
     case 'getAllProposers':
@@ -162,15 +208,23 @@ export const queryAnswer = (state: ChainState, fn: string, args: Uint8Array[] = 
       return [bigBytes(BigInt(state.roles?.[who] ?? 0))];
     }
     case 'getActionValidSignerCount': {
-      const id = Number(BigInt('0x' + (Buffer.from(args[0]).toString('hex') || '0')));
+      const id = Number(
+        BigInt('0x' + (Buffer.from(args[0]).toString('hex') || '0'))
+      );
       const action = state.pending.find((p) => p.id === id);
-      const valid = (action?.signers ?? []).filter((s) => state.board.includes(s)).length;
+      const valid = (action?.signers ?? []).filter((s) =>
+        state.board.includes(s)
+      ).length;
       return [bigBytes(BigInt(valid))];
     }
     case 'quorumReached': {
-      const id = Number(BigInt('0x' + (Buffer.from(args[0]).toString('hex') || '0')));
+      const id = Number(
+        BigInt('0x' + (Buffer.from(args[0]).toString('hex') || '0'))
+      );
       const action = state.pending.find((p) => p.id === id);
-      const valid = (action?.signers ?? []).filter((s) => state.board.includes(s)).length;
+      const valid = (action?.signers ?? []).filter((s) =>
+        state.board.includes(s)
+      ).length;
       return [valid >= state.quorum ? Uint8Array.of(1) : new Uint8Array(0)];
     }
     default:
@@ -188,11 +242,22 @@ let chain: ChainState = { quorum: 2, board: [ALICE, BOB, CAROL], pending: [] };
 // What the API knows about the tokens these tests use, as the real API does:
 // the fix looks decimals up instead of assuming 18 (added with the DISP fixes,
 // 7 Oct 2026). Collections (anything moved with a nonce) carry a type.
-type Meta = { decimals: number; ticker?: string; name?: string; balance?: string; type?: string };
+type Meta = {
+  decimals: number;
+  ticker?: string;
+  name?: string;
+  balance?: string;
+  type?: string;
+};
 const KNOWN_TOKENS: Record<string, Meta> = {
   'WEGLD-a28c59': { decimals: 18, ticker: 'WEGLD', name: 'WrappedEGLD' },
   'FOXSY-5d5f3e': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy' },
-  'LKMEX-aab910': { decimals: 18, ticker: 'LKMEX', name: 'LockedMEX', type: 'MetaESDT' }
+  'LKMEX-aab910': {
+    decimals: 18,
+    ticker: 'LKMEX',
+    name: 'LockedMEX',
+    type: 'MetaESDT'
+  }
 };
 let tokenMeta: Record<string, Meta> = { ...KNOWN_TOKENS };
 // What the safe HOLDS is only what a test says, never the known tokens above.
@@ -224,26 +289,46 @@ export const networkMock = {
     if (collection) {
       const meta = tokenMeta[collection[1]];
       if (!meta?.type) throw new Error(`${path} answered 404`);
-      return { collection: collection[1], ticker: meta.ticker, type: meta.type, decimals: meta.decimals };
+      return {
+        collection: collection[1],
+        ticker: meta.ticker,
+        type: meta.type,
+        decimals: meta.decimals
+      };
     }
     const token = path.match(/^\/tokens\/([^/?]+)/);
     if (token) {
       const meta = tokenMeta[token[1]];
       if (!meta) throw new Error(`${path} answered 404`);
-      return { identifier: token[1], ticker: meta.ticker ?? token[1].split('-')[0], name: meta.name ?? token[1], decimals: meta.decimals };
+      return {
+        identifier: token[1],
+        ticker: meta.ticker ?? token[1].split('-')[0],
+        name: meta.name ?? token[1],
+        decimals: meta.decimals
+      };
     }
     const accountTokens = path.match(/^\/accounts\/[^/]+\/tokens/);
     if (accountTokens) {
-      return Object.entries(heldTokens).map(([identifier, meta]) => ({ identifier, ticker: meta.ticker ?? identifier.split('-')[0], name: meta.name ?? identifier, balance: meta.balance ?? '0', decimals: meta.decimals }));
+      return Object.entries(heldTokens).map(([identifier, meta]) => ({
+        identifier,
+        ticker: meta.ticker ?? identifier.split('-')[0],
+        name: meta.name ?? identifier,
+        balance: meta.balance ?? '0',
+        decimals: meta.decimals
+      }));
     }
     if (path.startsWith('/economics')) return { price: 0 };
-    if (/^\/accounts\/[^/?]+(\?|$)/.test(path)) return { balance: '0', username: undefined };
+    if (/^\/accounts\/[^/?]+(\?|$)/.test(path))
+      return { balance: '0', username: undefined };
     if (path.match(/\/nfts\/count/)) return 0;
     if (path.match(/\/transactions/)) return [];
     throw new Error(`fixture has no answer for ${path}`);
   },
   networkProvider: {
-    queryContract: async (query: { function: string; arguments?: Uint8Array[] }) => ({
+    queryContract: async (query: {
+      function: string;
+      arguments?: Uint8Array[];
+    }) => ({
       function: query.function,
       returnCode: 'ok',
       returnMessage: '',
@@ -289,12 +374,20 @@ export const useDelay = (views: string[], ms: number) => {
   delayed = { views: new Set(views), ms };
 };
 
-const fromBase64 = (parts: string[]) => parts.map((p) => Uint8Array.from(Buffer.from(p, 'base64')));
+const fromBase64 = (parts: string[]) =>
+  parts.map((p) => Uint8Array.from(Buffer.from(p, 'base64')));
 
-const recordedAnswer = (safe: RecordedSafe, fn: string, args: Uint8Array[]): Uint8Array[] | null => {
+const recordedAnswer = (
+  safe: RecordedSafe,
+  fn: string,
+  args: Uint8Array[]
+): Uint8Array[] | null => {
   if (Array.isArray(safe[fn])) return fromBase64(safe[fn] as string[]);
   if (args.length === 1) {
-    const id = Buffer.from(args[0]).toString('hex') === '' ? 0 : parseInt(Buffer.from(args[0]).toString('hex'), 16);
+    const id =
+      Buffer.from(args[0]).toString('hex') === ''
+        ? 0
+        : parseInt(Buffer.from(args[0]).toString('hex'), 16);
     const keyed = safe[`${fn}_${id}`];
     if (Array.isArray(keyed)) return fromBase64(keyed as string[]);
   }
@@ -302,15 +395,42 @@ const recordedAnswer = (safe: RecordedSafe, fn: string, args: Uint8Array[]): Uin
 };
 
 const queryContractOriginal = networkMock.networkProvider.queryContract;
-networkMock.networkProvider.queryContract = async (query: { function: string; arguments?: Uint8Array[] }) => {
-  if (failing.has(query.function)) throw new Error(failingMessage.replace('{fn}', query.function));
-  if (delayed.views.has(query.function)) await new Promise((r) => setTimeout(r, delayed.ms));
+networkMock.networkProvider.queryContract = async (query: {
+  function: string;
+  arguments?: Uint8Array[];
+}) => {
+  if (failing.has(query.function))
+    throw new Error(failingMessage.replace('{fn}', query.function));
+  if (delayed.views.has(query.function))
+    await new Promise((r) => setTimeout(r, delayed.ms));
   if (recorded) {
-    const parts = recordedAnswer(recorded, query.function, query.arguments ?? []);
-    if (parts) return { function: query.function, returnCode: 'ok', returnMessage: '', returnDataParts: parts };
-    if (query.function === 'userRole') return { function: query.function, returnCode: 'ok', returnMessage: '', returnDataParts: [new Uint8Array(0)] };
+    const parts = recordedAnswer(
+      recorded,
+      query.function,
+      query.arguments ?? []
+    );
+    if (parts)
+      return {
+        function: query.function,
+        returnCode: 'ok',
+        returnMessage: '',
+        returnDataParts: parts
+      };
+    if (query.function === 'userRole')
+      return {
+        function: query.function,
+        returnCode: 'ok',
+        returnMessage: '',
+        returnDataParts: [new Uint8Array(0)]
+      };
     // Recorded before the proposer list was read; those safes had no proposers.
-    if (query.function === 'getAllProposers') return { function: query.function, returnCode: 'ok', returnMessage: '', returnDataParts: [] };
+    if (query.function === 'getAllProposers')
+      return {
+        function: query.function,
+        returnCode: 'ok',
+        returnMessage: '',
+        returnDataParts: []
+      };
     throw new Error(`no recorded answer for ${query.function}`);
   }
   return queryContractOriginal(query);

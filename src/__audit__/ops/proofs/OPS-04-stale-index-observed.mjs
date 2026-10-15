@@ -21,7 +21,9 @@ await cdp.send('Network.enable');
 const docs = [];
 cdp.on('Network.responseReceived', (e) => {
   if (e.type !== 'Document') return;
-  const h = Object.fromEntries(Object.entries(e.response.headers).map(([k, v]) => [k.toLowerCase(), v]));
+  const h = Object.fromEntries(
+    Object.entries(e.response.headers).map(([k, v]) => [k.toLowerCase(), v])
+  );
   docs.push({
     url: e.response.url,
     status: e.response.status,
@@ -44,9 +46,12 @@ if (!first || !second) {
   console.log('could not observe both navigations; nothing proven');
   process.exit(2);
 }
-const stale = second.fromDiskCache && second.status === 200 && second.date === first.date;
+const stale =
+  second.fromDiskCache && second.status === 200 && second.date === first.date;
 if (stale) {
-  console.log('\nBUG (OPS-04): the second visit reused index.html from the disk cache without revalidation');
+  console.log(
+    '\nBUG (OPS-04): the second visit reused index.html from the disk cache without revalidation'
+  );
   process.exit(1);
 }
 console.log('\nOK: the browser went back to the server for index.html');

@@ -8,9 +8,9 @@
  * Run, from the repository root: npx jest src/__audit__/web/WEB-01.test.tsx
  */
 import './fixSetImmediate';
-import React from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { signAction } from 'multisig/actions';
 import {
@@ -24,7 +24,8 @@ import { Safe } from 'pages/Safe/Safe';
 
 const BOARD = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
 const OTHER = 'erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx';
-const TREASURY = 'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
+const TREASURY =
+  'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
 const TEAM = 'erd1qqqqqqqqqqqqqpgqt3kpgt5rfg9mrd3vpu6u6cxx758lkrgz0cqqcy9c32';
 
 jest.mock('lib', () => ({
@@ -90,7 +91,7 @@ const treasuryAction: PendingAction = {
   description: 'Send 1,000 FOXSY to erd1alic...e',
   signerCount: 0,
   signers: [],
-      formerSigners: [],
+  formerSigners: [],
   quorumReached: false
 };
 const teamAction: PendingAction = {
@@ -98,7 +99,7 @@ const teamAction: PendingAction = {
   description: 'Add erd1attac...ker to the board',
   signerCount: 0,
   signers: [],
-      formerSigners: [],
+  formerSigners: [],
   quorumReached: false
 };
 
@@ -113,11 +114,15 @@ beforeEach(() => {
     ])
   );
   teamPending = deferred<PendingAction[]>();
-  (readOverview as jest.Mock).mockImplementation(async (address: string) => overviewOf(address));
+  (readOverview as jest.Mock).mockImplementation(async (address: string) =>
+    overviewOf(address)
+  );
   (readHistory as jest.Mock).mockResolvedValue([]);
   (readUserRole as jest.Mock).mockResolvedValue('BoardMember');
   (readPendingActions as jest.Mock).mockImplementation((address: string) =>
-    address === TREASURY ? Promise.resolve([treasuryAction]) : teamPending.promise
+    address === TREASURY
+      ? Promise.resolve([treasuryAction])
+      : teamPending.promise
   );
   (signAction as jest.Mock).mockClear();
 });
@@ -158,7 +163,11 @@ test('Sign on the Team page never sends an action id that the Team list did not 
   // on screen belongs to Treasury's card. Pressing it must not sign on Team.
   const sign = screen.queryByRole('button', { name: 'Sign' });
   if (sign) fireEvent.click(sign);
-  expect(signAction).not.toHaveBeenCalledWith(expect.anything(), TEAM, expect.anything());
+  expect(signAction).not.toHaveBeenCalledWith(
+    expect.anything(),
+    TEAM,
+    expect.anything()
+  );
 });
 
 test('a re-read timer armed on Treasury does not replace the Team list seconds later', async () => {
@@ -168,12 +177,18 @@ test('a re-read timer armed on Treasury does not replace the Team list seconds l
   // Sign on Treasury. run() then arms re-reads at 4 s, 10 s and 20 s that hold
   // Treasury's loader.
   fireEvent.click(screen.getByRole('button', { name: 'Sign' }));
-  await waitFor(() => expect(signAction).toHaveBeenCalledWith(expect.anything(), TREASURY, 3));
+  await waitFor(() =>
+    expect(signAction).toHaveBeenCalledWith(expect.anything(), TREASURY, 3)
+  );
   // The send is over: before 7 Oct 2026 the buttons came back at once, since
   // then they wait for the network behind a "Sent." notice. Either will do.
   await waitFor(() => {
-    const sign = screen.queryByRole('button', { name: 'Sign' }) as HTMLButtonElement | null;
-    expect(Boolean(screen.queryByText(/^Sent\./)) || Boolean(sign && !sign.disabled)).toBe(true);
+    const sign = screen.queryByRole('button', {
+      name: 'Sign'
+    }) as HTMLButtonElement | null;
+    expect(
+      Boolean(screen.queryByText(/^Sent\./)) || Boolean(sign && !sign.disabled)
+    ).toBe(true);
   });
 
   fireEvent.click(screen.getByText('open Team'));

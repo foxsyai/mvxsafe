@@ -47,7 +47,10 @@ test('wide lookalike letters are folded into ordinary ones', () => {
 });
 
 test('a name that passes itself off as an address is refused', () => {
-  mergeLabels({ [address(1)]: 'erd1qqqqqqqq...lfe98p', [address(2)]: 'ｅｒｄ１ｑｑｑ' });
+  mergeLabels({
+    [address(1)]: 'erd1qqqqqqqq...lfe98p',
+    [address(2)]: 'ｅｒｄ１ｑｑｑ'
+  });
   expect(getLabel(address(1))).toBe('');
   expect(getLabel(address(2))).toBe('');
 });
@@ -61,6 +64,9 @@ test('a word that mixes lookalike letters from two alphabets is refused', () => 
 test('the same rules apply to a typed name and to one already stored', () => {
   setLabel(address(1), 'Dave‮');
   expect(getLabel(address(1))).toBe('Dave');
-  window.localStorage.setItem('mvxsafe.labels', JSON.stringify({ [address(2)]: 'Er‍in' }));
+  window.localStorage.setItem(
+    'mvxsafe.labels',
+    JSON.stringify({ [address(2)]: 'Er‍in' })
+  );
   expect(getLabel(address(2))).toBe('Erin');
 });

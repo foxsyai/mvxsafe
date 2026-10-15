@@ -13,25 +13,25 @@ import {
   unsignAction
 } from 'multisig/actions';
 import { clearCache, explorerUrl, forget } from 'multisig/network';
-import { explainWalletFailure } from 'multisig/walletFailure';
 import {
   ContractInfo,
+  featuredToken,
   formatUsd,
   HistoryEntry,
   PendingAction,
+  readContractInfo,
   readHistory,
   readOverview,
-  readContractInfo,
   readPendingActions,
   readUserRole,
-  SafeOverview,
-  shortAddress,
-  featuredToken
+  SafeOverview
 } from 'multisig/reads';
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
+import { explainWalletFailure } from 'multisig/walletFailure';
 
 const card = 'rounded-xl border border-[#2A2A32] bg-[#121218] p-5';
-const pendingCard = 'rounded-xl border-2 border-[#FF6E0A] bg-[#FF6E0A]/[0.06] p-5';
+const pendingCard =
+  'rounded-xl border-2 border-[#FF6E0A] bg-[#FF6E0A]/[0.06] p-5';
 const label = 'text-xs text-[#6B7280]';
 
 /**
@@ -86,12 +86,17 @@ const SafeView = ({ address }: { address: string }) => {
 
   // Set by the create page: the deploy was just sent, so for a little while an
   // address that cannot be read yet is expected, not a failure.
-  const creating = Boolean((useLocation().state as { creating?: boolean } | null)?.creating);
+  const creating = Boolean(
+    (useLocation().state as { creating?: boolean } | null)?.creating
+  );
   const [waitedFor, setWaitedFor] = useState(0);
 
   const isLoggedIn = useGetIsLoggedIn();
   const account = useGetAccount();
-  const signer = { address: account.address, nonce: Number(account.nonce ?? 0) };
+  const signer = {
+    address: account.address,
+    nonce: Number(account.nonce ?? 0)
+  };
   const canPropose = role === 'BoardMember' || role === 'Proposer';
   const canSign = role === 'BoardMember';
 
@@ -146,12 +151,15 @@ const SafeView = ({ address }: { address: string }) => {
       })
       .catch(() => undefined);
     try {
-      setRole(isLoggedIn ? await readUserRole(address, account.address) : 'None');
+      setRole(
+        isLoggedIn ? await readUserRole(address, account.address) : 'None'
+      );
     } catch {
       // Unknown stays unknown: never "not on this board" for a refused read.
     }
     if (!alive.current) return fresh;
-    const isStale = !fresh && (readBefore.current.overview || readBefore.current.pending);
+    const isStale =
+      !fresh && (readBefore.current.overview || readBefore.current.pending);
     setStale(isStale);
     setLoading(false);
     // Whatever was refused, first read or later, is asked again by itself.
@@ -254,7 +262,8 @@ const SafeView = ({ address }: { address: string }) => {
   // visitor to press Refresh.
   useEffect(() => {
     const again = (event: Event) => {
-      const touched: string[] | undefined = (event as CustomEvent).detail?.addresses;
+      const touched: string[] | undefined = (event as CustomEvent).detail
+        ?.addresses;
       if (touched && !touched.includes(address)) return;
       forget(address);
       load().then((fresh) => {
@@ -294,7 +303,11 @@ const SafeView = ({ address }: { address: string }) => {
       <div className='mt-4 flex flex-wrap items-end justify-between gap-4'>
         <div>
           <h1 className='text-3xl font-semibold text-white'>{title}</h1>
-          <AddressLine address={address} short={false} className='mt-2 text-xs text-[#6B7280]' />
+          <AddressLine
+            address={address}
+            short={false}
+            className='mt-2 text-xs text-[#6B7280]'
+          />
           {isLoggedIn && (
             <p className='mt-2 text-xs text-[#6B7280]'>
               You are{' '}
@@ -328,23 +341,28 @@ const SafeView = ({ address }: { address: string }) => {
       {failed &&
         (creating && waitedFor < 40 ? (
           <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
-            Being created. The network needs a few seconds to run the two transactions; this page
-            fills in by itself as soon as the safe exists.
+            Being created. The network needs a few seconds to run the two
+            transactions; this page fills in by itself as soon as the safe
+            exists.
           </p>
         ) : (
           <p className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>
-            The network has not answered yet; trying again by itself. Nothing on this page can be
-            signed until it has.
+            The network has not answered yet; trying again by itself. Nothing on
+            this page can be signed until it has.
           </p>
         ))}
 
       {!ownsItself && (
         <div className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
           <p>
-            This safe is not in its own hands. Its owner can replace the contract's code alone,
-            without the board:
+            This safe is not in its own hands. Its owner can replace the
+            contract's code alone, without the board:
           </p>
-          <AddressLine address={contract?.ownerAddress ?? ''} short={false} className='mt-2 text-xs' />
+          <AddressLine
+            address={contract?.ownerAddress ?? ''}
+            short={false}
+            className='mt-2 text-xs'
+          />
           {youOwnIt ? (
             <div className='mt-3 flex flex-wrap items-center gap-3'>
               <button
@@ -353,16 +371,19 @@ const SafeView = ({ address }: { address: string }) => {
                 onClick={handOver}
                 className='rounded-lg bg-[#FF6E0A] px-4 py-2 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
               >
-                {handingOver ? 'Waiting for your wallet...' : 'Hand it to itself now'}
+                {handingOver
+                  ? 'Waiting for your wallet...'
+                  : 'Hand it to itself now'}
               </button>
               <span className='text-xs text-[#F87171]/80'>
-                That owner is you. One transaction makes the safe its own owner, after which only
-                the board, by quorum, can change it.
+                That owner is you. One transaction makes the safe its own owner,
+                after which only the board, by quorum, can change it.
               </span>
             </div>
           ) : (
             <p className='mt-2 text-xs text-[#F87171]/80'>
-              Ask that owner to hand the safe to itself before trusting it with funds.
+              Ask that owner to hand the safe to itself before trusting it with
+              funds.
             </p>
           )}
         </div>
@@ -376,15 +397,16 @@ const SafeView = ({ address }: { address: string }) => {
 
       {awaiting && !stale && (
         <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
-          Sent. The network takes a few seconds to process it; this page shows the result by
-          itself.
+          Sent. The network takes a few seconds to process it; this page shows
+          the result by itself.
         </p>
       )}
 
       {stale && !failed && (
         <p className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>
-          The network did not answer just now, so this is what was read a moment ago. It
-          updates by itself; nothing can be signed or carried out until it does.
+          The network did not answer just now, so this is what was read a moment
+          ago. It updates by itself; nothing can be signed or carried out until
+          it does.
         </p>
       )}
 
@@ -398,7 +420,8 @@ const SafeView = ({ address }: { address: string }) => {
           >
             start over
           </button>
-          . If you did sign it, it is on its way and this page will show it by itself.
+          . If you did sign it, it is on its way and this page will show it by
+          itself.
         </p>
       )}
 
@@ -425,7 +448,9 @@ const SafeView = ({ address }: { address: string }) => {
           <p className={label}>{primary ? primary.identifier : 'Tokens'}</p>
           <p className='mt-1 text-2xl font-semibold text-white'>
             {primary
-              ? primary.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })
+              ? primary.amount.toLocaleString('en-US', {
+                  maximumFractionDigits: 0
+                })
               : overview
                 ? tokens.length
                 : '...'}
@@ -447,7 +472,9 @@ const SafeView = ({ address }: { address: string }) => {
             {overview ? (overview.pendingCount ?? '?') : '...'}
           </p>
           <p className='mt-2 text-xs text-[#6B7280]'>
-            {overview ? `${overview.actionCount} in total since deployment` : ''}
+            {overview
+              ? `${overview.actionCount} in total since deployment`
+              : ''}
           </p>
         </div>
       </div>
@@ -459,8 +486,8 @@ const SafeView = ({ address }: { address: string }) => {
         </h2>
         {pending === null ? (
           <p className='mt-3 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
-            The actions waiting for a signature could not be read. Refresh before signing
-            anything.
+            The actions waiting for a signature could not be read. Refresh
+            before signing anything.
           </p>
         ) : pending.length === 0 ? (
           <p className='mt-3 text-sm text-[#6B7280]'>
@@ -471,120 +498,163 @@ const SafeView = ({ address }: { address: string }) => {
             {pending.map((action) => {
               const gas = performGas(action.perform, gasText[action.actionId]);
               return (
-              // Orange, unlike every other card: something is waiting here.
-              <div key={action.actionId} className={pendingCard}>
-                <div className='flex flex-wrap items-center justify-between gap-3'>
-                  {/* Full addresses and identifiers make this long; it wraps
+                // Orange, unlike every other card: something is waiting here.
+                <div key={action.actionId} className={pendingCard}>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    {/* Full addresses and identifiers make this long; it wraps
                       anywhere rather than hiding the part that matters. */}
-                  <p className='min-w-0 flex-1 text-white [overflow-wrap:anywhere]'>
-                    <span className='mr-2 font-mono text-xs text-[#6B7280]'>
-                      #{action.actionId}
-                    </span>
-                    {action.description}
-                  </p>
-                  <span
-                    className={
-                      action.quorumReached
-                        ? 'rounded-full bg-[#FF6E0A]/15 px-3 py-1 text-xs text-[#FF6E0A]'
-                        : 'rounded-full bg-[#2A2A32] px-3 py-1 text-xs text-[#9AA0A6]'
-                    }
-                  >
-                    {action.signerCount} of {overview?.quorum ?? '?'} signatures
-                  </span>
-                </div>
-                {action.signers.length > 0 && (
-                  <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
-                    <span>signed by</span>
-                    {action.signers.map((who) => (
-                      <AddressLine key={who} address={who} className='text-xs text-[#6B7280]' />
-                    ))}
-                  </div>
-                )}
-                {action.formerSigners.length > 0 && (
-                  <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
-                    <span>also signed, but has left the board and does not count:</span>
-                    {action.formerSigners.map((who) => (
-                      <AddressLine key={who} address={who} className='text-xs text-[#6B7280] line-through' />
-                    ))}
-                  </div>
-                )}
-
-                <ActionChecks
-                  action={action}
-                  showGas={isLoggedIn && canSign && action.quorumReached}
-                  gasText={gasText[action.actionId]}
-                  onGasText={(text) => setGasText((current) => ({ ...current, [action.actionId]: text }))}
-                />
-
-                {isLoggedIn && (canSign || canPropose) && (
-                  <div className='mt-3 flex flex-wrap items-center gap-2'>
-                    {canSign &&
-                      (action.signers.includes(account.address) ? (
-                        <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'><button
-                          type='button'
-                          disabled={working !== 0 || proposing || stale || awaiting}
-                          onClick={() =>
-                            run(action.actionId, () =>
-                              unsignAction(signer, address, action.actionId)
-                            )
-                          }
-                          className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
-                        >
-                          Remove my signature
-                        </button></Tip>
-                      ) : (
-                        <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'><button
-                          type='button'
-                          disabled={working !== 0 || proposing || stale || awaiting}
-                          onClick={() =>
-                            run(action.actionId, () =>
-                              signAction(signer, address, action.actionId)
-                            )
-                          }
-                          className='rounded-lg bg-[#FF6E0A] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
-                        >
-                          Sign
-                        </button></Tip>
-                      ))}
-
-                    {action.quorumReached && (
-                      <Tip text='Makes it happen. Enough signatures are in. Any board member may press this.'><button
-                        type='button'
-                        disabled={working !== 0 || proposing || stale || awaiting || Boolean(gas.problem)}
-                        onClick={() =>
-                          run(action.actionId, () =>
-                            performAction(signer, address, action.actionId, gas.budget)
-                          )
-                        }
-                        className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
-                      >
-                        Carry it out
-                      </button></Tip>
-                    )}
-
-                    <Tip
-                      text={
-                        action.signerCount > 0
-                          ? 'Cannot be discarded while it carries signatures. The contract refuses it. Everyone who signed has to remove their signature first.'
-                          : 'Throws the action away without doing it. Nothing moves and nothing is spent.'
+                    <p className='min-w-0 flex-1 text-white [overflow-wrap:anywhere]'>
+                      <span className='mr-2 font-mono text-xs text-[#6B7280]'>
+                        #{action.actionId}
+                      </span>
+                      {action.description}
+                    </p>
+                    <span
+                      className={
+                        action.quorumReached
+                          ? 'rounded-full bg-[#FF6E0A]/15 px-3 py-1 text-xs text-[#FF6E0A]'
+                          : 'rounded-full bg-[#2A2A32] px-3 py-1 text-xs text-[#9AA0A6]'
                       }
                     >
-                      <button
-                        type='button'
-                        disabled={working !== 0 || proposing || stale || awaiting || action.signerCount > 0}
-                        onClick={() =>
-                          run(action.actionId, () =>
-                            discardAction(signer, address, action.actionId)
-                          )
-                        }
-                        className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
-                      >
-                        Discard
-                      </button>
-                    </Tip>
+                      {action.signerCount} of {overview?.quorum ?? '?'}{' '}
+                      signatures
+                    </span>
                   </div>
-                )}
-              </div>
+                  {action.signers.length > 0 && (
+                    <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
+                      <span>signed by</span>
+                      {action.signers.map((who) => (
+                        <AddressLine
+                          key={who}
+                          address={who}
+                          className='text-xs text-[#6B7280]'
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {action.formerSigners.length > 0 && (
+                    <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
+                      <span>
+                        also signed, but has left the board and does not count:
+                      </span>
+                      {action.formerSigners.map((who) => (
+                        <AddressLine
+                          key={who}
+                          address={who}
+                          className='text-xs text-[#6B7280] line-through'
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <ActionChecks
+                    action={action}
+                    showGas={isLoggedIn && canSign && action.quorumReached}
+                    gasText={gasText[action.actionId]}
+                    onGasText={(text) =>
+                      setGasText((current) => ({
+                        ...current,
+                        [action.actionId]: text
+                      }))
+                    }
+                  />
+
+                  {isLoggedIn && (canSign || canPropose) && (
+                    <div className='mt-3 flex flex-wrap items-center gap-2'>
+                      {canSign &&
+                        (action.signers.includes(account.address) ? (
+                          <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'>
+                            <button
+                              type='button'
+                              disabled={
+                                working !== 0 || proposing || stale || awaiting
+                              }
+                              onClick={() =>
+                                run(action.actionId, () =>
+                                  unsignAction(signer, address, action.actionId)
+                                )
+                              }
+                              className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
+                            >
+                              Remove my signature
+                            </button>
+                          </Tip>
+                        ) : (
+                          <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'>
+                            <button
+                              type='button'
+                              disabled={
+                                working !== 0 || proposing || stale || awaiting
+                              }
+                              onClick={() =>
+                                run(action.actionId, () =>
+                                  signAction(signer, address, action.actionId)
+                                )
+                              }
+                              className='rounded-lg bg-[#FF6E0A] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
+                            >
+                              Sign
+                            </button>
+                          </Tip>
+                        ))}
+
+                      {action.quorumReached && (
+                        <Tip text='Makes it happen. Enough signatures are in. Any board member may press this.'>
+                          <button
+                            type='button'
+                            disabled={
+                              working !== 0 ||
+                              proposing ||
+                              stale ||
+                              awaiting ||
+                              Boolean(gas.problem)
+                            }
+                            onClick={() =>
+                              run(action.actionId, () =>
+                                performAction(
+                                  signer,
+                                  address,
+                                  action.actionId,
+                                  gas.budget
+                                )
+                              )
+                            }
+                            className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
+                          >
+                            Carry it out
+                          </button>
+                        </Tip>
+                      )}
+
+                      <Tip
+                        text={
+                          action.signerCount > 0
+                            ? 'Cannot be discarded while it carries signatures. The contract refuses it. Everyone who signed has to remove their signature first.'
+                            : 'Throws the action away without doing it. Nothing moves and nothing is spent.'
+                        }
+                      >
+                        <button
+                          type='button'
+                          disabled={
+                            working !== 0 ||
+                            proposing ||
+                            stale ||
+                            awaiting ||
+                            action.signerCount > 0
+                          }
+                          onClick={() =>
+                            run(action.actionId, () =>
+                              discardAction(signer, address, action.actionId)
+                            )
+                          }
+                          className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
+                        >
+                          Discard
+                        </button>
+                      </Tip>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -627,29 +697,53 @@ const SafeView = ({ address }: { address: string }) => {
             Board and proposers
             <Info text='Board members propose, sign and carry out actions. Proposers can only propose: their actions still need the board. The pencil gives an address a name, kept in this browser and carried in the export file.' />
           </h2>
-          <p className='mt-3 text-xs tracking-wider text-[#6B7280] uppercase'>Board</p>
+          <p className='mt-3 text-xs tracking-wider text-[#6B7280] uppercase'>
+            Board
+          </p>
           <ul className='mt-3 space-y-2'>
             {(overview?.boardMembers ?? []).map((member) => (
-              <li key={member} className='flex items-center justify-between gap-2'>
-                <AddressLine address={member} nameable className='text-xs text-[#9AA0A6]' />
+              <li
+                key={member}
+                className='flex items-center justify-between gap-2'
+              >
+                <AddressLine
+                  address={member}
+                  nameable
+                  className='text-xs text-[#9AA0A6]'
+                />
                 {member === account.address && (
-                  <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>you</span>
+                  <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>
+                    you
+                  </span>
                 )}
               </li>
             ))}
             {!overview && <li className='text-sm text-[#6B7280]'>...</li>}
             {overview && overview.boardMembers.length === 0 && (
-              <li className='text-sm text-[#6B7280]'>No board members found.</li>
+              <li className='text-sm text-[#6B7280]'>
+                No board members found.
+              </li>
             )}
           </ul>
 
-          <p className='mt-5 text-xs tracking-wider text-[#6B7280] uppercase'>Proposers</p>
+          <p className='mt-5 text-xs tracking-wider text-[#6B7280] uppercase'>
+            Proposers
+          </p>
           <ul className='mt-3 space-y-2'>
             {(overview?.proposers ?? []).map((proposer) => (
-              <li key={proposer} className='flex items-center justify-between gap-2'>
-                <AddressLine address={proposer} nameable className='text-xs text-[#9AA0A6]' />
+              <li
+                key={proposer}
+                className='flex items-center justify-between gap-2'
+              >
+                <AddressLine
+                  address={proposer}
+                  nameable
+                  className='text-xs text-[#9AA0A6]'
+                />
                 {proposer === account.address && (
-                  <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>you</span>
+                  <span className='text-[10px] tracking-wider text-[#FF6E0A] uppercase'>
+                    you
+                  </span>
                 )}
               </li>
             ))}
@@ -681,9 +775,13 @@ const SafeView = ({ address }: { address: string }) => {
                 {/* Always the identifier: anyone can send the safe a token
                     with any ticker, and a contract the safe owns pays its
                     fees in whatever token it handles (14 Oct 2026). */}
-                <span className='text-[#9AA0A6] [overflow-wrap:anywhere]'>{token.identifier}</span>
+                <span className='text-[#9AA0A6] [overflow-wrap:anywhere]'>
+                  {token.identifier}
+                </span>
                 <span className='text-white'>
-                  {token.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                  {token.amount.toLocaleString('en-US', {
+                    maximumFractionDigits: 2
+                  })}
                   {token.valueUsd ? (
                     <span className='ml-2 text-xs text-[#6B7280]'>
                       {formatUsd(token.valueUsd)}
@@ -695,7 +793,9 @@ const SafeView = ({ address }: { address: string }) => {
             {overview && overview.worthUsd > 0 && (
               <li className='flex justify-between border-t border-[#2A2A32] pt-2'>
                 <span className='text-[#9AA0A6]'>Total</span>
-                <span className='text-white'>{formatUsd(overview.worthUsd)}</span>
+                <span className='text-white'>
+                  {formatUsd(overview.worthUsd)}
+                </span>
               </li>
             )}
             {overview && overview.nftCount > 0 && (
@@ -724,17 +824,23 @@ const SafeView = ({ address }: { address: string }) => {
               {history.map((entry) => (
                 <tr key={entry.txHash} className='border-t border-[#2A2A32]'>
                   <td className='px-4 py-3 text-[#9AA0A6]'>
-                    {new Date(entry.timestamp * 1000).toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                      timeZone: 'UTC'
-                    })}
+                    {new Date(entry.timestamp * 1000).toLocaleDateString(
+                      'en-GB',
+                      {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        timeZone: 'UTC'
+                      }
+                    )}
                   </td>
                   <td className='px-4 py-3 text-white'>{entry.functionName}</td>
                   <td className='px-4 py-3 font-mono text-xs text-[#6B7280]'>
                     {/* The same names as the board, never the raw address beside them. */}
-                    <AddressLine address={entry.sender} className='text-xs text-[#6B7280]' />
+                    <AddressLine
+                      address={entry.sender}
+                      className='text-xs text-[#6B7280]'
+                    />
                   </td>
                   <td className='px-4 py-3'>
                     <a
@@ -750,7 +856,10 @@ const SafeView = ({ address }: { address: string }) => {
               ))}
               {history.length === 0 && (
                 <tr>
-                  <td colSpan={4} className='px-4 py-6 text-center text-sm text-[#6B7280]'>
+                  <td
+                    colSpan={4}
+                    className='px-4 py-6 text-center text-sm text-[#6B7280]'
+                  >
                     {historyRead ? 'No transactions found.' : 'Loading...'}
                   </td>
                 </tr>

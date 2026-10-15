@@ -25,7 +25,10 @@ test("forgetting one safe re-reads it and keeps every other safe's answers", asy
 
 test('an answer asked for before the transaction landed is not kept after forget', async () => {
   let finish!: (value: string) => void;
-  const before = cached(`pending:${A}`, () => new Promise<string>((resolve) => (finish = resolve)));
+  const before = cached(
+    `pending:${A}`,
+    () => new Promise<string>((resolve) => (finish = resolve))
+  );
   await new Promise((resolve) => setTimeout(resolve, 20));
   forget(A);
   finish('stale');

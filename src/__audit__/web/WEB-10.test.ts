@@ -21,10 +21,15 @@ const freshNetwork = (): Network => {
   return network;
 };
 
-const answer = (status: number) => async () => ({ ok: status < 400, status, json: async () => ({}) });
+const answer = (status: number) => async () => ({
+  ok: status < 400,
+  status,
+  json: async () => ({})
+});
 
 // A syntactically plausible address with "502" inside it.
-const WITH_502 = 'erd1qqqqqqqqqqqqqpgq502haq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
+const WITH_502 =
+  'erd1qqqqqqqqqqqqqpgq502haq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
 
 test('a 404 is not retried just because the address contains "502"', async () => {
   const fetchMock = jest.fn(answer(404));
