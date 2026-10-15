@@ -1,0 +1,89 @@
+# CI for mvxsafe, as foxsyai/foxleague-agent runs it (ported 15 Oct 2026). It runs when a maintainer marks a pull
+# request into main as a merge candidate with the label merge-check (adding a label needs triage or write access),
+# on every push to main and on demand. Opening or updating a pull request starts nothing, so nobody can spend the
+# project's CI minutes by opening pull requests.
+#
+# The pull request's code runs here under the plain pull_request event: GitHub's sandbox for it, with no secret and
+# a read-only token. The result reaches main as the commit status "mvxsafe/ci", posted by the checks GitHub App
+# from report-ci.yml, which runs from main and never sees this code. A pull request that changes this file, or
+# anything else in .github/ or scripts/ci/, fails the agent review: the maintainer checks such a change by hand.
+# A run started by any other label fails unless merge-check is on the pull request (a skipped job would count as
+# passed), and a commit pushed after the run has no result: add merge-check again.
+#
+# What it checks: lint (main is lint-clean since 15 Oct 2026), types, the tests, the build and the reviewer's
+# workspace gate. Deployment of this site is ./deploy.sh to our own droplet; the template's deploy workflows,
+# aimed at MultiversX's own infrastructure, were removed long ago.
+name: CI
+
+on:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Only a merge candidate is tested
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'merge-check') }}
+        run: |
+          if [[ "$HAS_LABEL" != "true" ]]; then
+            echo "::error::This pull request is not marked merge-check: CI runs only when a maintainer adds that label."
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # The merge commit of the event is tested, while the result attaches to the pull request's head: its second
+      # parent must be that head (read from the commit object, which a shallow checkout has).
+      - name: The code tested is the head that gets the result
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          second=$(git cat-file -p HEAD | awk '/^parent /{print $2}' | sed -n 2p)
+          if [[ "$second" != "$HEAD_SHA" ]]; then
+            echo "::error::The pull request changed since merge-check was added: add merge-check again to test its newest commit."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # src/config/index.ts is generated per network and is not in git, so it
+      # has to exist before anything typechecks.
+      - name: Choose the network config
+        run: pnpm copy-mainnet-config
+      - name: Lint and format
+        run: |
+          npx eslint src --max-warnings 0
+          npx prettier --check src
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Tests
+        run: npx jest --silent
+      - name: Build
+        run: npx vite build
+      - name: The reviewer's workspace gate holds
+        run: python3 scripts/ci/test_review_gate.py
