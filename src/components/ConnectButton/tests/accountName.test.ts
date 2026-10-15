@@ -1,6 +1,7 @@
 import { bestFit, fitAddress } from '../AccountName';
 
-const ADDRESS = 'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
+const ADDRESS =
+  'erd1etc22n3wel7s452mkvfy2aw3zpef7lmdkkyv9xcryzssdcpahlnsvnzga0';
 // Seven pixels a character is close enough to the header's 12px type.
 const measure = (text: string) => text.length * 7;
 

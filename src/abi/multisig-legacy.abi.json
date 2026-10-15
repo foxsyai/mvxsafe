@@ -406,9 +406,7 @@
     {
       "name": "deposit",
       "mutability": "mutable",
-      "payableInTokens": [
-        "*"
-      ],
+      "payableInTokens": ["*"],
       "inputs": [],
       "outputs": []
     }

@@ -8,17 +8,23 @@
  * Run, from the repository root: npx jest src/__audit__/web/WEB-08.test.tsx
  */
 import './fixSetImmediate';
-import React from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { signAction } from 'multisig/actions';
-import { readHistory, readOverview, readPendingActions, readUserRole } from 'multisig/reads';
+import {
+  readHistory,
+  readOverview,
+  readPendingActions,
+  readUserRole
+} from 'multisig/reads';
 import { Safe } from 'pages/Safe/Safe';
 
 const BOARD = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
 const OTHER = 'erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx';
-const TREASURY = 'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
+const TREASURY =
+  'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
 
 jest.mock('lib', () => ({
   useGetIsLoggedIn: () => true,
@@ -72,14 +78,30 @@ beforeEach(() => {
     pendingCount: 2
   });
   (readPendingActions as jest.Mock).mockResolvedValue([
-    { actionId: 3, description: 'Send 1,000 FOXSY to erd1alic...e', signerCount: 0, signers: [], formerSigners: [], quorumReached: false },
-    { actionId: 4, description: 'Send 2,000 FOXSY to erd1bob...b', signerCount: 0, signers: [], formerSigners: [], quorumReached: false }
+    {
+      actionId: 3,
+      description: 'Send 1,000 FOXSY to erd1alic...e',
+      signerCount: 0,
+      signers: [],
+      formerSigners: [],
+      quorumReached: false
+    },
+    {
+      actionId: 4,
+      description: 'Send 2,000 FOXSY to erd1bob...b',
+      signerCount: 0,
+      signers: [],
+      formerSigners: [],
+      quorumReached: false
+    }
   ]);
   (readHistory as jest.Mock).mockResolvedValue([]);
   (readUserRole as jest.Mock).mockResolvedValue('BoardMember');
   (signAction as jest.Mock).mockReset();
   // The wallet prompt is open and the visitor has not answered yet.
-  (signAction as jest.Mock).mockImplementation(() => new Promise(() => undefined));
+  (signAction as jest.Mock).mockImplementation(
+    () => new Promise(() => undefined)
+  );
 });
 
 const Harness = () => (

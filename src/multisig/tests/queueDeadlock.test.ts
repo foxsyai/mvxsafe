@@ -9,9 +9,11 @@
  */
 import { readHerotag } from 'multisig/addressBook';
 
-const addresses = Array.from(
-  { length: 10 },
-  (_, at) => `erd1qqqqqqqqqqqqqpgq${String(at).padStart(2, '0')}xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p`.slice(0, 62)
+const addresses = Array.from({ length: 10 }, (_, at) =>
+  `erd1qqqqqqqqqqqqqpgq${String(at).padStart(2, '0')}xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p`.slice(
+    0,
+    62
+  )
 );
 
 beforeEach(() => {
@@ -24,7 +26,9 @@ beforeEach(() => {
 
 test('ten lookups at once all finish: the queue never waits on itself', async () => {
   const all = Promise.all(addresses.map((address) => readHerotag(address)));
-  const stuck = new Promise((resolve) => setTimeout(() => resolve('stuck'), 4000));
+  const stuck = new Promise((resolve) =>
+    setTimeout(() => resolve('stuck'), 4000)
+  );
   const outcome = await Promise.race([all.then(() => 'done'), stuck]);
   expect(outcome).toBe('done');
 }, 10000);

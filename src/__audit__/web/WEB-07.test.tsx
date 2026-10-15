@@ -9,17 +9,23 @@
  * Run, from the repository root: npx jest src/__audit__/web/WEB-07.test.tsx
  */
 import './fixSetImmediate';
-import React from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { proposeSendEgld, signAction } from 'multisig/actions';
-import { readHistory, readOverview, readPendingActions, readUserRole } from 'multisig/reads';
+import {
+  readHistory,
+  readOverview,
+  readPendingActions,
+  readUserRole
+} from 'multisig/reads';
 import { Safe } from 'pages/Safe/Safe';
 
 const BOARD = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
 const OTHER = 'erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx';
-const TREASURY = 'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
+const TREASURY =
+  'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
 
 jest.mock('lib', () => ({
   useGetIsLoggedIn: () => true,
@@ -55,7 +61,8 @@ jest.mock('multisig/reads', () => ({
 }));
 
 // What a lost answer looks like: the POST went out, the reply never came.
-const lostAnswer = () => Promise.reject(new Error('timeout of 6000ms exceeded'));
+const lostAnswer = () =>
+  Promise.reject(new Error('timeout of 6000ms exceeded'));
 
 beforeEach(() => {
   window.localStorage.setItem(
@@ -76,7 +83,14 @@ beforeEach(() => {
     pendingCount: 1
   });
   (readPendingActions as jest.Mock).mockResolvedValue([
-    { actionId: 3, description: 'Send 1,000 FOXSY to erd1alic...e', signerCount: 0, signers: [], formerSigners: [], quorumReached: false }
+    {
+      actionId: 3,
+      description: 'Send 1,000 FOXSY to erd1alic...e',
+      signerCount: 0,
+      signers: [],
+      formerSigners: [],
+      quorumReached: false
+    }
   ]);
   (readHistory as jest.Mock).mockResolvedValue([]);
   (readUserRole as jest.Mock).mockResolvedValue('BoardMember');
@@ -105,7 +119,10 @@ test('after a signing attempt fails, the page reads the chain again within 20 se
   fireEvent.click(screen.getByRole('button', { name: 'Sign' }));
   await screen.findByText(/did not go through|may still have gone through/);
 
-  await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 20_000, interval: 500 });
+  await waitFor(() => expect(reads()).toBeGreaterThan(before), {
+    timeout: 20_000,
+    interval: 500
+  });
 }, 30_000);
 
 test('after a proposal attempt fails, the page reads the chain again within 20 seconds', async () => {
@@ -114,11 +131,18 @@ test('after a proposal attempt fails, the page reads the chain again within 20 s
   const before = reads();
 
   fireEvent.click(screen.getByRole('button', { name: 'Send EGLD' }));
-  fireEvent.change(screen.getByPlaceholderText('erd1...'), { target: { value: OTHER } });
-  fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '1' } });
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), {
+    target: { value: OTHER }
+  });
+  fireEvent.change(screen.getByPlaceholderText('0.00'), {
+    target: { value: '1' }
+  });
   fireEvent.click(screen.getByRole('button', { name: 'Propose' }));
   await screen.findByText(/did not go through|may still have gone through/);
   expect(proposeSendEgld).toHaveBeenCalledTimes(1);
 
-  await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 20_000, interval: 500 });
+  await waitFor(() => expect(reads()).toBeGreaterThan(before), {
+    timeout: 20_000,
+    interval: 500
+  });
 }, 30_000);

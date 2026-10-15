@@ -20,14 +20,25 @@ const to = 'erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug';
 const blanks = ['', '   ', '.', '-'];
 
 describe('TX-05: a blank amount is refused rather than proposed as zero', () => {
-  test.each(blanks)('an EGLD proposal with amount %j is refused', async (amount) => {
-    const attempt = async () => buildProposeEgld(ctx, { to, amount });
-    await expect(attempt()).rejects.toThrow();
-  });
+  test.each(blanks)(
+    'an EGLD proposal with amount %j is refused',
+    async (amount) => {
+      const attempt = async () => buildProposeEgld(ctx, { to, amount });
+      await expect(attempt()).rejects.toThrow();
+    }
+  );
 
-  test.each(blanks)('a token proposal with amount %j is refused', async (amount) => {
-    const attempt = async () =>
-      buildProposeToken(ctx, { to, tokenIdentifier: 'WEGLD-a28c59', amount, decimals: 18 });
-    await expect(attempt()).rejects.toThrow();
-  });
+  test.each(blanks)(
+    'a token proposal with amount %j is refused',
+    async (amount) => {
+      const attempt = async () =>
+        buildProposeToken(ctx, {
+          to,
+          tokenIdentifier: 'WEGLD-a28c59',
+          amount,
+          decimals: 18
+        });
+      await expect(attempt()).rejects.toThrow();
+    }
+  );
 });

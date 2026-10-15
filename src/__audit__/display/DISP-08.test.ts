@@ -12,19 +12,42 @@
 jest.mock('multisig/network', () => require('./fixtures').networkMock);
 
 import { readPendingActions } from 'multisig/reads';
-import { ALICE, BOB, CAROL, SAFE, bigBytes, useChain, useTokens } from './fixtures';
+import {
+  ALICE,
+  bigBytes,
+  BOB,
+  CAROL,
+  SAFE,
+  useChain,
+  useTokens
+} from './fixtures';
 
 const describe1 = async (token: string) => {
   useChain({
-    quorum: 2, board: [ALICE, BOB, CAROL],
-    pending: [{ id: 7, action: { kind: 'SendAsyncCall', to: ALICE, endpoint: 'ESDTTransfer', args: [token, bigBytes(1000000n * 10n ** 18n)] }, signers: [BOB] }]
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    pending: [
+      {
+        id: 7,
+        action: {
+          kind: 'SendAsyncCall',
+          to: ALICE,
+          endpoint: 'ESDTTransfer',
+          args: [token, bigBytes(1000000n * 10n ** 18n)]
+        },
+        signers: [BOB]
+      }
+    ]
   });
   const [action] = await readPendingActions(SAFE);
   return action.description;
 };
 
 beforeEach(() => {
-  useTokens({ 'FOXSY-5d5f3e': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy' }, 'FOXSY-bb84b1': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy' } });
+  useTokens({
+    'FOXSY-5d5f3e': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy' },
+    'FOXSY-bb84b1': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy' }
+  });
 });
 
 test('control: the real FOXSY transfer reads as a FOXSY transfer', async () => {

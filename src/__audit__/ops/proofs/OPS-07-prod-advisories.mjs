@@ -20,18 +20,30 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 // The repository root, four levels above this file.
-const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
-const r = spawnSync('pnpm', ['audit', '--prod', '--json'], { cwd: APP, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(
+  /\/$/,
+  ''
+);
+const r = spawnSync('pnpm', ['audit', '--prod', '--json'], {
+  cwd: APP,
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024
+});
 let report;
 try {
   report = JSON.parse(r.stdout);
 } catch {
-  console.log('pnpm audit returned no JSON (offline?):\n' + (r.stderr || r.stdout).slice(0, 400));
+  console.log(
+    'pnpm audit returned no JSON (offline?):\n' +
+      (r.stderr || r.stdout).slice(0, 400)
+  );
   process.exit(2);
 }
 const counts = report.metadata?.vulnerabilities ?? {};
 console.log('pnpm audit --prod:', JSON.stringify(counts));
-const serious = Object.values(report.advisories ?? {}).filter((a) => a.severity === 'high' || a.severity === 'critical');
+const serious = Object.values(report.advisories ?? {}).filter(
+  (a) => a.severity === 'high' || a.severity === 'critical'
+);
 const byModule = new Map();
 for (const a of serious) {
   const key = `${a.module_name} ${a.findings?.[0]?.version ?? ''}`;
@@ -43,7 +55,11 @@ for (const [mod, titles] of byModule) {
   for (const t of titles) console.log(`    ${t}`);
 }
 if (serious.length) {
-  console.log(`\nBUG (OPS-07): ${serious.length} high/critical advisories against production dependencies`);
+  console.log(
+    `\nBUG (OPS-07): ${serious.length} high/critical advisories against production dependencies`
+  );
   process.exit(1);
 }
-console.log('\nOK: no high or critical advisories against production dependencies');
+console.log(
+  '\nOK: no high or critical advisories against production dependencies'
+);

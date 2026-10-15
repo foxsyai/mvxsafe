@@ -19,12 +19,20 @@ const ctx = {
 const to = 'erd1cus9zpgyg8ztpvr48j8w8lqack3u7gtlnxlum22cdl0k0vfwm3eq54npug';
 
 const attempt = async (amount: string) =>
-  buildProposeToken(ctx, { to, tokenIdentifier: 'WEGLD-a28c59', amount, decimals: 18 });
+  buildProposeToken(ctx, {
+    to,
+    tokenIdentifier: 'WEGLD-a28c59',
+    amount,
+    decimals: 18
+  });
 
 describe('TX-03: a negative token amount is refused, not encoded as zero', () => {
-  test.each(['-1', '-0.5', '-1000'])('a token proposal for %s is refused', async (amount) => {
-    await expect(attempt(amount)).rejects.toThrow();
-  });
+  test.each(['-1', '-0.5', '-1000'])(
+    'a token proposal for %s is refused',
+    async (amount) => {
+      await expect(attempt(amount)).rejects.toThrow();
+    }
+  );
 
   test('toRawAmount refuses a negative amount', () => {
     expect(() => toRawAmount('-1', 18)).toThrow();

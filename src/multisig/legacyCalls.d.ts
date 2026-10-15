@@ -10,24 +10,64 @@ export interface CallContext {
 }
 
 export declare const legacyAbi: any;
-export declare const toRawAmount: (amount: string | number, decimals: number) => bigint;
-export declare const parseAddress: (value: string, what?: string) => import('@multiversx/sdk-core').Address;
-export declare const buildSign: (c: CallContext, actionId: number) => Promise<Transaction>;
-export declare const buildUnsign: (c: CallContext, actionId: number) => Promise<Transaction>;
-export declare const buildPerform: (c: CallContext, actionId: number) => Promise<Transaction>;
-export declare const buildDiscard: (c: CallContext, actionId: number) => Promise<Transaction>;
+export declare const toRawAmount: (
+  amount: string | number,
+  decimals: number
+) => bigint;
+export declare const parseAddress: (
+  value: string,
+  what?: string
+) => import('@multiversx/sdk-core').Address;
+export declare const buildSign: (
+  c: CallContext,
+  actionId: number
+) => Promise<Transaction>;
+export declare const buildUnsign: (
+  c: CallContext,
+  actionId: number
+) => Promise<Transaction>;
+export declare const buildPerform: (
+  c: CallContext,
+  actionId: number
+) => Promise<Transaction>;
+export declare const buildDiscard: (
+  c: CallContext,
+  actionId: number
+) => Promise<Transaction>;
 export declare const buildProposeEgld: (
   c: CallContext,
-  options: { to: string; amount: string; functionName?: string; functionArgs?: string[] }
+  options: {
+    to: string;
+    amount: string;
+    functionName?: string;
+    functionArgs?: string[];
+  }
 ) => Promise<Transaction>;
 export declare const buildProposeToken: (
   c: CallContext,
-  options: { to: string; tokenIdentifier: string; amount: string; decimals: number }
+  options: {
+    to: string;
+    tokenIdentifier: string;
+    amount: string;
+    decimals: number;
+  }
 ) => Promise<Transaction>;
-export declare const buildProposeAddBoardMember: (c: CallContext, address: string) => Promise<Transaction>;
-export declare const buildProposeAddProposer: (c: CallContext, address: string) => Promise<Transaction>;
-export declare const buildProposeRemoveUser: (c: CallContext, address: string) => Promise<Transaction>;
-export declare const buildProposeChangeQuorum: (c: CallContext, newQuorum: number) => Promise<Transaction>;
+export declare const buildProposeAddBoardMember: (
+  c: CallContext,
+  address: string
+) => Promise<Transaction>;
+export declare const buildProposeAddProposer: (
+  c: CallContext,
+  address: string
+) => Promise<Transaction>;
+export declare const buildProposeRemoveUser: (
+  c: CallContext,
+  address: string
+) => Promise<Transaction>;
+export declare const buildProposeChangeQuorum: (
+  c: CallContext,
+  newQuorum: number
+) => Promise<Transaction>;
 
 export interface CodeMetadataFlags {
   upgradeable: boolean;
@@ -92,7 +132,10 @@ export declare const isSystemContract: (address: string) => boolean;
 
 export declare const MULTISIG_CODE_HASH: string;
 export declare const MULTISIG_WASM_SHA256: string;
-export declare const predictSafeAddress: (deployer: string, nonce: number | bigint) => string;
+export declare const predictSafeAddress: (
+  deployer: string,
+  nonce: number | bigint
+) => string;
 export declare const buildDeploySafe: (
   c: Omit<CallContext, 'safe'>,
   options: { bytecode: Uint8Array; quorum: number; board: string[] }

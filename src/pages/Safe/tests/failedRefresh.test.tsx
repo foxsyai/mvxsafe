@@ -6,8 +6,13 @@ import '../../../__audit__/web/fixSetImmediate';
 import '@testing-library/jest-dom';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  readHistory,
+  readOverview,
+  readPendingActions,
+  readUserRole
+} from 'multisig/reads';
 import { Safe } from 'pages/Safe/Safe';
-import { readHistory, readOverview, readPendingActions, readUserRole } from 'multisig/reads';
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
 const ME = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
@@ -15,27 +20,65 @@ const BOB = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
 
 jest.mock('lib', () => ({
   useGetIsLoggedIn: () => true,
-  useGetAccount: () => ({ address: 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx', nonce: 1 })
+  useGetAccount: () => ({
+    address: 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx',
+    nonce: 1
+  })
 }));
 jest.mock('multisig/actions', () => ({
-  signAction: jest.fn(), unsignAction: jest.fn(), performAction: jest.fn(), discardAction: jest.fn(),
-  proposeSendEgld: jest.fn(), proposeSendToken: jest.fn(), proposeAddBoardMember: jest.fn(),
-  proposeAddProposer: jest.fn(), proposeRemoveUser: jest.fn(), proposeChangeQuorum: jest.fn(),
+  signAction: jest.fn(),
+  unsignAction: jest.fn(),
+  performAction: jest.fn(),
+  discardAction: jest.fn(),
+  proposeSendEgld: jest.fn(),
+  proposeSendToken: jest.fn(),
+  proposeAddBoardMember: jest.fn(),
+  proposeAddProposer: jest.fn(),
+  proposeRemoveUser: jest.fn(),
+  proposeChangeQuorum: jest.fn(),
   handOverSafe: jest.fn()
 }));
-jest.mock('components/Address', () => ({ AddressLine: ({ address }: { address: string }) => <span>{address}</span> }));
+jest.mock('components/Address', () => ({
+  AddressLine: ({ address }: { address: string }) => <span>{address}</span>
+}));
 jest.mock('multisig/reads', () => ({
   ...jest.requireActual('multisig/reads'),
-  readOverview: jest.fn(), readPendingActions: jest.fn(), readHistory: jest.fn(), readUserRole: jest.fn(),
-  readContractInfo: jest.fn(async () => ({ ownerAddress: SAFE, codeHash: 'x', exists: true }))
+  readOverview: jest.fn(),
+  readPendingActions: jest.fn(),
+  readHistory: jest.fn(),
+  readUserRole: jest.fn(),
+  readContractInfo: jest.fn(async () => ({
+    ownerAddress: SAFE,
+    codeHash: 'x',
+    exists: true
+  }))
 }));
 
 const good = {
-  address: SAFE, egld: 1, egldRaw: '1000000000000000000', egldPrice: 4, worthUsd: 4, tokens: [], nftCount: 0,
-  quorum: 2, boardMembers: [ME, BOB], proposers: [], proposerCount: 0, actionCount: 2, pendingCount: 1
+  address: SAFE,
+  egld: 1,
+  egldRaw: '1000000000000000000',
+  egldPrice: 4,
+  worthUsd: 4,
+  tokens: [],
+  nftCount: 0,
+  quorum: 2,
+  boardMembers: [ME, BOB],
+  proposers: [],
+  proposerCount: 0,
+  actionCount: 2,
+  pendingCount: 1
 };
-const action = { actionId: 2, description: 'Send 0.1 EGLD to someone', signerCount: 1, signers: [BOB], formerSigners: [], quorumReached: false };
-const refused = () => Promise.reject(new Error('Request failed with status code 429'));
+const action = {
+  actionId: 2,
+  description: 'Send 0.1 EGLD to someone',
+  signerCount: 1,
+  signers: [BOB],
+  formerSigners: [],
+  quorumReached: false
+};
+const refused = () =>
+  Promise.reject(new Error('Request failed with status code 429'));
 
 const open = () =>
   render(
@@ -47,7 +90,10 @@ const open = () =>
   );
 
 beforeEach(() => {
-  window.localStorage.setItem('mvxsafe.savedSafes', JSON.stringify([{ name: 'MVXSAFE', address: SAFE }]));
+  window.localStorage.setItem(
+    'mvxsafe.savedSafes',
+    JSON.stringify([{ name: 'MVXSAFE', address: SAFE }])
+  );
   (readOverview as jest.Mock).mockReset().mockResolvedValue(good);
   (readPendingActions as jest.Mock).mockReset().mockResolvedValue([action]);
   (readHistory as jest.Mock).mockReset().mockResolvedValue([]);
@@ -58,7 +104,9 @@ test('a role that could not be read is never reported as "not on this board"', a
   (readUserRole as jest.Mock).mockImplementation(refused);
   open();
   await screen.findByText('Send 0.1 EGLD to someone');
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
   expect(screen.queryByText(/not on this board/)).toBeNull();
 });
 
@@ -70,9 +118,13 @@ test('a refresh that fails keeps what was read, says so, and blocks signing unti
   (readOverview as jest.Mock).mockImplementation(refused);
   (readPendingActions as jest.Mock).mockImplementation(refused);
   (readUserRole as jest.Mock).mockImplementation(refused);
-  await act(async () => { screen.getByRole('button', { name: 'Refresh' }).click(); });
+  await act(async () => {
+    screen.getByRole('button', { name: 'Refresh' }).click();
+  });
   await waitFor(() => expect(readOverview).toHaveBeenCalledTimes(2));
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
 
   expect(screen.queryByText(/could not be read from the network/)).toBeNull();
   expect(screen.queryByText(/not on this board/)).toBeNull();
@@ -88,13 +140,20 @@ test('a page left stale by a refused read becomes fresh again by itself', async 
 
   (readOverview as jest.Mock).mockImplementation(refused);
   (readPendingActions as jest.Mock).mockImplementation(refused);
-  await act(async () => { screen.getByRole('button', { name: 'Refresh' }).click(); });
+  await act(async () => {
+    screen.getByRole('button', { name: 'Refresh' }).click();
+  });
   await screen.findByText(/did not answer just now/);
 
   // The network answers again; nobody presses anything.
   (readOverview as jest.Mock).mockResolvedValue(good);
-  (readPendingActions as jest.Mock).mockResolvedValue([{ ...action, signerCount: 0, signers: [] }]);
-  await waitFor(() => expect(screen.queryByText(/did not answer just now/)).toBeNull(), { timeout: 9000, interval: 250 });
+  (readPendingActions as jest.Mock).mockResolvedValue([
+    { ...action, signerCount: 0, signers: [] }
+  ]);
+  await waitFor(
+    () => expect(screen.queryByText(/did not answer just now/)).toBeNull(),
+    { timeout: 9000, interval: 250 }
+  );
   expect(screen.getByRole('button', { name: 'Sign' })).not.toBeDisabled();
 }, 15000);
 
@@ -102,7 +161,9 @@ test('a refused history alone does not block signing', async () => {
   (readHistory as jest.Mock).mockImplementation(refused);
   open();
   await screen.findByText('Send 0.1 EGLD to someone');
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
   expect(screen.queryByText(/did not answer just now/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Sign' })).not.toBeDisabled();
 });
@@ -111,9 +172,15 @@ test('a refused history alone does not block signing', async () => {
 // failed showed "unknown", "No board members found", "EGLD 0.0000" and
 // "No transactions found", and never tried again.
 test('a first read that fails invents nothing, says it is still trying, and fills in by itself', async () => {
-  (readOverview as jest.Mock).mockImplementationOnce(refused).mockResolvedValue(good);
-  (readPendingActions as jest.Mock).mockImplementationOnce(refused).mockResolvedValue([action]);
-  (readHistory as jest.Mock).mockImplementationOnce(refused).mockResolvedValue([]);
+  (readOverview as jest.Mock)
+    .mockImplementationOnce(refused)
+    .mockResolvedValue(good);
+  (readPendingActions as jest.Mock)
+    .mockImplementationOnce(refused)
+    .mockResolvedValue([action]);
+  (readHistory as jest.Mock)
+    .mockImplementationOnce(refused)
+    .mockResolvedValue([]);
   open();
   await screen.findByText(/has not answered yet/);
   expect(screen.queryByText(/No board members found/)).toBeNull();
@@ -126,4 +193,3 @@ test('a first read that fails invents nothing, says it is still trying, and fill
   expect(screen.getByText('2 of 2')).toBeInTheDocument();
   expect(screen.queryByText(/has not answered yet/)).toBeNull();
 }, 15000);
-

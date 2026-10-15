@@ -16,23 +16,40 @@ import { readPendingActions } from 'multisig/reads';
 import { ALICE, BOB, CAROL, SAFE, useChain } from './fixtures';
 
 const describe1 = async (pendingAction: any) => {
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], pending: [{ id: 2, action: pendingAction, signers: [BOB] }] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    pending: [{ id: 2, action: pendingAction, signers: [BOB] }]
+  });
   const [action] = await readPendingActions(SAFE);
   return action.description;
 };
 
 test('control: 999 EGLD reads as a transfer of 999 EGLD', async () => {
-  const text = await describe1({ kind: 'SendTransferExecute', to: ALICE, egld: 999n * 10n ** 18n });
+  const text = await describe1({
+    kind: 'SendTransferExecute',
+    to: ALICE,
+    egld: 999n * 10n ** 18n
+  });
   expect(text).toMatch(/^Send 999 EGLD to erd1v6zz/);
 });
 
 test('1,000 EGLD must read as a transfer of 1,000 EGLD', async () => {
-  const text = await describe1({ kind: 'SendTransferExecute', to: ALICE, egld: 1000n * 10n ** 18n });
+  const text = await describe1({
+    kind: 'SendTransferExecute',
+    to: ALICE,
+    egld: 1000n * 10n ** 18n
+  });
   expect(text).toMatch(/^Send 1,000 EGLD to erd1v6zz/);
 });
 
 test('a call carrying 2,500 EGLD must say so', async () => {
-  const text = await describe1({ kind: 'SendAsyncCall', to: ALICE, egld: 2500n * 10n ** 18n, endpoint: 'delegate' });
+  const text = await describe1({
+    kind: 'SendAsyncCall',
+    to: ALICE,
+    egld: 2500n * 10n ** 18n,
+    endpoint: 'delegate'
+  });
   expect(text).toContain('delegate');
   expect(text).toMatch(/2,500 EGLD/);
 });

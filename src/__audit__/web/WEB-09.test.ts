@@ -27,12 +27,17 @@ beforeEach(() => window.localStorage.clear());
 test('a file with 6,000 safes imports in under three seconds', () => {
   const file = JSON.stringify({
     app: 'mvxsafe',
-    safes: Array.from({ length: 6000 }, (_, i) => ({ name: `Safe ${i}`, address: lookalike(i) }))
+    safes: Array.from({ length: 6000 }, (_, i) => ({
+      name: `Safe ${i}`,
+      address: lookalike(i)
+    }))
   });
   const started = Date.now();
   const result = importSafes(file);
   const elapsed = Date.now() - started;
-  // eslint-disable-next-line no-console
-  console.log(`6000 entries: added=${result.added} skipped=${result.skipped} stored=${getAllSafes().length} elapsed=${elapsed} ms`);
+
+  console.log(
+    `6000 entries: added=${result.added} skipped=${result.skipped} stored=${getAllSafes().length} elapsed=${elapsed} ms`
+  );
   expect(elapsed).toBeLessThan(3000);
 }, 120_000);

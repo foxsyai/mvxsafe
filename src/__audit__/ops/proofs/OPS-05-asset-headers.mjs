@@ -17,7 +17,11 @@
 //
 //   node src/__audit__/ops/proofs/OPS-05-asset-headers.mjs
 const HOST = process.env.HOST || 'https://mvxsafe.io';
-const WANT = ['strict-transport-security', 'x-content-type-options', 'content-security-policy'];
+const WANT = [
+  'strict-transport-security',
+  'x-content-type-options',
+  'content-security-policy'
+];
 
 const index = await (await fetch(HOST + '/')).text();
 const js = index.match(/\/assets\/index-[^"]+\.js/)?.[0];
@@ -29,13 +33,17 @@ let bad = 0;
 for (const p of [js, '/mvxsafe-icon.svg']) {
   const r = await fetch(HOST + p, { method: 'HEAD' });
   const missing = WANT.filter((h) => !r.headers.has(h));
-  console.log(`${missing.length ? 'BAD' : 'ok '} HEAD ${HOST}${p} -> ${r.status} ${r.headers.get('content-type')}`);
+  console.log(
+    `${missing.length ? 'BAD' : 'ok '} HEAD ${HOST}${p} -> ${r.status} ${r.headers.get('content-type')}`
+  );
   console.log(`      Cache-Control: ${r.headers.get('cache-control')}`);
   console.log(`      missing: ${missing.length ? missing.join(', ') : 'none'}`);
   if (missing.length) bad++;
 }
 if (bad) {
-  console.log(`\nBUG (OPS-05): ${bad} asset response(s) lost the server-level security headers`);
+  console.log(
+    `\nBUG (OPS-05): ${bad} asset response(s) lost the server-level security headers`
+  );
   process.exit(1);
 }
 console.log('\nOK: assets carry the security headers');

@@ -13,10 +13,25 @@ import { connectAs, renderSafe } from './renderSafe';
 beforeEach(() => {
   connectAs(BOB);
   useTokens({
-    'FOXSY-5d5f3e': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy', balance: '1000000000000000000000000' },
-    'FOXSY-bb84b1': { decimals: 18, ticker: 'FOXSY', name: 'Foxsy', balance: '1000000000000000000000000' }
+    'FOXSY-5d5f3e': {
+      decimals: 18,
+      ticker: 'FOXSY',
+      name: 'Foxsy',
+      balance: '1000000000000000000000000'
+    },
+    'FOXSY-bb84b1': {
+      decimals: 18,
+      ticker: 'FOXSY',
+      name: 'Foxsy',
+      balance: '1000000000000000000000000'
+    }
   });
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], roles: { [BOB]: 2 }, pending: [] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    roles: { [BOB]: 2 },
+    pending: []
+  });
 });
 
 test('control: both tokens are listed in the holdings', async () => {
@@ -34,7 +49,9 @@ test('two different tokens must not be listed under the same bare name', async (
 test('the token select of the propose form must not offer two identical choices', async () => {
   const { container } = await renderSafe(SAFE);
   const select = container.querySelector('select') as HTMLSelectElement;
-  const options = [...select.querySelectorAll('option')].map((option) => option.textContent ?? '');
+  const options = [...select.querySelectorAll('option')].map(
+    (option) => option.textContent ?? ''
+  );
   expect(options).toHaveLength(2);
   // Two different tokens, one label: the proposer cannot tell which FOXSY they are sending.
   expect(new Set(options).size).toBe(options.length);

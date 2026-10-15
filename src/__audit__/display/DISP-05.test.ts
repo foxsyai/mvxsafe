@@ -16,23 +16,39 @@ jest.mock('multisig/network', () => require('./fixtures').networkMock);
 import { readPendingActions } from 'multisig/reads';
 import { ALICE, BOB, CAROL, SAFE, useChain, useRecorded } from './fixtures';
 
-const egldToAlice = { kind: 'SendTransferExecute' as const, to: ALICE, egld: 10n ** 16n };
+const egldToAlice = {
+  kind: 'SendTransferExecute' as const,
+  to: ALICE,
+  egld: 10n ** 16n
+};
 
 test('control: two current board members reach a quorum of two', async () => {
-  useChain({ quorum: 2, board: [ALICE, BOB], pending: [{ id: 4, action: egldToAlice, signers: [ALICE, BOB] }] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB],
+    pending: [{ id: 4, action: egldToAlice, signers: [ALICE, BOB] }]
+  });
   const [action] = await readPendingActions(SAFE);
   expect(action.quorumReached).toBe(true);
 });
 
 test('a signature from a removed board member must not count towards the quorum', async () => {
   // carol signed, then was removed from the board; alice signed too. Valid: 1 of 2.
-  useChain({ quorum: 2, board: [ALICE, BOB], pending: [{ id: 4, action: egldToAlice, signers: [CAROL, ALICE] }] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB],
+    pending: [{ id: 4, action: egldToAlice, signers: [CAROL, ALICE] }]
+  });
   const [action] = await readPendingActions(SAFE);
   expect(action.quorumReached).toBe(false);
 });
 
 test('an action whose only signer left the board must be reported as carrying no valid signature', async () => {
-  useChain({ quorum: 2, board: [ALICE, BOB], pending: [{ id: 4, action: egldToAlice, signers: [CAROL] }] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB],
+    pending: [{ id: 4, action: egldToAlice, signers: [CAROL] }]
+  });
   const [action] = await readPendingActions(SAFE);
   // signerCount is what Safe.tsx uses to disable Discard and to print "N of Q signatures".
   expect(action.signerCount).toBe(0);

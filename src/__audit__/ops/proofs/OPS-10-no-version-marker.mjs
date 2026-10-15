@@ -16,17 +16,26 @@
 const HOST = process.env.HOST || 'https://mvxsafe.io';
 
 const index = await (await fetch(HOST + '/')).text();
-const meta = index.match(/<meta\s+name="(commit|version|build)"\s+content="([^"]+)"/i);
+const meta = index.match(
+  /<meta\s+name="(commit|version|build)"\s+content="([^"]+)"/i
+);
 console.log(`index.html marker: ${meta ? `${meta[1]}=${meta[2]}` : '(none)'}`);
 
 const v = await fetch(HOST + '/version.txt');
 const type = v.headers.get('content-type') || '';
 const body = (await v.text()).trim();
-const versionFile = v.status === 200 && /^text\/plain/.test(type) && /\b[0-9a-f]{7,40}\b/.test(body);
-console.log(`/version.txt: ${v.status} ${type} ${versionFile ? body.slice(0, 60) : '(not a version file: the SPA fallback)'}`);
+const versionFile =
+  v.status === 200 &&
+  /^text\/plain/.test(type) &&
+  /\b[0-9a-f]{7,40}\b/.test(body);
+console.log(
+  `/version.txt: ${v.status} ${type} ${versionFile ? body.slice(0, 60) : '(not a version file: the SPA fallback)'}`
+);
 
 if (!meta && !versionFile) {
-  console.log('\nBUG (OPS-10): the deployed bundle cannot be matched to a commit');
+  console.log(
+    '\nBUG (OPS-10): the deployed bundle cannot be matched to a commit'
+  );
   process.exit(1);
 }
 console.log('\nOK: the live site states what it runs');

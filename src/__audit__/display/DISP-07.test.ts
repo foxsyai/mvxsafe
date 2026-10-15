@@ -12,33 +12,53 @@
 jest.mock('multisig/network', () => require('./fixtures').networkMock);
 
 import { readPendingActions } from 'multisig/reads';
-import { ALICE, BOB, CAROL, SAFE, bigBytes, useChain } from './fixtures';
+import { ALICE, bigBytes, BOB, CAROL, SAFE, useChain } from './fixtures';
 
 const describe1 = async (pendingAction: any) => {
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], pending: [{ id: 6, action: pendingAction, signers: [BOB] }] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    pending: [{ id: 6, action: pendingAction, signers: [BOB] }]
+  });
   const [action] = await readPendingActions(SAFE);
   return action.description;
 };
 
 test('control: a bare ESDTTransfer reads as a transfer', async () => {
   const text = await describe1({
-    kind: 'SendAsyncCall', to: ALICE, endpoint: 'ESDTTransfer', args: ['WEGLD-a28c59', bigBytes(10n ** 17n)]
+    kind: 'SendAsyncCall',
+    to: ALICE,
+    endpoint: 'ESDTTransfer',
+    args: ['WEGLD-a28c59', bigBytes(10n ** 17n)]
   });
   // Since the DISP-06/08 fixes the sentence carries the full identifier and address.
-  expect(text).toBe('Send 0.1 WEGLD-a28c59 to erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3');
+  expect(text).toBe(
+    'Send 0.1 WEGLD-a28c59 to erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3'
+  );
 });
 
 test('an ESDTTransfer that calls a function on arrival must name that function', async () => {
   const text = await describe1({
-    kind: 'SendAsyncCall', to: ALICE, endpoint: 'ESDTTransfer',
-    args: ['WEGLD-a28c59', bigBytes(10n ** 17n), 'swapTokensFixedInput', 'USDC-c76f1f', bigBytes(1n)]
+    kind: 'SendAsyncCall',
+    to: ALICE,
+    endpoint: 'ESDTTransfer',
+    args: [
+      'WEGLD-a28c59',
+      bigBytes(10n ** 17n),
+      'swapTokensFixedInput',
+      'USDC-c76f1f',
+      bigBytes(1n)
+    ]
   });
   expect(text).toContain('swapTokensFixedInput');
 });
 
 test('an ESDTTransfer that also carries EGLD must say so', async () => {
   const text = await describe1({
-    kind: 'SendAsyncCall', to: ALICE, egld: 5n * 10n ** 17n, endpoint: 'ESDTTransfer',
+    kind: 'SendAsyncCall',
+    to: ALICE,
+    egld: 5n * 10n ** 17n,
+    endpoint: 'ESDTTransfer',
     args: ['WEGLD-a28c59', bigBytes(10n ** 17n)]
   });
   expect(text).toMatch(/0\.5 EGLD/);

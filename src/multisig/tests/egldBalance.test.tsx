@@ -19,7 +19,8 @@ jest.mock('multisig/actions', () => ({
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
 const ME = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
-const RECIPIENT = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
+const RECIPIENT =
+  'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
 const ONE_EGLD = '1000000000000000000';
 
 const proposeEgld = async (amount: string) => {
@@ -34,8 +35,12 @@ const proposeEgld = async (amount: string) => {
     />
   );
   fireEvent.click(screen.getByRole('button', { name: 'Send EGLD' }));
-  fireEvent.change(screen.getByPlaceholderText('erd1...'), { target: { value: RECIPIENT } });
-  fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: amount } });
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), {
+    target: { value: RECIPIENT }
+  });
+  fireEvent.change(screen.getByPlaceholderText('0.00'), {
+    target: { value: amount }
+  });
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Propose' }));
   });

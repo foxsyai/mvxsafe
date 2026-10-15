@@ -28,7 +28,10 @@ const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
 await page.addInitScript(() => {
   window.__cspViolations = [];
   document.addEventListener('securitypolicyviolation', (e) => {
-    window.__cspViolations.push({ directive: e.effectiveDirective, blocked: e.blockedURI });
+    window.__cspViolations.push({
+      directive: e.effectiveDirective,
+      blocked: e.blockedURI
+    });
   });
 });
 const consoleErrors = [];
@@ -37,7 +40,10 @@ page.on('console', (m) => {
 });
 
 await page.goto(SITE, { waitUntil: 'networkidle' });
-await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
+await page
+  .getByRole('button', { name: 'Connect', exact: true })
+  .first()
+  .click();
 await page.waitForTimeout(2500);
 
 const offered = await page.evaluate(() => {
@@ -53,27 +59,43 @@ const offered = await page.evaluate(() => {
   return [...seen];
 });
 const suspectsOffered = SUSPECTS.filter((s) => offered.includes(s));
-console.log(`chooser texts: ${offered.filter((t) => /wallet|xportal|ledger|metamask|passkey|extension/i.test(t)).join(' | ')}`);
-console.log(`offered iframe providers: ${suspectsOffered.join(', ') || 'none'}`);
+console.log(
+  `chooser texts: ${offered.filter((t) => /wallet|xportal|ledger|metamask|passkey|extension/i.test(t)).join(' | ')}`
+);
+console.log(
+  `offered iframe providers: ${suspectsOffered.join(', ') || 'none'}`
+);
 
 const blocked = [];
 for (const name of suspectsOffered) {
   await page.evaluate(() => (window.__cspViolations.length = 0));
-  await page.getByText(name, { exact: true }).first().click().catch(() => {});
+  await page
+    .getByText(name, { exact: true })
+    .first()
+    .click()
+    .catch(() => {});
   await page.waitForTimeout(3000);
   const violations = await page.evaluate(() => window.__cspViolations);
-  console.log(`clicked "${name}": CSP violations = ${JSON.stringify(violations)}`);
+  console.log(
+    `clicked "${name}": CSP violations = ${JSON.stringify(violations)}`
+  );
   if (violations.some((v) => v.directive === 'frame-src')) blocked.push(name);
   // back to the chooser for the next one
   await page.goto(SITE, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
+  await page
+    .getByRole('button', { name: 'Connect', exact: true })
+    .first()
+    .click();
   await page.waitForTimeout(2000);
 }
 await browser.close();
 
-if (consoleErrors.length) console.log('console errors: ' + consoleErrors.slice(0, 5).join(' || '));
+if (consoleErrors.length)
+  console.log('console errors: ' + consoleErrors.slice(0, 5).join(' || '));
 if (blocked.length) {
-  console.log(`\nBUG (OPS-09): offered but blocked by frame-src: ${blocked.join(', ')}`);
+  console.log(
+    `\nBUG (OPS-09): offered but blocked by frame-src: ${blocked.join(', ')}`
+  );
   process.exit(1);
 }
 console.log('\nOK: every offered provider can open what it needs');

@@ -145,7 +145,10 @@ export const topEncode = (raw) => {
 const variadic = (items) => VariadicValue.fromItems(...items);
 
 /** EGLD out of the safe, optionally calling a function on the receiving side. */
-export const buildProposeEgld = async (context, { to, amount, functionName, functionArgs = [] }) => {
+export const buildProposeEgld = async (
+  context,
+  { to, amount, functionName, functionArgs = [] }
+) => {
   const raw = toRawAmount(amount, 18);
   // Zero EGLD only makes sense when a function is called with it.
   if (!functionName) positive(raw);
@@ -159,7 +162,9 @@ export const buildProposeEgld = async (context, { to, amount, functionName, func
         functionName
           ? [
               BytesValue.fromUTF8(functionName),
-              ...functionArgs.map((argument) => BytesValue.fromUTF8(String(argument)))
+              ...functionArgs.map((argument) =>
+                BytesValue.fromUTF8(String(argument))
+              )
             ]
           : []
       )
@@ -173,7 +178,10 @@ export const buildProposeEgld = async (context, { to, amount, functionName, func
  * the amount as its arguments. The endpoint name is its own argument, NOT the
  * first entry of the argument list.
  */
-export const buildProposeToken = async (context, { to, tokenIdentifier, amount, decimals }) => {
+export const buildProposeToken = async (
+  context,
+  { to, tokenIdentifier, amount, decimals }
+) => {
   const raw = positive(toRawAmount(amount, decimals));
   return call({
     ...context,
@@ -191,16 +199,32 @@ export const buildProposeToken = async (context, { to, tokenIdentifier, amount, 
 };
 
 export const buildProposeAddBoardMember = (context, address) =>
-  call({ ...context, fn: 'proposeAddBoardMember', args: [parseAddress(address, 'board member')] });
+  call({
+    ...context,
+    fn: 'proposeAddBoardMember',
+    args: [parseAddress(address, 'board member')]
+  });
 
 export const buildProposeAddProposer = (context, address) =>
-  call({ ...context, fn: 'proposeAddProposer', args: [parseAddress(address, 'proposer')] });
+  call({
+    ...context,
+    fn: 'proposeAddProposer',
+    args: [parseAddress(address, 'proposer')]
+  });
 
 export const buildProposeRemoveUser = (context, address) =>
-  call({ ...context, fn: 'proposeRemoveUser', args: [parseAddress(address, 'member')] });
+  call({
+    ...context,
+    fn: 'proposeRemoveUser',
+    args: [parseAddress(address, 'member')]
+  });
 
 export const buildProposeChangeQuorum = (context, newQuorum) =>
-  call({ ...context, fn: 'proposeChangeQuorum', args: [new U32Value(newQuorum)] });
+  call({
+    ...context,
+    fn: 'proposeChangeQuorum',
+    args: [new U32Value(newQuorum)]
+  });
 
 // --- shards, code and code metadata ------------------------------------------
 
@@ -557,7 +581,8 @@ export const buildDeploySource = async (
 // The tests rebuild those two transactions byte for byte.
 
 /** What the chain reports as the code hash of every safe running this build. */
-export const MULTISIG_CODE_HASH = '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=';
+export const MULTISIG_CODE_HASH =
+  '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=';
 
 /** SHA-256 of the same wasm, checkable in a browser before it is deployed. */
 export const MULTISIG_WASM_SHA256 =
@@ -572,29 +597,39 @@ export const MULTISIG_WASM_SHA256 =
 
 /** The address the safe will have, known before anything is sent. */
 export const predictSafeAddress = (deployer, nonce) =>
-  new AddressComputer().computeContractAddress(new Address(deployer), BigInt(nonce)).toBech32();
+  new AddressComputer()
+    .computeContractAddress(new Address(deployer), BigInt(nonce))
+    .toBech32();
 
 /**
  * Deploys a safe: the quorum, then every board member. Upgradeable, readable,
  * payable and payable by contracts, like the existing safes, so tokens can be sent
  * to it from any wallet or contract.
  */
-export const buildDeploySafe = async ({ chainId, sender, nonce }, { bytecode, quorum, board }) => {
+export const buildDeploySafe = async (
+  { chainId, sender, nonce },
+  { bytecode, quorum, board }
+) => {
   const factory = new SmartContractTransactionsFactory({
     config: new TransactionsFactoryConfig({ chainID: chainId })
   });
-  const transaction = await factory.createTransactionForDeploy(new Address(sender), {
-    bytecode,
-    gasLimit: 0n,
-    arguments: [
-      new U32Value(quorum),
-      ...board.map((member) => new AddressValue(parseAddress(member, 'board member')))
-    ],
-    isUpgradeable: true,
-    isReadable: true,
-    isPayable: true,
-    isPayableBySmartContract: true
-  });
+  const transaction = await factory.createTransactionForDeploy(
+    new Address(sender),
+    {
+      bytecode,
+      gasLimit: 0n,
+      arguments: [
+        new U32Value(quorum),
+        ...board.map(
+          (member) => new AddressValue(parseAddress(member, 'board member'))
+        )
+      ],
+      isUpgradeable: true,
+      isReadable: true,
+      isPayable: true,
+      isPayableBySmartContract: true
+    }
+  );
   transaction.nonce = BigInt(nonce);
   return transaction;
 };
@@ -604,13 +639,15 @@ export const buildHandOver = async ({ chainId, sender, nonce, safe }) => {
   const factory = new SmartContractTransactionsFactory({
     config: new TransactionsFactoryConfig({ chainID: chainId })
   });
-  const transaction = await factory.createTransactionForExecute(new Address(sender), {
-    contract: parseAddress(safe, 'safe address'),
-    function: 'ChangeOwnerAddress',
-    gasLimit: 0n,
-    arguments: [new AddressValue(parseAddress(safe, 'safe address'))]
-  });
+  const transaction = await factory.createTransactionForExecute(
+    new Address(sender),
+    {
+      contract: parseAddress(safe, 'safe address'),
+      function: 'ChangeOwnerAddress',
+      gasLimit: 0n,
+      arguments: [new AddressValue(parseAddress(safe, 'safe address'))]
+    }
+  );
   transaction.nonce = BigInt(nonce);
   return transaction;
 };
-

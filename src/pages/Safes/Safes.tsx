@@ -2,11 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
-import { RoleBadge, Role } from 'components/RoleBadge';
+import { Role, RoleBadge } from 'components/RoleBadge';
+import { KnownSafe } from 'config/safes';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import { clearCache, forget } from 'multisig/network';
-import { formatUsd, readCard, readUserRole, SafeCard, shortAddress,
-  featuredToken
+import {
+  featuredToken,
+  formatUsd,
+  readCard,
+  readUserRole,
+  SafeCard
 } from 'multisig/reads';
 import {
   addSafe,
@@ -16,7 +21,6 @@ import {
   isValidSafeAddress,
   removeSafe
 } from 'multisig/savedSafes';
-import { KnownSafe } from 'config/safes';
 
 const panel =
   'rounded-xl border border-[#2A2A32] bg-[#121218] p-5 transition-colors hover:border-[#FF6E0A]/70';
@@ -33,10 +37,14 @@ export const Safes = () => {
     // Only cards that look like cards: storage can hold anything, and one with
     // no token list used to take the whole page down (web audit WEB-05).
     try {
-      const stored = JSON.parse(window.sessionStorage.getItem('mvxsafe.cards') ?? '{}');
+      const stored = JSON.parse(
+        window.sessionStorage.getItem('mvxsafe.cards') ?? '{}'
+      );
       const kept: Record<string, SafeCard> = {};
       if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-        for (const [address, card] of Object.entries(stored as Record<string, any>)) {
+        for (const [address, card] of Object.entries(
+          stored as Record<string, any>
+        )) {
           if (Array.isArray(card?.tokens) && typeof card?.egld === 'number') {
             // Balances may show at once from the last visit; what is pending and
             // for whom may not: a "needs you" from before a signature landed is
@@ -85,39 +93,48 @@ export const Safes = () => {
   // One safe: its role first (one request, it decides the badge and the
   // highlight), then its card. Errors leave that safe without numbers rather
   // than breaking the page for the others.
-  const readOne = useCallback(async (safe: KnownSafe, connectedAddress: string): Promise<boolean> => {
-    if (connectedAddress) {
-      try {
-        const role = (await readUserRole(safe.address, connectedAddress)) as Role;
-        setRoles((current) => ({ ...current, [safe.address]: role }));
-      } catch {
-        // No role shown is the honest answer when it could not be read.
-      }
-    }
-    try {
-      const card = await readCard(safe.address, connectedAddress);
-      setCards((current) => {
-        const next = { ...current, [safe.address]: card };
+  const readOne = useCallback(
+    async (safe: KnownSafe, connectedAddress: string): Promise<boolean> => {
+      if (connectedAddress) {
         try {
-          window.sessionStorage.setItem('mvxsafe.cards', JSON.stringify(next));
+          const role = (await readUserRole(
+            safe.address,
+            connectedAddress
+          )) as Role;
+          setRoles((current) => ({ ...current, [safe.address]: role }));
         } catch {
-          // A browser that refuses storage simply does not remember.
+          // No role shown is the honest answer when it could not be read.
         }
-        return next;
-      });
-      setUnread((current) => {
-        if (!current.has(safe.address)) return current;
-        const next = new Set(current);
-        next.delete(safe.address);
-        return next;
-      });
-      return true;
-    } catch {
-      // Refused or lost: marked, and asked again by itself (see retryLater).
-      setUnread((current) => new Set(current).add(safe.address));
-      return false;
-    }
-  }, []);
+      }
+      try {
+        const card = await readCard(safe.address, connectedAddress);
+        setCards((current) => {
+          const next = { ...current, [safe.address]: card };
+          try {
+            window.sessionStorage.setItem(
+              'mvxsafe.cards',
+              JSON.stringify(next)
+            );
+          } catch {
+            // A browser that refuses storage simply does not remember.
+          }
+          return next;
+        });
+        setUnread((current) => {
+          if (!current.has(safe.address)) return current;
+          const next = new Set(current);
+          next.delete(safe.address);
+          return next;
+        });
+        return true;
+      } catch {
+        // Refused or lost: marked, and asked again by itself (see retryLater).
+        setUnread((current) => new Set(current).add(safe.address));
+        return false;
+      }
+    },
+    []
+  );
 
   // Cards whose read was refused are read again by themselves, 5 s, 10 s,
   // then every 30 s, for as long as the list is open: two cards used to stay
@@ -184,7 +201,8 @@ export const Safes = () => {
       await Promise.all([worker(), worker(), worker()]);
       if (round.current !== mine) return;
       setLoading(false);
-      if (failed.length > 0 && listAlive.current) retryLater(failed, connectedAddress, 0);
+      if (failed.length > 0 && listAlive.current)
+        retryLater(failed, connectedAddress, 0);
     },
     [readOne, retryLater]
   );
@@ -200,7 +218,9 @@ export const Safes = () => {
     // their cached answers and their cards as they are.
     const again = (event: Event) => {
       const touched: string[] = (event as CustomEvent).detail?.addresses ?? [];
-      for (const safe of safes.filter((candidate) => touched.includes(candidate.address))) {
+      for (const safe of safes.filter((candidate) =>
+        touched.includes(candidate.address)
+      )) {
         forget(safe.address);
         readOne(safe, isLoggedIn ? connected : '');
       }
@@ -272,8 +292,8 @@ export const Safes = () => {
           </p>
           <h1 className='mt-2 text-3xl font-semibold text-white'>Safes</h1>
           <p className='mt-1 text-sm text-[#9AA0A6]'>
-            Add any MultiversX multisig to watch it. Connect your wallet and the ones
-            you sit on the board of become yours to act on.
+            Add any MultiversX multisig to watch it. Connect your wallet and the
+            ones you sit on the board of become yours to act on.
           </p>
         </div>
         <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:shrink-0 sm:items-center'>
@@ -302,7 +322,9 @@ export const Safes = () => {
             <button
               type='button'
               onClick={handleRefresh}
-              aria-label={loading ? `Reading ${done} of ${safes.length} safes` : undefined}
+              aria-label={
+                loading ? `Reading ${done} of ${safes.length} safes` : undefined
+              }
               className='w-full rounded-lg border border-[#2A2A32] px-3 py-2 text-center text-sm whitespace-nowrap text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white sm:w-auto sm:min-w-[9.5rem]'
             >
               {loading ? (
@@ -322,8 +344,9 @@ export const Safes = () => {
         <div className='mt-6 rounded-xl border border-dashed border-[#2A2A32] bg-[#121218] p-8 text-center'>
           <p className='text-white'>No safes yet.</p>
           <p className='mx-auto mt-2 max-w-md text-sm text-[#6B7280]'>
-            Add a multisig contract address below and it appears here, stored in this
-            browser only. Nothing is sent anywhere and no account is needed.
+            Add a multisig contract address below and it appears here, stored in
+            this browser only. Nothing is sent anywhere and no account is
+            needed.
           </p>
         </div>
       )}
@@ -346,20 +369,30 @@ export const Safes = () => {
                 }
               }}
               className={`relative cursor-pointer ${
-                roles[safe.address] === 'BoardMember' || roles[safe.address] === 'Proposer'
+                roles[safe.address] === 'BoardMember' ||
+                roles[safe.address] === 'Proposer'
                   ? panelMine
                   : panel
               }`}
             >
               <div>
-                <h2 className='pr-7 text-lg font-semibold text-white'>{safe.name}</h2>
+                <h2 className='pr-7 text-lg font-semibold text-white'>
+                  {safe.name}
+                </h2>
 
                 {/* The badge sits on the address line, hard against the right
                     edge, so the X can live in the corner without pushing it out
                     of alignment. */}
                 <div className='mt-1 flex flex-wrap items-center justify-between gap-2'>
-                  <AddressLine address={safe.address} className='text-xs text-[#6B7280]' />
-                  <RoleBadge role={isLoggedIn ? (roles[safe.address] ?? 'Unknown') : 'None'} />
+                  <AddressLine
+                    address={safe.address}
+                    className='text-xs text-[#6B7280]'
+                  />
+                  <RoleBadge
+                    role={
+                      isLoggedIn ? (roles[safe.address] ?? 'Unknown') : 'None'
+                    }
+                  />
                 </div>
 
                 {/* Top right, like closing a window. */}
@@ -373,7 +406,13 @@ export const Safes = () => {
                   aria-label='Remove this safe from the list'
                   className='absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded text-[#6B7280] hover:bg-[#FF6E0A]/10 hover:text-[#FF6E0A]'
                 >
-                  <svg width='13' height='13' viewBox='0 0 24 24' fill='none' aria-hidden>
+                  <svg
+                    width='13'
+                    height='13'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    aria-hidden
+                  >
                     <path
                       d='M6 6l12 12M18 6L6 18'
                       stroke='currentColor'
@@ -419,7 +458,9 @@ export const Safes = () => {
               </dl>
 
               {unread.has(safe.address) && (
-                <p className='mt-3 text-xs text-[#FBBF24]'>Not read yet, trying again...</p>
+                <p className='mt-3 text-xs text-[#FBBF24]'>
+                  Not read yet, trying again...
+                </p>
               )}
 
               {/* What is waiting, and for whom: at a glance, without opening the safe. */}
@@ -445,7 +486,8 @@ export const Safes = () => {
                         isLoggedIn &&
                         (card.needsViewer ?? 0) > 0 && (
                           <span className='text-xs text-[#FF6E0A]'>
-                            {card.needsViewer} need{card.needsViewer === 1 ? 's' : ''} you
+                            {card.needsViewer} need
+                            {card.needsViewer === 1 ? 's' : ''} you
                           </span>
                         )}
                       {(card.readyCount ?? 0) > 0 && (
@@ -457,11 +499,12 @@ export const Safes = () => {
                   </div>
                   <div className='text-right'>
                     <dt className='text-xs text-[#6B7280]'>Proposed so far</dt>
-                    <dd className='mt-1 text-white'>{card.actionCount ?? '...'}</dd>
+                    <dd className='mt-1 text-white'>
+                      {card.actionCount ?? '...'}
+                    </dd>
                   </div>
                 </dl>
               ) : null}
-
             </div>
           );
         })}
@@ -503,7 +546,9 @@ export const Safes = () => {
 
       <div className='mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
         <div>
-          <h2 className='text-sm font-semibold text-white'>Create a new safe</h2>
+          <h2 className='text-sm font-semibold text-white'>
+            Create a new safe
+          </h2>
           <p className='mt-1 text-xs text-[#6B7280]'>
             Choose the board and how many signatures it needs.
           </p>

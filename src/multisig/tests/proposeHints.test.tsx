@@ -5,13 +5,16 @@
 import '../../__audit__/web/fixSetImmediate';
 import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import * as actions from 'multisig/actions';
 import { ProposePanel } from 'components/Propose/ProposePanel';
+import * as actions from 'multisig/actions';
 
 jest.mock('multisig/actions', () => ({
-  proposeSendToken: jest.fn(async () => 'session'), proposeSendEgld: jest.fn(async () => 'session'),
-  proposeAddBoardMember: jest.fn(async () => 'session'), proposeAddProposer: jest.fn(async () => 'session'),
-  proposeRemoveUser: jest.fn(async () => 'session'), proposeChangeQuorum: jest.fn(async () => 'session')
+  proposeSendToken: jest.fn(async () => 'session'),
+  proposeSendEgld: jest.fn(async () => 'session'),
+  proposeAddBoardMember: jest.fn(async () => 'session'),
+  proposeAddProposer: jest.fn(async () => 'session'),
+  proposeRemoveUser: jest.fn(async () => 'session'),
+  proposeChangeQuorum: jest.fn(async () => 'session')
 }));
 
 const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
@@ -38,21 +41,32 @@ const panel = (extra: Record<string, unknown> = {}) =>
 test('making a board member a proposer says, before proposing, that it takes them off the board', () => {
   panel();
   fireEvent.click(screen.getByRole('button', { name: 'Add proposer' }));
-  fireEvent.change(screen.getByPlaceholderText('erd1...'), { target: { value: SPARE } });
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), {
+    target: { value: SPARE }
+  });
   expect(screen.getByText(/takes them off the board/)).toBeInTheDocument();
 });
 
 test('a quorum equal to the board warns while choosing it', () => {
   panel();
   fireEvent.click(screen.getByRole('button', { name: 'Change quorum' }));
-  fireEvent.change(screen.getByPlaceholderText('4'), { target: { value: '4' } });
-  expect(screen.getByText(/one lost wallet would lock the safe/)).toBeInTheDocument();
+  fireEvent.change(screen.getByPlaceholderText('4'), {
+    target: { value: '4' }
+  });
+  expect(
+    screen.getByText(/one lost wallet would lock the safe/)
+  ).toBeInTheDocument();
 });
 
 test('a disabled Propose says why, next to the button', () => {
-  panel({ disabled: true, disabledReason: 'Waiting for the network to confirm the last transaction.' });
+  panel({
+    disabled: true,
+    disabledReason: 'Waiting for the network to confirm the last transaction.'
+  });
   expect(screen.getByRole('button', { name: 'Propose' })).toBeDisabled();
-  expect(screen.getByText('Waiting for the network to confirm the last transaction.')).toBeInTheDocument();
+  expect(
+    screen.getByText('Waiting for the network to confirm the last transaction.')
+  ).toBeInTheDocument();
 });
 
 // Asked in the mainnet test on 7 Oct 2026: removing an address that holds no
@@ -61,7 +75,9 @@ test('a change that would do nothing is flagged as a warning while typing it', (
   panel();
   fireEvent.click(screen.getByRole('button', { name: 'Remove member' }));
   fireEvent.change(screen.getByPlaceholderText('erd1...'), {
-    target: { value: 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3' }
+    target: {
+      value: 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3'
+    }
   });
   const note = screen.getByText(/this changes nothing/);
   expect(note.className).toMatch(/FBBF24/);
@@ -69,12 +85,19 @@ test('a change that would do nothing is flagged as a warning while typing it', (
 
 // Decided in the mainnet test on 7 Oct 2026: what changes nothing, or what the
 // contract would refuse at "Carry it out", is refused before any transaction.
-const STRANGER = 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3';
-const attempt = async (tab: string, address: string, extra: Record<string, unknown> = {}) => {
+const STRANGER =
+  'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3';
+const attempt = async (
+  tab: string,
+  address: string,
+  extra: Record<string, unknown> = {}
+) => {
   jest.clearAllMocks();
   const view = panel(extra);
   fireEvent.click(screen.getByRole('button', { name: tab }));
-  fireEvent.change(screen.getByPlaceholderText('erd1...'), { target: { value: address } });
+  fireEvent.change(screen.getByPlaceholderText('erd1...'), {
+    target: { value: address }
+  });
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Propose' }));
   });
@@ -98,16 +121,21 @@ test('adding a board member to the board, or a proposer as a proposer, is refuse
 });
 
 test('a removal the contract would refuse for the quorum is refused here first', async () => {
-  await attempt('Remove member', CAROL, { boardMembers: [ALICE, BOB, CAROL], quorum: 3, boardSize: 3 });
+  await attempt('Remove member', CAROL, {
+    boardMembers: [ALICE, BOB, CAROL],
+    quorum: 3,
+    boardSize: 3
+  });
   expect(actions.proposeRemoveUser).not.toHaveBeenCalled();
   expect(screen.getByText(/lower the quorum first/i)).toBeInTheDocument();
 });
 
 test('control: removing a real proposer, and demoting a board member when the quorum allows it, are proposed', async () => {
-  const first = await attempt('Remove member', STRANGER, { proposers: [STRANGER] });
+  const first = await attempt('Remove member', STRANGER, {
+    proposers: [STRANGER]
+  });
   expect(actions.proposeRemoveUser).toHaveBeenCalledTimes(1);
   first.unmount();
   await attempt('Add proposer', SPARE);
   expect(actions.proposeAddProposer).toHaveBeenCalledTimes(1);
 });
-

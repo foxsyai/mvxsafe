@@ -10,7 +10,8 @@
 import { Address } from '@multiversx/sdk-core';
 import { importSafes, isValidSafeAddress } from 'multisig/savedSafes';
 
-const TREASURY = 'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
+const TREASURY =
+  'erd1qqqqqqqqqqqqqpgq04xhaq7ncqt53sj33mqxak9rmrxf8ku2aggslfe98p';
 // The Treasury address with its last character changed: the checksum no longer matches.
 const TYPO = TREASURY.slice(0, -1) + 'q';
 
@@ -29,6 +30,9 @@ test('characters outside the bech32 alphabet are refused', () => {
 });
 
 test('an import file with a mistyped address reports it as skipped, not added', () => {
-  const file = JSON.stringify({ app: 'mvxsafe', safes: [{ name: 'Treasury', address: TYPO }] });
+  const file = JSON.stringify({
+    app: 'mvxsafe',
+    safes: [{ name: 'Treasury', address: TYPO }]
+  });
   expect(importSafes(file)).toEqual({ added: 0, skipped: 1 });
 });

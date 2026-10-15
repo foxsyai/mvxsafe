@@ -42,7 +42,9 @@ const CHAIN = 'D';
 const api = new ApiNetworkProvider(API, { clientName: 'mvxsafe-audit-UPG-01' });
 const KEYS = `${homedir()}/.mvxsafe-devnet`;
 const WASM = new Uint8Array(
-  readFileSync(new URL('../../../../public/contracts/multisig.wasm', import.meta.url))
+  readFileSync(
+    new URL('../../../../public/contracts/multisig.wasm', import.meta.url)
+  )
 );
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -51,7 +53,8 @@ const carol = Account.newFromMnemonic(
 );
 const CAROL = carol.address.toBech32();
 
-const nonceOf = async (address) => Number((await api.getAccount(address)).nonce);
+const nonceOf = async (address) =>
+  Number((await api.getAccount(address)).nonce);
 
 const sendAndWait = async (transaction, label, { budget } = {}) => {
   transaction.nonce = BigInt(await nonceOf(carol.address));
@@ -62,9 +65,11 @@ const sendAndWait = async (transaction, label, { budget } = {}) => {
   for (let at = 0; at < 120; at++) {
     await sleep(2500);
     try {
-      const raw = await (await fetch(
-        `${API}/transactions/${hash}?withScResults=true&withLogs=true`
-      )).json();
+      const raw = await (
+        await fetch(
+          `${API}/transactions/${hash}?withScResults=true&withLogs=true`
+        )
+      ).json();
       if (raw.status === 'pending' || raw.pendingResults) continue;
       onNetwork = raw;
       break;
@@ -75,7 +80,9 @@ const sendAndWait = async (transaction, label, { budget } = {}) => {
   const events = (onNetwork?.logs?.events ?? []).map((e) => e.identifier);
   for (const r of onNetwork?.results ?? [])
     for (const e of r.logs?.events ?? []) events.push(e.identifier);
-  const failedInside = events.some((n) => /signalError|internalVMErrors/.test(n));
+  const failedInside = events.some((n) =>
+    /signalError|internalVMErrors/.test(n)
+  );
   const ok = onNetwork?.status === 'success' && !failedInside;
   console.log(
     `  ${ok ? 'ok  ' : 'FAIL'}  ${label}  ${hash}  gas ${Number(transaction.gasLimit).toLocaleString('en-US')}`
@@ -143,8 +150,12 @@ const run = async () => {
 
   // Hand T to S, so S owns it and may upgrade it. buildHandOver hands a contract
   // to itself; here T must go to S, so build ChangeOwnerAddress(S) on T directly.
-  const { Address, SmartContractTransactionsFactory, TransactionsFactoryConfig, AddressValue } =
-    await import('@multiversx/sdk-core');
+  const {
+    Address,
+    SmartContractTransactionsFactory,
+    TransactionsFactoryConfig,
+    AddressValue
+  } = await import('@multiversx/sdk-core');
   const factory = new SmartContractTransactionsFactory({
     config: new TransactionsFactoryConfig({ chainID: CHAIN })
   });
@@ -158,7 +169,9 @@ const run = async () => {
   if (!rHand.ok) throw new Error('handover failed');
 
   const before = await facts(TARGET);
-  console.log(`  T before: owner ${before.owner} metadata ${before.metadata} codeHash ${before.codeHash}`);
+  console.log(
+    `  T before: owner ${before.owner} metadata ${before.metadata} codeHash ${before.codeHash}`
+  );
   if (before.owner !== SAFE) throw new Error('S does not own T after handover');
 
   // S votes a call to T: the built-in upgradeContract, same code, metadata 0500
@@ -166,7 +179,12 @@ const run = async () => {
   // "Call upgradeContract(0x..., 1,280) on <T>" with green checks.
   const newMetadata = '0500';
   const propose = await buildProposeCall(
-    { chainId: CHAIN, sender: CAROL, nonce: await nonceOf(carol.address), safe: SAFE },
+    {
+      chainId: CHAIN,
+      sender: CAROL,
+      nonce: await nonceOf(carol.address),
+      safe: SAFE
+    },
     {
       to: TARGET,
       functionName: 'upgradeContract',
@@ -183,9 +201,11 @@ const run = async () => {
     try {
       id = actionIdFrom(
         attempt
-          ? await (await fetch(
-              `${API}/transactions/${rProp.onNetwork.txHash}?withScResults=true&withLogs=true`
-            )).json()
+          ? await (
+              await fetch(
+                `${API}/transactions/${rProp.onNetwork.txHash}?withScResults=true&withLogs=true`
+              )
+            ).json()
           : rProp.onNetwork
       );
     } catch (e) {
@@ -196,23 +216,37 @@ const run = async () => {
   console.log(`  action #${id}`);
 
   const sign = await buildSign(
-    { chainId: CHAIN, sender: CAROL, nonce: await nonceOf(carol.address), safe: SAFE },
+    {
+      chainId: CHAIN,
+      sender: CAROL,
+      nonce: await nonceOf(carol.address),
+      safe: SAFE
+    },
     id
   );
   const rSign = await sendAndWait(sign, `sign #${id}`);
   if (!rSign.ok) throw new Error('sign failed');
 
   const perform = await buildPerform(
-    { chainId: CHAIN, sender: CAROL, nonce: await nonceOf(carol.address), safe: SAFE },
+    {
+      chainId: CHAIN,
+      sender: CAROL,
+      nonce: await nonceOf(carol.address),
+      safe: SAFE
+    },
     id
   );
   // A generous budget; this proof is about whether it EXECUTES, not the app's
   // gas rule. Well under the 600M ceiling.
-  const rPerf = await sendAndWait(perform, `carry out #${id}`, { budget: 200000000n });
+  const rPerf = await sendAndWait(perform, `carry out #${id}`, {
+    budget: 200000000n
+  });
 
   await sleep(6000);
   const after = await facts(TARGET);
-  console.log(`  T after:  owner ${after.owner} metadata ${after.metadata} codeHash ${after.codeHash}`);
+  console.log(
+    `  T after:  owner ${after.owner} metadata ${after.metadata} codeHash ${after.codeHash}`
+  );
 
   const changed = before.metadata !== after.metadata;
   console.log('');

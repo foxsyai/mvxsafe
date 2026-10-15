@@ -16,13 +16,17 @@
 const DOMAIN = process.env.DOMAIN || 'mvxsafe.io';
 
 const lookup = async (name) => {
-  const r = await fetch(`https://dns.google/resolve?name=${name}&type=CAA`, { headers: { accept: 'application/dns-json' } });
+  const r = await fetch(`https://dns.google/resolve?name=${name}&type=CAA`, {
+    headers: { accept: 'application/dns-json' }
+  });
   const j = await r.json();
   return (j.Answer || []).filter((a) => a.type === 257).map((a) => a.data);
 };
 
 const records = await lookup(DOMAIN);
-console.log(`CAA ${DOMAIN}: ${records.length ? records.join(' ; ') : '(none)'}`);
+console.log(
+  `CAA ${DOMAIN}: ${records.length ? records.join(' ; ') : '(none)'}`
+);
 if (!records.length) {
   console.log('\nBUG (OPS-11): any CA may issue for the domain');
   process.exit(1);

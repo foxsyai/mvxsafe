@@ -14,19 +14,34 @@ jest.mock('multisig/network', () => require('./fixtures').networkMock);
 
 import { Address } from '@multiversx/sdk-core';
 import { readPendingActions } from 'multisig/reads';
-import { ALICE, BOB, CAROL, SAFE, bigBytes, useChain, useRecorded } from './fixtures';
+import {
+  ALICE,
+  bigBytes,
+  BOB,
+  CAROL,
+  SAFE,
+  useChain,
+  useRecorded
+} from './fixtures';
 
 const pk = (bech32: string) => Address.newFromBech32(bech32).getPublicKey();
 
 const describe1 = async (pendingAction: any) => {
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], pending: [{ id: 3, action: pendingAction, signers: [BOB] }] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    pending: [{ id: 3, action: pendingAction, signers: [BOB] }]
+  });
   const [action] = await readPendingActions(SAFE);
   return action.description;
 };
 
 test('control: a plain ESDTTransfer names recipient, token and amount', async () => {
   const text = await describe1({
-    kind: 'SendAsyncCall', to: CAROL, endpoint: 'ESDTTransfer', args: ['WEGLD-a28c59', bigBytes(10n ** 17n)]
+    kind: 'SendAsyncCall',
+    to: CAROL,
+    endpoint: 'ESDTTransfer',
+    args: ['WEGLD-a28c59', bigBytes(10n ** 17n)]
   });
   expect(text).toContain('erd1ydw9');
   expect(text).toContain('WEGLD');
@@ -35,8 +50,16 @@ test('control: a plain ESDTTransfer names recipient, token and amount', async ()
 
 test('MultiESDTNFTTransfer to the safe itself must name the real recipient, the token and the amount', async () => {
   const text = await describe1({
-    kind: 'SendAsyncCall', to: SAFE, endpoint: 'MultiESDTNFTTransfer',
-    args: [pk(CAROL), bigBytes(1n), 'WEGLD-a28c59', bigBytes(0n), bigBytes(10n ** 17n)]
+    kind: 'SendAsyncCall',
+    to: SAFE,
+    endpoint: 'MultiESDTNFTTransfer',
+    args: [
+      pk(CAROL),
+      bigBytes(1n),
+      'WEGLD-a28c59',
+      bigBytes(0n),
+      bigBytes(10n ** 17n)
+    ]
   });
   expect(text).toContain('erd1ydw9'); // carol, who receives the tokens
   expect(text).toContain('WEGLD');
@@ -45,8 +68,15 @@ test('MultiESDTNFTTransfer to the safe itself must name the real recipient, the 
 
 test('ESDTNFTTransfer to the safe itself must name the recipient, the token, its nonce and the amount', async () => {
   const text = await describe1({
-    kind: 'SendAsyncCall', to: SAFE, endpoint: 'ESDTNFTTransfer',
-    args: ['LKMEX-aab910', bigBytes(4321n), bigBytes(1000n * 10n ** 18n), pk(CAROL)]
+    kind: 'SendAsyncCall',
+    to: SAFE,
+    endpoint: 'ESDTNFTTransfer',
+    args: [
+      'LKMEX-aab910',
+      bigBytes(4321n),
+      bigBytes(1000n * 10n ** 18n),
+      pk(CAROL)
+    ]
   });
   expect(text).toContain('erd1ydw9');
   expect(text).toContain('LKMEX');

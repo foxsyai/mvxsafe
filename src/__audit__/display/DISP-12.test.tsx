@@ -27,7 +27,12 @@ const renderWithoutWaiting = () =>
 
 test('control: once the role is known, a board member is told so', async () => {
   connectAs(BOB);
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], roles: { [BOB]: 2 }, pending: [] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    roles: { [BOB]: 2 },
+    pending: []
+  });
   renderWithoutWaiting();
   await screen.findByText('Refresh', {}, { timeout: 8000 });
   expect(screen.getByText(/a board member here/)).toBeTruthy();
@@ -35,7 +40,12 @@ test('control: once the role is known, a board member is told so', async () => {
 
 test('while the role is still being read, a board member must not be told they are not on the board', async () => {
   connectAs(BOB);
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], roles: { [BOB]: 2 }, pending: [] });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    roles: { [BOB]: 2 },
+    pending: []
+  });
   useDelay(['userRole'], 1500);
   renderWithoutWaiting();
   // The board has arrived (bob is marked "you") but the role has not.

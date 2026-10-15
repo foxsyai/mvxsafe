@@ -1,4 +1,10 @@
-import { PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  PropsWithChildren,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react';
 
 // Two ways to explain a control.
 //
@@ -65,7 +71,10 @@ export const Info = ({ text }: { text: string }) => {
  * screen and in a headless browser, so the tips could neither be seen there nor
  * tested here.
  */
-export const Tip = ({ text, children }: PropsWithChildren<{ text: string }>) => {
+export const Tip = ({
+  text,
+  children
+}: PropsWithChildren<{ text: string }>) => {
   const [shown, setShown] = useState(false);
   const [shift, setShift] = useState(0);
   const bubble = useRef<HTMLSpanElement>(null);

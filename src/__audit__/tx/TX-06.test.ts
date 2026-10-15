@@ -29,13 +29,19 @@ const hash = 'c4cee2dd484da1a4a3f7363696ed1c53dc9baf41ee38ca4ab3000b025e2d6963';
 
 describe('TX-06: only a bech32 erd1 address is accepted where an address is expected', () => {
   test('as the recipient of EGLD', async () => {
-    const attempt = async () => buildProposeEgld(ctx, { to: hash, amount: '1' });
+    const attempt = async () =>
+      buildProposeEgld(ctx, { to: hash, amount: '1' });
     await expect(attempt()).rejects.toThrow();
   });
 
   test('as the recipient of a token', async () => {
     const attempt = async () =>
-      buildProposeToken(ctx, { to: hash, tokenIdentifier: 'FOXSY-5d5f3e', amount: '1', decimals: 18 });
+      buildProposeToken(ctx, {
+        to: hash,
+        tokenIdentifier: 'FOXSY-5d5f3e',
+        amount: '1',
+        decimals: 18
+      });
     await expect(attempt()).rejects.toThrow();
   });
 
@@ -55,7 +61,8 @@ describe('TX-06: only a bech32 erd1 address is accepted where an address is expe
   });
 
   test('upper-case hex is refused too', async () => {
-    const attempt = async () => buildProposeEgld(ctx, { to: hash.toUpperCase(), amount: '1' });
+    const attempt = async () =>
+      buildProposeEgld(ctx, { to: hash.toUpperCase(), amount: '1' });
     await expect(attempt()).rejects.toThrow();
   });
 });

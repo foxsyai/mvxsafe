@@ -22,7 +22,8 @@ export interface BoardCheck {
 /** More than half: the usual choice, and what the form starts with. */
 export const majority = (size: number) => Math.floor(size / 2) + 1;
 
-const isContractAddress = (address: string) => address.startsWith('erd1qqqqqqqqqqqqqpgq');
+const isContractAddress = (address: string) =>
+  address.startsWith('erd1qqqqqqqqqqqqqpgq');
 
 /**
  * A MultiversX account address, checksum included, in the lowercase form the
@@ -31,7 +32,11 @@ const isContractAddress = (address: string) => address.startsWith('erd1qqqqqqqqq
 export const isAccountAddress = (value: string) =>
   /^erd1[02-9ac-hj-np-z]{58}$/.test(value) && Address.isValid(value);
 
-export const checkBoard = (rows: string[], quorum: number, me = ''): BoardCheck => {
+export const checkBoard = (
+  rows: string[],
+  quorum: number,
+  me = ''
+): BoardCheck => {
   const values = rows.map((row) => row.trim());
   const seen = new Set<string>();
   const rowErrors = values.map((value) => {
@@ -59,7 +64,9 @@ export const checkBoard = (rows: string[], quorum: number, me = ''): BoardCheck 
     );
   }
   if (board.length > 1 && quorum === 1) {
-    warnings.push('With one signature needed, any single member can move everything alone.');
+    warnings.push(
+      'With one signature needed, any single member can move everything alone.'
+    );
   }
   if (board.length > 1 && quorum === board.length) {
     warnings.push(
@@ -70,7 +77,8 @@ export const checkBoard = (rows: string[], quorum: number, me = ''): BoardCheck 
   let blocker = '';
   if (rowErrors.some(Boolean)) blocker = 'Fix the addresses marked in red.';
   else if (board.length === 0) blocker = 'Add at least one board member.';
-  else if (board.length > MAX_BOARD) blocker = `A board can have at most ${MAX_BOARD} members here.`;
+  else if (board.length > MAX_BOARD)
+    blocker = `A board can have at most ${MAX_BOARD} members here.`;
   else if (!Number.isInteger(quorum) || quorum < 1 || quorum > board.length) {
     blocker = `The number of signatures has to be between 1 and ${board.length}.`;
   }

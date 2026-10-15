@@ -16,13 +16,17 @@
 let bad = 0;
 const www = await fetch('https://www.mvxsafe.io/', { redirect: 'manual' });
 const wwwHsts = www.headers.get('strict-transport-security');
-console.log(`${wwwHsts ? 'ok ' : 'BAD'} https://www.mvxsafe.io/ -> ${www.status} ${www.headers.get('location')}; HSTS: ${wwwHsts ?? '(absent)'}`);
+console.log(
+  `${wwwHsts ? 'ok ' : 'BAD'} https://www.mvxsafe.io/ -> ${www.status} ${www.headers.get('location')}; HSTS: ${wwwHsts ?? '(absent)'}`
+);
 if (!wwwHsts) bad++;
 
 const apex = await fetch('https://mvxsafe.io/', { redirect: 'manual' });
 const apexHsts = apex.headers.get('strict-transport-security') ?? '';
 const covers = /includeSubDomains/i.test(apexHsts);
-console.log(`${covers ? 'ok ' : 'BAD'} https://mvxsafe.io/ -> ${apex.status}; HSTS: ${apexHsts || '(absent)'}`);
+console.log(
+  `${covers ? 'ok ' : 'BAD'} https://mvxsafe.io/ -> ${apex.status}; HSTS: ${apexHsts || '(absent)'}`
+);
 if (!covers) bad++;
 
 if (bad) {

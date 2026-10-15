@@ -85,7 +85,9 @@ export default tseslint.config(
         'error',
         {
           argsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_'
+          caughtErrorsIgnorePattern: '^_',
+          // const { left, ...kept } = x drops left on purpose.
+          ignoreRestSiblings: true
         }
       ],
       '@typescript-eslint/explicit-module-boundary-types': 'off',
@@ -112,6 +114,15 @@ export default tseslint.config(
       'react/destructuring-assignment': 'off',
       'no-shadow': 'off',
       'react/no-array-index-key': 'off'
+    }
+  },
+  {
+    // Jest: a mock factory needs require(), and some audit tests call a hook's
+    // function directly to read what it returns.
+    files: ['src/**/*.test.{ts,tsx}', 'src/**/tests/**', 'src/__audit__/**'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      'react-hooks/rules-of-hooks': 'off'
     }
   },
   prettierRecommended

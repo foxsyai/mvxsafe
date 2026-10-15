@@ -10,7 +10,7 @@
 // export file, because they are the only thing in this app a person actually
 // authors.
 
-import { api, cached } from './network';
+import { api } from './network';
 
 const STORAGE_KEY = 'mvxsafe.labels';
 
@@ -28,16 +28,25 @@ const ADDRESS = /^erd1[02-9ac-hj-np-z]{58}$/;
 //   a Cyrillic а). A name written wholly in one alphabet is fine.
 const INVISIBLE = /[\p{Cc}\p{Cf}\u115F\u1160\u3164\uFFA0\u2800]/gu;
 const LOOKS_LIKE_ADDRESS = /erd1[02-9ac-hj-np-z]{3}/i;
-const ALPHABETS = [/\p{Script=Latin}/u, /\p{Script=Cyrillic}/u, /\p{Script=Greek}/u];
+const ALPHABETS = [
+  /\p{Script=Latin}/u,
+  /\p{Script=Cyrillic}/u,
+  /\p{Script=Greek}/u
+];
 
 /** The name as it may be shown, or '' when it may not be shown at all. */
 export const safeLabel = (raw: unknown): string => {
   if (typeof raw !== 'string') return '';
   // NFKC folds wide and other compatibility lookalikes into ordinary letters.
-  const text = raw.normalize('NFKC').replace(INVISIBLE, '').replace(/\s+/gu, ' ').trim();
+  const text = raw
+    .normalize('NFKC')
+    .replace(INVISIBLE, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
   if (!text || LOOKS_LIKE_ADDRESS.test(text)) return '';
   for (const word of text.split(' ')) {
-    if (ALPHABETS.filter((alphabet) => alphabet.test(word)).length > 1) return '';
+    if (ALPHABETS.filter((alphabet) => alphabet.test(word)).length > 1)
+      return '';
   }
   return Array.from(text).slice(0, 40).join('').trim();
 };
@@ -49,8 +58,11 @@ export const safeLabel = (raw: unknown): string => {
  */
 const clean = (value: unknown): Labels => {
   const labels: Labels = Object.create(null);
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return labels;
-  for (const [address, label] of Object.entries(value as Record<string, unknown>)) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return labels;
+  for (const [address, label] of Object.entries(
+    value as Record<string, unknown>
+  )) {
     const shown = safeLabel(label);
     if (ADDRESS.test(address) && shown) labels[address] = shown;
   }
@@ -78,7 +90,9 @@ export const getLabels = (): Labels => read();
 
 export const getLabel = (address: string): string => {
   const labels = read();
-  return Object.prototype.hasOwnProperty.call(labels, address) ? labels[address] : '';
+  return Object.prototype.hasOwnProperty.call(labels, address)
+    ? labels[address]
+    : '';
 };
 
 /** Saves a typed name and returns it as stored: '' when it was refused. */
@@ -117,7 +131,9 @@ export const readHerotag = async (address: string): Promise<string> => {
   try {
     // api() queues and caches by itself; wrapping it in cached() again held a
     // queue slot while waiting for another, which deadlocked a list of eight.
-    const account = await api<{ username?: string }>(`/accounts/${address}?fields=username`);
+    const account = await api<{ username?: string }>(
+      `/accounts/${address}?fields=username`
+    );
     return safeLabel(account?.username ?? '');
   } catch {
     return '';

@@ -6,12 +6,27 @@
  * board"), and a quorum that could not be read made a card say "not a
  * multisig". A refused read is not an answer.
  */
-jest.mock('multisig/network', () => require('../../__audit__/display/fixtures').networkMock);
+jest.mock(
+  'multisig/network',
+  () => require('../../__audit__/display/fixtures').networkMock
+);
 import { readCard, readUserRole } from 'multisig/reads';
-import { ALICE, BOB, CAROL, SAFE, useChain, useFailing } from '../../__audit__/display/fixtures';
+import {
+  ALICE,
+  BOB,
+  CAROL,
+  SAFE,
+  useChain,
+  useFailing
+} from '../../__audit__/display/fixtures';
 
 beforeEach(() => {
-  useChain({ quorum: 2, board: [ALICE, BOB, CAROL], pending: [], roles: { [ALICE]: 2 } });
+  useChain({
+    quorum: 2,
+    board: [ALICE, BOB, CAROL],
+    pending: [],
+    roles: { [ALICE]: 2 }
+  });
   useFailing([]);
 });
 
@@ -39,4 +54,3 @@ test('control: the contract saying "no such function" is an answer: not a multis
   const card = await readCard(SAFE, ALICE);
   expect(card.quorum).toBeNull();
 });
-

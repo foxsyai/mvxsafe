@@ -20,18 +20,33 @@
 //   DEPLOY_SH=/path/to/fixed/deploy.sh node src/__audit__/ops/proofs/OPS-03-deploy-unverified.mjs   # expected: exit 0
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // The repository root, four levels above this file.
-const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
+const APP = fileURLToPath(new URL('../../../../', import.meta.url)).replace(
+  /\/$/,
+  ''
+);
 const tmp = mkdtempSync(join(tmpdir(), 'mvxsafe-ops03-'));
 const log = join(tmp, 'calls.log');
 
 // DEPLOY_SH=<path> runs another copy of the script, e.g. one with the fix, to
 // show the pass-after-fix behaviour.
-copyFileSync(process.env.DEPLOY_SH || join(APP, 'deploy.sh'), join(tmp, 'deploy.sh'));
+copyFileSync(
+  process.env.DEPLOY_SH || join(APP, 'deploy.sh'),
+  join(tmp, 'deploy.sh')
+);
 chmodSync(join(tmp, 'deploy.sh'), 0o755);
 
 // The bundle a devnet build leaves behind, with the same markers the real one
@@ -50,7 +65,10 @@ writeFileSync(
 const shim = join(tmp, 'shim');
 mkdirSync(shim);
 const shimOf = (name, body) => {
-  writeFileSync(join(shim, name), `#!/bin/sh\necho "${name} $*" >> "${log}"\n${body}\n`);
+  writeFileSync(
+    join(shim, name),
+    `#!/bin/sh\necho "${name} $*" >> "${log}"\n${body}\n`
+  );
   chmodSync(join(shim, name), 0o755);
 };
 shimOf('pnpm', `rm -rf build && cp -r "${join(tmp, 'devnet-build')}" build`);
@@ -67,12 +85,32 @@ const calls = existsSync(log) ? readFileSync(log, 'utf8') : '';
 rmSync(tmp, { recursive: true, force: true });
 
 console.log(`deploy.sh (mainnet) exit ${run.status}`);
-console.log('--- deploy.sh output:\n' + (run.stdout + run.stderr).trim().split('\n').map((l) => '  ' + l).join('\n'));
-console.log('--- commands it ran:\n' + calls.trim().split('\n').map((l) => '  ' + l).join('\n'));
+console.log(
+  '--- deploy.sh output:\n' +
+    (run.stdout + run.stderr)
+      .trim()
+      .split('\n')
+      .map((l) => '  ' + l)
+      .join('\n')
+);
+console.log(
+  '--- commands it ran:\n' +
+    calls
+      .trim()
+      .split('\n')
+      .map((l) => '  ' + l)
+      .join('\n')
+);
 
-const shipped = /^rsync .*build\/ .*web@.*\/var\/www\/mvxsafe\.io\/?$/m.test(calls);
+const shipped = /^rsync .*build\/ .*web@.*\/var\/www\/mvxsafe\.io\/?$/m.test(
+  calls
+);
 if (shipped) {
-  console.log('\nBUG (OPS-03): deploy.sh shipped a devnet bundle to /var/www/mvxsafe.io without checking its network');
+  console.log(
+    '\nBUG (OPS-03): deploy.sh shipped a devnet bundle to /var/www/mvxsafe.io without checking its network'
+  );
   process.exit(1);
 }
-console.log('\nOK: deploy.sh refused to ship a bundle that is not a mainnet build');
+console.log(
+  '\nOK: deploy.sh refused to ship a bundle that is not a mainnet build'
+);

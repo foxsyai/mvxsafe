@@ -6,8 +6,8 @@
  *
  * Run, from the repository root: npx jest src/__audit__/web/WEB-03.test.tsx
  */
-import React from 'react';
 import { render } from '@testing-library/react';
+import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getLabel } from 'multisig/addressBook';
 import { Safe } from 'pages/Safe/Safe';
@@ -32,7 +32,9 @@ jest.mock('multisig/actions', () => ({
 
 jest.mock('multisig/reads', () => ({
   ...jest.requireActual('multisig/reads'),
-  readOverview: jest.fn(() => Promise.reject(new Error('/accounts/__proto__ answered 400'))),
+  readOverview: jest.fn(() =>
+    Promise.reject(new Error('/accounts/__proto__ answered 400'))
+  ),
   readPendingActions: jest.fn(async () => []),
   readHistory: jest.fn(async () => []),
   readUserRole: jest.fn(async () => 'None')
@@ -40,17 +42,26 @@ jest.mock('multisig/reads', () => ({
 
 beforeEach(() => {
   window.localStorage.clear();
-  (global as any).fetch = jest.fn(() => Promise.reject(new Error('offline in tests')));
+  (global as any).fetch = jest.fn(() =>
+    Promise.reject(new Error('offline in tests'))
+  );
 });
 
 test('a label lookup for a name that exists on Object.prototype is empty', () => {
-  for (const key of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+  for (const key of [
+    '__proto__',
+    'constructor',
+    'toString',
+    'hasOwnProperty'
+  ]) {
     expect(getLabel(key)).toBe('');
   }
 });
 
 test('the safe page survives /safe/__proto__ instead of unmounting the app', () => {
-  const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  const quiet = jest
+    .spyOn(console, 'error')
+    .mockImplementation(() => undefined);
   try {
     expect(() =>
       render(

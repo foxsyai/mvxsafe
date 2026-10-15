@@ -34,7 +34,8 @@ const clean = (value: unknown): KnownSafe[] => {
   const seen = new Set<string>();
   const safes: KnownSafe[] = [];
   for (const entry of value) {
-    const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
+    const address =
+      typeof entry?.address === 'string' ? entry.address.trim() : '';
     if (!isValidSafeAddress(address) || seen.has(address)) continue;
     seen.add(address);
     safes.push({ name: nameOf(entry.name), address });
@@ -96,7 +97,9 @@ export const exportSafes = (): string =>
  * once: adding them one by one re-read and re-wrote the whole list each time,
  * and 6,000 entries took 13 seconds of frozen tab (WEB-09).
  */
-export const importSafes = (text: string): { added: number; skipped: number } => {
+export const importSafes = (
+  text: string
+): { added: number; skipped: number } => {
   let parsed: any;
   try {
     parsed = JSON.parse(text);
@@ -115,8 +118,13 @@ export const importSafes = (text: string): { added: number; skipped: number } =>
   let added = 0;
   let skipped = 0;
   for (const entry of incoming) {
-    const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
-    if (!isValidSafeAddress(address) || known.has(address) || list.length >= MAX_SAFES) {
+    const address =
+      typeof entry?.address === 'string' ? entry.address.trim() : '';
+    if (
+      !isValidSafeAddress(address) ||
+      known.has(address) ||
+      list.length >= MAX_SAFES
+    ) {
       skipped++;
       continue;
     }
