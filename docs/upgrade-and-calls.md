@@ -1,4 +1,4 @@
-# Upgrading a contract the safe owns, and calling it
+# Upgrading a contract the safe owns and calling it
 
 What mvxsafe does for a contract its safe owns, the rules it enforces, the gas it gives every
 transaction and the devnet rehearsal that proves it. Written 13 October 2026, from the handoff
@@ -25,7 +25,7 @@ Three new tabs under **Propose an action** on a safe's page:
 - **Call a contract.** A function name and typed arguments: EGLD amount, whole number, address,
   text, hex bytes, true or false. A contract's `.abi.json` can be loaded to pick the function
   and give every argument its type; enums become their variants. The form shows the sentence the
-  signers will read, the bytes that will be sent, and the call **tried as the safe would send
+  signers will read, the bytes that will be sent and the call **tried as the safe would send
   it**. A call the contract refuses is not proposed.
 
 On the **pending action**, every signer sees, without leaving the page:
@@ -39,7 +39,7 @@ On the **pending action**, every signer sees, without leaving the page:
 ![The four kinds of card on the devnet rehearsal safe](upgrade-and-calls-devnet.png)
 
 *From the devnet rehearsal: a valid upgrade, an upgrade whose source is in the wrong shard (red),
-one that drops "upgradeable" (red), and setFee 0.02 EGLD tried as the safe.*
+one that drops "upgradeable" (red) and setFee 0.02 EGLD tried as the safe.*
 
 ## What is refused before anyone signs
 
@@ -49,7 +49,7 @@ one that drops "upgradeable" (red), and setFee 0.02 EGLD tried as the safe.*
 | New metadata without "upgradeable" | form and builder; red on the card | The contract could never be changed again, by anyone. |
 | A source whose code hash is not the release's | form; a red/green field on the card | The board would sign for code nobody checked. |
 | A source that is still upgradeable, owned by anyone but the safe | form; red on the card | Its owner could swap the code between the signatures and the perform. |
-| A contract the safe does not own, or that is not upgradeable today | form; red on the card | The network refuses the upgrade. |
+| A contract the safe does not own or that is not upgradeable today | form; red on the card | The network refuses the upgrade. |
 | The safe itself as the contract to upgrade | form and builder | Out of scope for now; lift it deliberately if ever needed. |
 | A call that fails when tried as the safe | call form; red on the card | It would use the action up. On the card it stays a warning, since the contract's state can change before the perform. |
 
@@ -71,15 +71,14 @@ test in `src/__audit__/upgrade/` that failed before its fix and passes now.
 
 | | Severity | What it was | Fixed by |
 |---|---|---|---|
-| UPG-01 | high | `upgradeContract`, the built-in that replaces code, proposed as a call read as "Call upgradeContract(0x0061…, 1,280)" with green checks | The card says it replaces the code, gives the inline code's hash and the metadata in words, and shows a red check. The call form and builder refuse it and point to "Upgrade a contract". |
-| UPG-02 | high | An upgrade of the safe itself, proposed with another tool, was all green | A red check, and the sentence says THIS SAFE |
+| UPG-01 | high | `upgradeContract`, the built-in that replaces code, proposed as a call read as "Call upgradeContract(0x0061…, 1,280)" with green checks | The card says it replaces the code, gives the inline code's hash and the metadata in words. It shows a red check. The call form and builder refuse it and point to "Upgrade a contract". |
+| UPG-02 | high | An upgrade of the safe itself, proposed with another tool, was all green | A red check; the sentence says THIS SAFE |
 | UPG-03 | medium | An argument that spells a word ("disabled") hid the number it also is (a 7.2 EGLD fee) | Up to 8 bytes, both readings are said |
 | UPG-04 | medium | Propose was enabled before the call had been tried | Propose waits for the trial's answer |
 | UPG-05 | low | A true-or-false argument showed "false" but held nothing | It holds "false" from the start |
 | UPG-06 | low | The source deploy tip said 0.04 EGLD whatever the file | Worked out from the file; 0.0800 for 26.5 KB |
 
-mvxvest's own audit of the upgrade procedure found UPG-01 and UPG-02 too, and asked for the wider
-rule now in place:
+mvxvest's own audit of the upgrade procedure found UPG-01 and UPG-02 too. It asked for the wider rule now in place:
 - **Every built-in function of the network** named in a call is red on the card and refused by the
   call form: `upgradeContract`, `ChangeOwnerAddress`, `SetGuardian`, the NFT-management functions
   and the rest of mainnet's list. The exceptions are what a safe does every day (a token sent, its
@@ -98,7 +97,7 @@ The rule: never more than about 1.5 times what is needed. Every limit is set in 
 `src/multisig/gas.js`, last before signing, after the guardian is applied. The devnet scripts
 import the same file.
 
-- **Propose, sign, unsign, discard, and performs that stay inside the safe** (membership,
+- **Propose, sign, unsign, discard and performs that stay inside the safe** (membership,
   quorum): the network's simulation plus a fifth. About 5M to 6.6M on devnet, where the flat
   `DEFAULT_GAS` used to send 60M. A simulation the network refuses stops the send with its reason,
   so nothing is paid for a transaction that would fail: "action does not exist", "quorum has not
@@ -117,7 +116,7 @@ import the same file.
   | A token to a wallet | 331,000 (fixed built-in cost) | **14.9M** | ~13.3M |
   | `setFee`, `pauseCreation`… | tried as the safe: ~3.9M | **19.2M** | ~16.4M |
   | Upgrade to mvxvest's 26,540 bytes | 300 × bytes + 1M = 9.0M | **25.3M** | ~20.5M |
-  | A call that could not be tried | 10M by default, said as such | 26.5M | — |
+  | A call that could not be tried | 10M by default, said as such | 26.5M | none |
 
 - **Deploying a source**: simulated plus a fifth, 105.5M for mvxvest (it carries its 26.5 KB as
   data).
@@ -127,10 +126,10 @@ import the same file.
   of `ChangeOwnerAddress` plus a fifth, 6,209,400 where it used to be 10M. It used 5,174,500
   (`4300b27c6d4f7e4fb895739008f556583dec6a3c1fb59b016604b087285b26ce`).
 - **A guarded wallet**: the guardian is applied before the simulation, since the network will not
-  simulate a guarded account's transaction without it, and 50,000 is added to every limit,
+  simulate a guarded account's transaction without it. 50,000 is added to every limit,
   budgets included.
 
-### Where the handoff's figures were corrected, and why
+### Where the handoff's figures were corrected and why
 
 Measured on devnet with the rehearsal below:
 
@@ -158,7 +157,7 @@ Mainnet runs an older protocol than devnet and spends gas differently in places.
 token transfer to a wallet left the test safe with 0 gas and no callback (`3d07d1d7…`), where
 devnet forwards everything and locks 6.46M. Every figure above is a devnet measurement.
 
-**Calls are measured on mainnet now, and match devnet.** The first mainnet vote, setFee 0 on
+**Calls are measured on mainnet now and match devnet.** The first mainnet vote, setFee 0 on
 mvxvest, went through on 14 October 2026, all three transactions from guarded wallets:
 
 | Step | Gas | Used | Transaction |
@@ -180,7 +179,7 @@ About 13.4M was consumed against a floor of about 16.2M (the safe's part, the 6.
 call), so 19.2M is 1.19 times the floor and 1.44 times the use. The call budgets stay as they
 are.
 
-**An upgrade is measured on mainnet now too, and matches devnet.** Until it was, mainnet's
+**An upgrade is measured on mainnet now too and matches devnet.** Until it was, mainnet's
 upgrades were given at least 118,500,000. mvxvest's upgrade to version 2 (below) used exactly what
 devnet had measured, so that floor is gone. Every upgrade now gets its measured budget, 25.6M for
 version 2's 27,332 bytes.
@@ -189,8 +188,7 @@ version 2's 27,332 bytes.
 
 The safe `erd1qqqqqqqqqqqqqpgqe7jmywfkh74cam8uqnt762c54zuqgp6r6qlsul78u3` (2 of 3, shard 1) upgraded
 mvxvest (`erd1qqqqqqqqqqqqqpgqlzpdsymdk7zxekm9pvtpxja4gfx6trwluc2qgmllsu`, shard 0) to version 2,
-then voted its fees. All 13 transactions of the day went through mvxsafe.io, and every one was
-co-signed by its wallet's guardian.
+then voted its fees. All 13 transactions of the day went through mvxsafe.io. Every one was co-signed by its wallet's guardian.
 
 **The source.** The reproducible build `a7acbf22b8fdd8f1e624dfd1354aacae4ccb20c0ef5974e1946704359bab718a`
 (27,332 bytes) was deployed from a board member's wallet in shard 1 with "Deploy a source":
@@ -280,8 +278,7 @@ The first run, under the handoff's 5M callback term: `5c5e6e9e…`, `aec656f6…
 | Sign | 5,174,134 | `bffb2dfe7578879f675b6a674da2ac1a06f1d1eb39eab90175526df1f8cbed58` |
 | Carry out | 25,300,000 | `4aa294fd2ab589d84145b94be02ccc9aeafad39fce0d2cb30394beb7e48f4d21` |
 
-Afterwards the code hash was unchanged (same wasm), the metadata still `0500`, the safe still the
-owner, and `getFee` still answered 0.01 EGLD. The first upgrade, with the handoff's budget:
+Afterwards the code hash was unchanged (same wasm), the metadata still `0500`, the safe still the owner and `getFee` still answered 0.01 EGLD. The first upgrade, with the handoff's budget:
 `cf9f95a4…`, `93355db9…`, `18ac094d…` (118,300,000).
 
 **The upgrade really replaces the code**, at the smaller budget: to a different build and back.
@@ -316,9 +313,8 @@ A one-byte argument such as `64` used to read as the letter "d" on the card. It 
 
 **The failure paths**
 
-- Refused by the builder before anything was sent: a source in shard 0 (mvxvest itself), and
-  metadata `0400`.
-- Proposed by hand anyway, as another tool could, and shown red on the safe page before any
+- Refused by the builder before anything was sent: a source in shard 0 (mvxvest itself) and metadata `0400`.
+- Proposed by hand anyway (as another tool could) and shown red on the safe page before any
   signature (the picture above):
   - wrong shard: `22159bfb1645599bd80b9a06d4a469e8d6e857bb12c261691d1f7d6dd65fc8b3`;
   - without "upgradeable": `27a22c7fbb2dcbafd5d2e0096eb5594f7c90dccbdd40d71549178e86b96287d6`.
@@ -348,16 +344,13 @@ drives every function that sends something from a guarded wallet:
 - carry out, simulated or with a budget;
 - deploy a source, create a safe, hand one over.
 
-In each, the guardian is on the transaction before the network simulates it, and 50,000 is added
-to its limit, budgets included.
+In each, the guardian is on the transaction before the network simulates it. 50,000 is added to its limit, budgets included.
 
 On devnet, 14 Oct 2026, from dave (`erd1wdqwnz0kdswj6njp0yzllkd5q4km9ygvtkme4zlg5kn026mdzc0s77fspw`,
 shard 1):
 - dave's guardian `erd13n5qd94ukuu2s2e3dppavdp0v7q89hj0nk9x2tulhlqyu6hcxy9s3xw87f` was set by
-  `c0830073f9bec9f1ae6a630741c0723d1717c86c9a86c9dceadc1bad217647c7`, became active at epoch
-  6743, and was switched on by `3b7c20953b3521e98a402f0648bb4f5e3a29a1030d831b81c893e3de562d9a6f`;
-- every transaction below carries the guardian and its co-signature, and its limit carries the
-  guardian's 50,000 on top;
+  `c0830073f9bec9f1ae6a630741c0723d1717c86c9a86c9dceadc1bad217647c7`, became active at epoch 6743 and was switched on by `3b7c20953b3521e98a402f0648bb4f5e3a29a1030d831b81c893e3de562d9a6f`;
+- every transaction below carries the guardian and its co-signature; its limit carries the guardian's 50,000 on top;
 - the copy runs mvxvest v2, so dave's source is the same v2 build, `a7acbf22…`.
 
 | Step, by the guarded wallet | Gas | Transaction |
@@ -375,7 +368,7 @@ shard 1):
 
 Every simulation was accepted with the guardian on the transaction. A guarded proposal costs about
 110,000 more than the same one unguarded (6,399,008 against 6,289,008). The simulation already
-counts the guarded transaction's 50,000, and the 50,000 the handoff asked to add comes on top.
+counts the guarded transaction's 50,000; the 50,000 the handoff asked to add comes on top.
 That is redundant but harmless.
 
 Run with `MVXVEST_WASM=<mvxvest v2 .wasm> node scripts/devnet/upgrade.mjs guarded`.

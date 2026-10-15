@@ -25,7 +25,7 @@ Reading and acting. Connect a wallet and, on a safe whose board you sit on, you 
 on a test network, by a script that uses the same builders the app ships.
 
 A safe can also act on contracts it owns: propose an upgrade from a source contract (and deploy
-that source from the release's `.wasm`), or a call such as `setFee`, typed by hand or from the
+that source from the release's `.wasm`) or a call such as `setFee`, typed by hand or from the
 contract's ABI. Every signer sees both code hashes, the shard check and the metadata in words before
 signing; what would fail after the signatures is refused before them. Gas follows one rule, never
 much more than needed: simulated where the network can, a measured budget where it cannot. All of

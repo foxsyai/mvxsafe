@@ -238,7 +238,7 @@ export const CallForm = ({
           <CheckLine
             check={{
               tone: 'bad',
-              text: 'This is a system contract of the network (tokens, staking, governance). A call here can change who may mint, burn, freeze or own a token, or move stake: the signers will see it in red.'
+              text: 'This is a system contract of the network (tokens, staking, governance). A call here can change who may mint, burn, freeze or own a token. It can also move stake. The signers will see it in red.'
             }}
           />
         )}

@@ -117,7 +117,7 @@ export const ActionChecks = ({
         <div className='mt-3 text-xs text-[#6B7280]'>
           <label className='flex items-center'>
             Gas for carrying it out
-            <Info text="The network cannot try this one in advance: it sends something out of the safe's shard. So the gas is a budget: the safe's own part, what the call or transfer needs plus a fifth, and for a call what the network holds back for the safe's callback. The whole figure is paid." />
+            <Info text="The network cannot try this one in advance: it sends something out of the safe's shard. So the gas is a budget: the safe's own part, what the call or transfer needs plus a fifth and, for a call, what the network holds back for the safe's callback. The whole figure is paid." />
           </label>
           <input
             value={gasText ?? plan.gasLimit.toString()}
@@ -160,8 +160,8 @@ export const ActionChecks = ({
           {typed.budget !== undefined &&
             typed.budget * 2n > plan.gasLimit * 3n && (
               <p className='mt-1 text-[#FBBF24]'>
-                More than one and a half times the budget, and the whole limit
-                is paid.
+                More than one and a half times the budget. The whole limit is
+                paid.
               </p>
             )}
         </div>

@@ -28,5 +28,4 @@ Chrome picks the SVG favicon when one is offered and does not re-evaluate
 `prefers-color-scheme`, so a theme-aware favicon does not work there. That is why the
 browser icon is a tile and not the transparent mark.
 
-Regenerate the PNGs after editing an SVG: the small script in
-`scratchpad/renderbrand.js` of the session that made them, or any SVG rasteriser.
+Regenerate the PNGs after editing an SVG: the small script in `scratchpad/renderbrand.js` of the session that made them or any SVG rasteriser.
