@@ -26,11 +26,13 @@ on:
     types: [labeled]
     branches: [main]
 
+# No id-token: both review steps pass github_token, so the action never asks
+# for an OIDC token (ops audit of 21 Oct 2026; its log says "Using provided
+# GITHUB_TOKEN for authentication").
 permissions:
   contents: read
   pull-requests: write
   issues: write
-  id-token: write
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -188,6 +190,29 @@ jobs:
           python3 "$gate" settings "${args[@]}" --log "$RUNNER_TEMP/review-gate.log" > "$RUNNER_TEMP/review-settings.json"
           cat "$RUNNER_TEMP/review-settings.json"
 
+      # The Claude Code CLI the action runs, at the version this action asks for,
+      # from npm and checked against a hash written here. Left to itself the
+      # action pipes https://claude.ai/install.sh, which nothing pins, into bash
+      # (ops audit of 21 Oct 2026). A new action version that wants another CLI
+      # needs the version and the hash changed with it.
+      - name: Claude Code CLI, pinned by hash
+        env:
+          CLI_VERSION: '2.1.296'
+          CLI_SHA512: '+m01urgelnI+VJxPaKPEK0wixgq42uZ8PeCaUk5tX/8YoDBvSmC/REVQG2jQfJAr8dxunpjJ600FvLrcj1WWTw=='
+        run: |
+          dir="$RUNNER_TEMP/claude-cli"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/cli.tgz" "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-${CLI_VERSION}.tgz"
+          got="$(openssl dgst -sha512 -binary "$dir/cli.tgz" | base64 -w0)"
+          if [[ "$got" != "$CLI_SHA512" ]]; then
+            echo "::error::The Claude Code CLI ${CLI_VERSION} does not match its pinned hash."
+            exit 1
+          fi
+          tar -xzf "$dir/cli.tgz" -C "$dir" package/claude
+          chmod +x "$dir/package/claude"
+          "$dir/package/claude" --version
+          echo "CLAUDE_CLI=$dir/package/claude" >> "$GITHUB_ENV"
+
       - name: Claude Code review
         id: review
         # The verdict file is the gate ("Enforce verdict"), not this step's exit code.
@@ -197,6 +222,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          path_to_claude_code_executable: ${{ env.CLAUDE_CLI }}
           prompt: &review_prompt |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -311,6 +337,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_BACKUP }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          path_to_claude_code_executable: ${{ env.CLAUDE_CLI }}
           prompt: *review_prompt
           claude_args: *review_args
 
