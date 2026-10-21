@@ -183,8 +183,11 @@ const SafeView = ({ address }: { address: string }) => {
     } catch {
       // Unknown stays unknown: never "not on this board" for a refused read.
     }
-    // A newer load is under way and decides what the page shows.
-    if (!current()) return fresh;
+    // A newer load is under way and decides what the page shows. Not "fresh":
+    // what this one read is not on the page, and the processed signal would
+    // release the buttons over the state from before the transaction (third
+    // review of PR #11).
+    if (!current()) return false;
     const isStale =
       !fresh && (readBefore.current.overview || readBefore.current.pending);
     setStale(isStale);
