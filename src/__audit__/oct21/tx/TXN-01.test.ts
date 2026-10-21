@@ -55,6 +55,7 @@ jest.mock('@multiversx/sdk-dapp/out/utils/account/fetchAccount', () => ({
 // The app's own reads: the same chain nonce, no guardian, a simulation that answers.
 jest.mock('multisig/network', () => ({
   chainId: 'D',
+  forget: () => undefined,
   api: async () => ({ isGuarded: false }),
   networkProvider: {
     getAccount: async () => ({ nonce: 10n }),

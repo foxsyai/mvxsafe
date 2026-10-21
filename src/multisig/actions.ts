@@ -34,7 +34,7 @@ import {
   predictSafeAddress,
   TypedArgument
 } from './legacyCalls';
-import { api, chainId, networkProvider } from './network';
+import { api, chainId, forget, networkProvider } from './network';
 
 export interface Signer {
   address: string;
@@ -66,11 +66,16 @@ const contextOf = async (signer: Signer, safe: string) => {
  * wallet should be held.
  */
 const guardianOf = async (address: string): Promise<string> => {
+  // Read afresh at every send, not from the two-minute cache: an account
+  // guarded, or unguarded, in another app a moment ago was otherwise sent the
+  // old way and refused (open point of the audit of 21 Oct 2026).
+  const path = `/accounts/${address}?withGuardianInfo=true`;
+  forget(path);
   try {
     const account = await api<{
       isGuarded?: boolean;
       activeGuardianAddress?: string;
-    }>(`/accounts/${address}?withGuardianInfo=true`);
+    }>(path);
     return account?.isGuarded ? (account.activeGuardianAddress ?? '') : '';
   } catch {
     // Unknown here, so the guardian the session read at login, if it is this

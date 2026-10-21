@@ -38,6 +38,7 @@ jest.mock('@multiversx/sdk-dapp/out/utils/account/fetchAccount', () => ({
 
 jest.mock('multisig/network', () => ({
   chainId: 'D',
+  forget: () => undefined,
   api: async () => ({ isGuarded: false }),
   networkProvider: {
     getAccount: async () => ({ nonce: 10n }),

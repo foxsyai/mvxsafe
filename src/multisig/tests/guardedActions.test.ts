@@ -25,6 +25,7 @@ jest.mock('helpers/signAndSendTransactions', () => ({
 }));
 jest.mock('multisig/network', () => ({
   chainId: 'D',
+  forget: () => undefined,
   api: async (path: string) =>
     /withGuardianInfo/.test(path)
       ? {

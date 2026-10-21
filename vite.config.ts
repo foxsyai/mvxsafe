@@ -73,8 +73,14 @@ export default defineConfig({
       globals: { Buffer: true, global: true, process: true }
     })
   ],
-  resolve: {    
-    tsconfigPaths: true
+  resolve: {
+    tsconfigPaths: true,
+    // blake2b's WebAssembly half, which the CSP refuses, replaced by a stand-in
+    // that rejects nothing (see the file).
+    alias: {
+      'blake2b-wasm': new URL('./src/lib/blake2b-wasm-off.cjs', import.meta.url)
+        .pathname
+    }
   },
   css: {
     postcss: './postcss.config.js'

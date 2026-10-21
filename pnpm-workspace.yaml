@@ -30,6 +30,11 @@ overrides:
 # `pnpm audit --prod --audit-level=high` gates CI and deploy.sh (OPX-05). What
 # it may pass over, each with no fixed release and no way into the bundle:
 # braces, reached only through @types/jest in sdk-dapp's dependencies.
+# uuid 8.3.2 (moderate, fixed in 11): the bounds check missing from v3(), v5()
+# and v6() when they are given a buffer. sdk-core, its only user here, calls
+# v4() alone, in keystore code the app never runs; moving the signing
+# library's uuid two major versions is not worth that (checked 21 Oct 2026).
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-w5hq-g745-h8pq

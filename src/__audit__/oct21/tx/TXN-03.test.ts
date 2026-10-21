@@ -17,6 +17,7 @@ jest.mock('helpers/signAndSendTransactions', () => ({
 }));
 jest.mock('multisig/network', () => ({
   chainId: 'D',
+  forget: () => undefined,
   api: async (path: string) => {
     if (/withGuardianInfo/.test(path) && (globalThis as any).__apiDown) {
       throw new Error('Request failed with status code 429');

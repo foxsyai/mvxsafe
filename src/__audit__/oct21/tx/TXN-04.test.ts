@@ -22,6 +22,7 @@ const CONTRACT =
 
 jest.mock('multisig/network', () => ({
   chainId: 'D',
+  forget: () => undefined,
   api: async () => ({}),
   cached: async (_key: string, work: () => Promise<unknown>) => work(),
   networkProvider: {}
