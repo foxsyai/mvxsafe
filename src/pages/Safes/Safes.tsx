@@ -96,6 +96,8 @@ export const Safes = () => {
   const [newAddress, setNewAddress] = useState('');
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
+  // What an import did: a result, not an error (backlog of the 21 Oct audit).
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<Record<string, Role>>({});
   // Safes whose last read was refused; they are being asked again.
@@ -261,6 +263,7 @@ export const Safes = () => {
   }, [safes, isLoggedIn, connected, readOne]);
 
   const handleAdd = () => {
+    setNotice('');
     const address = newAddress.trim();
     if (!isValidSafeAddress(address)) {
       setError('That does not look like a MultiversX address.');
@@ -290,10 +293,12 @@ export const Safes = () => {
 
   const handleImport = async (file?: File) => {
     if (!file) return;
+    setError('');
+    setNotice('');
     try {
       const { added, skipped } = importSafes(await file.text());
       setSafes(getAllSafes());
-      setError(
+      setNotice(
         added === 0 && skipped === 0
           ? 'That file held nothing to add.'
           : `Added ${added}${skipped ? `, skipped ${skipped} already here or invalid` : ''}.`
@@ -573,6 +578,9 @@ export const Safes = () => {
           </Tip>
         </div>
         {error && <p className='mt-2 text-xs text-[#F87171]'>{error}</p>}
+        {notice && !error && (
+          <p className='mt-2 text-xs text-[#9AA0A6]'>{notice}</p>
+        )}
       </div>
 
       <div className='mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>

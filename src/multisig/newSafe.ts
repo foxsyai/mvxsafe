@@ -4,6 +4,7 @@
 // checks hard and explains in plain words.
 
 import { Address } from '@multiversx/sdk-core';
+import { normalizeBech32 } from './legacyCalls';
 
 /** Deploy gas covers far more, but a board this size is already unusual. */
 export const MAX_BOARD = 20;
@@ -37,7 +38,7 @@ export const checkBoard = (
   quorum: number,
   me = ''
 ): BoardCheck => {
-  const values = rows.map((row) => row.trim());
+  const values = rows.map((row) => normalizeBech32(row));
   const seen = new Set<string>();
   const rowErrors = values.map((value) => {
     if (!value) return '';

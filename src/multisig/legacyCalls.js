@@ -105,12 +105,23 @@ export const toRawAmount = (amount, decimals) => {
 const BECH32_ADDRESS = /^erd1[02-9ac-hj-np-z]{58}$/;
 
 /**
+ * An address as typed or pasted, trimmed, and in lower case when it was written
+ * wholly in capitals: bech32 allows that, and a QR code often carries it so.
+ * Mixed case is not bech32 and is left as it is, to be refused (backlog of the
+ * audit of 21 Oct 2026).
+ */
+export const normalizeBech32 = (value) => {
+  const text = String(value ?? '').trim();
+  return /^ERD1[02-9AC-HJ-NP-Z]{58}$/.test(text) ? text.toLowerCase() : text;
+};
+
+/**
  * An erd1 address, checksum included, or an error. new Address() alone also
  * accepts 64 hex characters, so a pasted transaction hash became a recipient
  * or a board member that nobody controls (tx audit TX-06).
  */
 export const parseAddress = (value, what = 'address') => {
-  const text = String(value ?? '').trim();
+  const text = normalizeBech32(value);
   if (!BECH32_ADDRESS.test(text) || !Address.isValid(text)) {
     throw new Error(`That is not a valid MultiversX ${what}: "${text}".`);
   }

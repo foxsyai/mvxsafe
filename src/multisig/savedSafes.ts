@@ -5,6 +5,7 @@
 import { Address } from '@multiversx/sdk-core';
 import { KnownSafe } from 'config/safes';
 import { getLabels, mergeLabels, safeLabel } from './addressBook';
+import { normalizeBech32 } from './legacyCalls';
 
 const STORAGE_KEY = 'mvxsafe.savedSafes';
 
@@ -17,7 +18,7 @@ export const MAX_SAFES = 500;
  * loaded (web audit WEB-04, 7 Oct 2026).
  */
 export const isValidSafeAddress = (address: string) => {
-  const text = String(address ?? '').trim();
+  const text = normalizeBech32(address);
   return /^erd1[02-9ac-hj-np-z]{58}$/.test(text) && Address.isValid(text);
 };
 
@@ -37,7 +38,7 @@ const clean = (value: unknown): KnownSafe[] => {
   const safes: KnownSafe[] = [];
   for (const entry of value) {
     const address =
-      typeof entry?.address === 'string' ? entry.address.trim() : '';
+      typeof entry?.address === 'string' ? normalizeBech32(entry.address) : '';
     if (!isValidSafeAddress(address) || seen.has(address)) continue;
     seen.add(address);
     safes.push({ name: nameOf(entry.name), address });
@@ -70,9 +71,10 @@ export const getAllSafes = (): KnownSafe[] => read();
 
 export const addSafe = (safe: KnownSafe) => {
   const saved = read();
-  if (!isValidSafeAddress(safe.address)) return;
-  if (saved.some((entry) => entry.address === safe.address)) return;
-  write([...saved, { name: nameOf(safe.name), address: safe.address.trim() }]);
+  const address = normalizeBech32(safe.address);
+  if (!isValidSafeAddress(address)) return;
+  if (saved.some((entry) => entry.address === address)) return;
+  write([...saved, { name: nameOf(safe.name), address }]);
 };
 
 export const removeSafe = (address: string) => {
@@ -121,7 +123,7 @@ export const importSafes = (
   let skipped = 0;
   for (const entry of incoming) {
     const address =
-      typeof entry?.address === 'string' ? entry.address.trim() : '';
+      typeof entry?.address === 'string' ? normalizeBech32(entry.address) : '';
     if (
       !isValidSafeAddress(address) ||
       known.has(address) ||

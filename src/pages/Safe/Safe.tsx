@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
 import { ActionChecks, performGas } from 'components/Pending/ActionChecks';
@@ -12,6 +12,7 @@ import {
   signAction,
   unsignAction
 } from 'multisig/actions';
+import { normalizeBech32 } from 'multisig/legacyCalls';
 import { clearCache, explorerUrl, forget } from 'multisig/network';
 import {
   ContractInfo,
@@ -44,6 +45,12 @@ const label = 'text-xs text-[#6B7280]';
  */
 export const Safe = () => {
   const { address = '' } = useParams();
+  // The same safe written in capitals, which bech32 allows: one page, one
+  // address (backlog of the 21 Oct audit).
+  const lower = normalizeBech32(address);
+  if (lower !== address && isValidSafeAddress(lower)) {
+    return <Navigate to={`/safe/${lower}`} replace />;
+  }
   if (!isValidSafeAddress(address)) {
     return (
       <div className='mx-auto w-full max-w-5xl px-4 py-10'>
@@ -604,7 +611,13 @@ const SafeView = ({ address }: { address: string }) => {
 
                   <ActionChecks
                     action={action}
-                    showGas={isLoggedIn && canSign && action.quorumReached}
+                    showGas={
+                      // Whoever may carry it out, proposers included: the
+                      // contract lets them (backlog of the 21 Oct audit).
+                      isLoggedIn &&
+                      (canSign || canPropose) &&
+                      action.quorumReached
+                    }
                     gasText={gasText[action.actionId]}
                     onGasText={(text) =>
                       setGasText((current) => ({
@@ -651,7 +664,7 @@ const SafeView = ({ address }: { address: string }) => {
                         ))}
 
                       {action.quorumReached && !action.unreadable && (
-                        <Tip text='Makes it happen. Enough signatures are in. Any board member may press this.'>
+                        <Tip text='Makes it happen. Enough signatures are in. Any board member or proposer may press this.'>
                           <button
                             type='button'
                             disabled={
@@ -753,7 +766,7 @@ const SafeView = ({ address }: { address: string }) => {
         <section className={card}>
           <h2 className='flex items-center text-lg font-semibold text-white'>
             Board and proposers
-            <Info text='Board members propose, sign and carry out actions. Proposers can only propose: their actions still need the board. The pencil gives an address a name, kept in this browser and carried in the export file.' />
+            <Info text='Board members propose, sign and carry out actions. Proposers can propose, and carry out an action once the board has signed it, but cannot sign: their actions still need the board. The pencil gives an address a name, kept in this browser and carried in the export file.' />
           </h2>
           <p className='mt-3 text-xs tracking-wider text-[#6B7280] uppercase'>
             Board

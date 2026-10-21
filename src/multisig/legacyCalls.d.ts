@@ -14,6 +14,7 @@ export declare const toRawAmount: (
   amount: string | number,
   decimals: number
 ) => bigint;
+export declare const normalizeBech32: (value: unknown) => string;
 export declare const parseAddress: (
   value: string,
   what?: string

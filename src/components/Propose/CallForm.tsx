@@ -14,6 +14,7 @@ import {
 import {
   builtInRefusal,
   isSystemContract,
+  normalizeBech32,
   parseAddress,
   toRawAmount
 } from 'multisig/legacyCalls';
@@ -232,7 +233,7 @@ export const CallForm = ({
         </label>
         <input
           value={to}
-          onChange={(event) => setTo(event.target.value)}
+          onChange={(event) => setTo(normalizeBech32(event.target.value))}
           placeholder='erd1qqqqqqqqqqqqqpgq...'
           className={`${input} font-mono`}
         />

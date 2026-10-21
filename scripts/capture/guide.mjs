@@ -14,13 +14,25 @@
 // neutral name: the guide is public.
 //
 // NOTHING IS SIGNED BY THIS SCRIPT. It fills forms, waits and photographs.
+//
+// The Chrome profile holds the wallets' sessions, so it is deleted when the run
+// ends, however it ends: a board member's session was left on this disk between
+// captures (backlog of the audit of 21 Oct 2026). KEEP_PROFILE=1 keeps it, for a
+// run that will be resumed with FROM or ONLY; delete it by hand afterwards.
 import { chromium } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 
 const SITE = process.env.SITE || 'https://mvxsafe.io';
 const OUT = process.env.OUT || 'public/shots/';
 const PROFILE = `${homedir()}/.mvxsafe-shots-profile`;
+if (process.env.KEEP_PROFILE !== '1') {
+  process.on('exit', () => {
+    rmSync(PROFILE, { recursive: true, force: true });
+    console.log(`Deleted ${PROFILE}, with the wallet sessions it held.`);
+  });
+  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(130));
+}
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',').map(Number)) : null;
 const FROM = Number(process.env.FROM || (ONLY ? Math.min(...ONLY) : 1));
 const TO = Number(process.env.TO || (ONLY ? Math.max(...ONLY) : 18));
