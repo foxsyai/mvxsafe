@@ -4,7 +4,7 @@
 
 import { Address } from '@multiversx/sdk-core';
 import { KnownSafe } from 'config/safes';
-import { getLabels, mergeLabels } from './addressBook';
+import { getLabels, mergeLabels, safeLabel } from './addressBook';
 
 const STORAGE_KEY = 'mvxsafe.savedSafes';
 
@@ -21,8 +21,10 @@ export const isValidSafeAddress = (address: string) => {
   return /^erd1[02-9ac-hj-np-z]{58}$/.test(text) && Address.isValid(text);
 };
 
-const nameOf = (value: unknown) =>
-  typeof value === 'string' && value.trim() ? value.slice(0, 60) : 'Safe';
+// A safe's name follows the rule of every other name: it travels in the export
+// file too, and slipped past it with direction overrides, zero-width
+// characters and lookalikes (web audit BRW-06, 21 Oct 2026).
+const nameOf = (value: unknown) => safeLabel(value, 60) || 'Safe';
 
 /**
  * Only what a list of safes can contain: a name and a valid address, each once.

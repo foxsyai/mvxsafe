@@ -368,41 +368,77 @@ const argumentBytes = (argument) =>
 const bytesValue = (bytes) => new BytesValue(Buffer.from(bytes));
 
 /**
- * The network's built-in functions: they act on the account they are sent to,
- * not through the contract's code (builtInCost on mainnet, 14 Oct 2026), plus
- * upgradeContract, the VM's code replacement. A call naming one is refused by
- * the call form and red on the card: a compromised signer could use them to
- * replace an owned contract's code or hand it away (audit UPG-01, and
- * mvxvest's own audit, 14 Oct 2026). Tokens leave the safe through their own
- * builders, which do not go through here.
+ * The most a proposal's arguments may weigh together. The contract stores an
+ * action whole, and on devnet one with a single argument of about 12,000 bytes
+ * could no longer be returned: not by itself, and not in the list of pending
+ * actions, which then failed for every action (audit SC-01, 21 Oct 2026).
+ * About 9,000 bytes still read back.
+ */
+export const MAX_ARGUMENT_BYTES = 8000;
+
+/** The arguments as bytes, or an error when the contract could not return them. */
+const cappedArguments = (args, extra = 0) => {
+  const bytes = args.map(argumentBytes);
+  const total = bytes.reduce((sum, item) => sum + item.length, extra);
+  if (total > MAX_ARGUMENT_BYTES) {
+    throw new Error(
+      `These arguments are too large: ${total.toLocaleString('en-US')} bytes, where the contract can only return a proposal of up to about ${MAX_ARGUMENT_BYTES.toLocaleString('en-US')}. A larger one could never be shown or carried out, and would hide every other pending action.`
+    );
+  }
+  return bytes;
+};
+
+/**
+ * The network's built-in functions, by the names the VM dispatches on
+ * (`mx-chain-core-go/core/constants.go`, and the data the SDK's own
+ * TokenManagementTransactionsFactory sends), plus upgradeContract, the VM's
+ * code replacement. They act on the account they are sent to, not through the
+ * contract's code. A call naming one is refused by the call form and red on the
+ * card: a compromised signer could use them to replace an owned contract's code,
+ * hand it away or rewrite a token (audit UPG-01, mvxvest's audit, 14 Oct 2026).
+ * The 14 Oct list took five names from the gas schedule's keys
+ * (ESDTNFTAddUri, ESDTNFTRecreate, ESDTNFTUpdate, ESDTNFTSetNewURIs,
+ * SaveUserName), which are no function at all, so the real ones slipped
+ * through (audit SEE-01, TXN-04, 21 Oct 2026). Tokens leave the safe through
+ * their own builders, which do not go through here.
  */
 export const PROTOCOL_BUILTINS = new Set([
   'upgradeContract',
   'ChangeOwnerAddress',
   'ClaimDeveloperRewards',
+  'SetUserName',
+  'SaveKeyValue',
   'SetGuardian',
   'GuardAccount',
   'UnGuardAccount',
-  'SaveUserName',
-  'SaveKeyValue',
+  'MigrateDataTrie',
   'ESDTTransfer',
   'ESDTBurn',
+  'ESDTFreeze',
+  'ESDTUnFreeze',
+  'ESDTWipe',
+  'ESDTPause',
+  'ESDTUnPause',
+  'ESDTSetRole',
+  'ESDTUnSetRole',
+  'ESDTSetLimitedTransfer',
+  'ESDTUnSetLimitedTransfer',
   'ESDTLocalMint',
   'ESDTLocalBurn',
   'ESDTNFTTransfer',
-  'ESDTNFTMultiTransfer',
   'MultiESDTNFTTransfer',
   'ESDTNFTCreate',
   'ESDTNFTAddQuantity',
+  'ESDTNFTCreateRoleTransfer',
   'ESDTNFTBurn',
-  'ESDTNFTAddUri',
+  'ESDTNFTAddURI',
   'ESDTNFTUpdateAttributes',
-  'ESDTNFTChangeCreateOwner',
-  'ESDTNFTRecreate',
-  'ESDTNFTUpdate',
-  'ESDTNFTSetNewURIs',
+  'ESDTSetTokenType',
+  'ESDTModifyRoyalties',
+  'ESDTSetNewURIs',
   'ESDTModifyCreator',
-  'ESDTModifyRoyalties'
+  'ESDTMetaDataRecreate',
+  'ESDTMetaDataUpdate'
 ]);
 
 /** The one built-in a call may name: it can only pay the contract's developer rewards to its owner. */
@@ -449,16 +485,14 @@ export const buildProposeCall = async (
   }
   const refusal = builtInRefusal(name);
   if (refusal) throw new Error(refusal);
+  const bytes = cappedArguments(args, name.length);
   return call({
     ...context,
     fn: 'proposeAsyncCall',
     args: [
       parseAddress(to, 'contract address'),
       new BigUIntValue(toRawAmount(egld || '0', 18)),
-      variadic([
-        BytesValue.fromUTF8(name),
-        ...args.map((arg) => bytesValue(argumentBytes(arg)))
-      ])
+      variadic([BytesValue.fromUTF8(name), ...bytes.map(bytesValue)])
     ]
   });
 };
@@ -516,6 +550,7 @@ export const buildProposeUpgrade = async (
   });
   if (problem) throw new Error(problem);
   const flags = metadataOf(metadata);
+  const bytes = cappedArguments(args);
   return call({
     ...context,
     fn: 'proposeSCUpgradeFromSource',
@@ -531,7 +566,7 @@ export const buildProposeUpgrade = async (
           flags.payableBySc
         )
       ),
-      variadic(args.map((arg) => bytesValue(argumentBytes(arg))))
+      variadic(bytes.map(bytesValue))
     ]
   });
 };

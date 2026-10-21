@@ -28,6 +28,43 @@ const panel =
 // list that may also hold ones you are only watching.
 const panelMine = panel.replace('border-[#2A2A32]', 'border-[#FF6E0A]/50');
 
+const finite = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+/**
+ * The balances of a card kept from the last visit, checked field by field, or
+ * null. A card was checked one level deep, so a null token or amount in
+ * storage still took the whole list down (web audit BRW-05, 21 Oct 2026).
+ * What is pending and for whom is not kept: a "needs you" from before a
+ * signature landed is worse than "...", so those wait for a fresh read
+ * (7 Oct 2026).
+ */
+const cachedBalances = (card: any): SafeCard | null => {
+  if (!Array.isArray(card?.tokens) || !finite(card?.egld)) return null;
+  const quorum = (value: unknown) => (finite(value) ? value : null);
+  return {
+    address: typeof card.address === 'string' ? card.address : '',
+    egld: card.egld,
+    quorum: quorum(card.quorum),
+    boardSize: quorum(card.boardSize),
+    worthUsd: finite(card.worthUsd) ? card.worthUsd : 0,
+    tokens: card.tokens
+      .filter(
+        (token: any) =>
+          typeof token?.identifier === 'string' && finite(token?.amount)
+      )
+      .map((token: any) => ({
+        identifier: token.identifier,
+        ticker: typeof token.ticker === 'string' ? token.ticker : '',
+        name: typeof token.name === 'string' ? token.name : '',
+        balance: typeof token.balance === 'string' ? token.balance : '0',
+        decimals: finite(token.decimals) ? token.decimals : 0,
+        amount: token.amount,
+        ...(finite(token.valueUsd) ? { valueUsd: token.valueUsd } : {})
+      }))
+  };
+};
+
 export const Safes = () => {
   const [safes, setSafes] = useState<KnownSafe[]>(getAllSafes());
   // The last numbers we saw, kept for this browser session only, so coming back
@@ -45,20 +82,8 @@ export const Safes = () => {
         for (const [address, card] of Object.entries(
           stored as Record<string, any>
         )) {
-          if (Array.isArray(card?.tokens) && typeof card?.egld === 'number') {
-            // Balances may show at once from the last visit; what is pending and
-            // for whom may not: a "needs you" from before a signature landed is
-            // worse than "...", so those wait for a fresh read (7 Oct 2026).
-            const {
-              pendingCount: _pending,
-              readyCount: _ready,
-              needsViewer: _needs,
-              actionCount: _actions,
-              viewer: _viewer,
-              ...balances
-            } = card as SafeCard;
-            kept[address] = balances as SafeCard;
-          }
+          const balances = cachedBalances(card);
+          if (balances) kept[address] = balances;
         }
       }
       return kept;
@@ -93,6 +118,9 @@ export const Safes = () => {
   // One safe: its role first (one request, it decides the badge and the
   // highlight), then its card. Errors leave that safe without numbers rather
   // than breaking the page for the others.
+  // The wallet the newest pass reads for. A role read for an earlier wallet
+  // that answers late is not that wallet's role (web audit BRW-01).
+  const readingFor = useRef('');
   const readOne = useCallback(
     async (safe: KnownSafe, connectedAddress: string): Promise<boolean> => {
       if (connectedAddress) {
@@ -101,7 +129,9 @@ export const Safes = () => {
             safe.address,
             connectedAddress
           )) as Role;
-          setRoles((current) => ({ ...current, [safe.address]: role }));
+          if (readingFor.current === connectedAddress) {
+            setRoles((current) => ({ ...current, [safe.address]: role }));
+          }
         } catch {
           // No role shown is the honest answer when it could not be read.
         }
@@ -172,6 +202,7 @@ export const Safes = () => {
   const load = useCallback(
     async (list: KnownSafe[], connectedAddress: string) => {
       const mine = ++round.current;
+      readingFor.current = connectedAddress;
       // This pass reads every safe, so the retries an older pass left behind go.
       retryTimers.current.forEach(clearTimeout);
       retryTimers.current = [];

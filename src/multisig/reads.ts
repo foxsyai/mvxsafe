@@ -6,7 +6,11 @@
 // The SDK's own multisig ABI describes a newer build and CRASHES while decoding
 // a pending action on ours, which is how this was found (devnet, 6 Oct 2026).
 
-import { Address, SmartContractController } from '@multiversx/sdk-core';
+import {
+  Address,
+  SmartContractController,
+  U32Value
+} from '@multiversx/sdk-core';
 import { describeAction, toBigInt } from './describe';
 import { PerformPlan } from './gas';
 import { Check, inspectAction, UpgradeFacts } from './inspect';
@@ -75,6 +79,12 @@ export interface PendingAction {
   upgrade?: UpgradeFacts;
   /** How carrying it out gets its gas: simulated, or a budget the performer sees. */
   perform?: PerformPlan;
+  /**
+   * True when the contract cannot return this action's data (SC-01): it can
+   * only have signatures removed and then be discarded, never signed or
+   * carried out.
+   */
+  unreadable?: boolean;
   /** Signatures that count: only from addresses on the board today. */
   signerCount: number;
   /** Everyone who signed and still sits on the board. */
@@ -404,6 +414,10 @@ export const membershipNote = (
     const next = Number(
       action?.fields?.[0]?.toString?.() ?? action?.fields?.[0] ?? 0
     );
+    // The contract accepts 0, and then needs no signature at all (SC-02).
+    if (next < 1) {
+      return ' (a quorum of 0 means no signature is needed at all: any single board member or proposer could carry out any action, and the board would lose all control)';
+    }
     if (next > board) {
       return ` (there are only ${board} board members, so the contract will refuse to carry it out)`;
     }
@@ -486,61 +500,164 @@ export const membershipProblem = (
   }
 };
 
+/** A contract answer that is the contract refusing to decode, not the network failing. */
+const isDecodeFailure = (error: unknown) =>
+  /decode error|user error|execution failed|input too long/i.test(
+    String((error as any)?.message ?? error ?? '')
+  );
+
+/** One action as the card needs it, from its decoded data and its signers. */
+const pendingEntry = async (
+  address: string,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  actionId: number,
+  data: any,
+  allSigners: any[]
+): Promise<PendingAction> => {
+  const board = new Set(state.boardMembers);
+  const everyone: string[] = (allSigners ?? []).map(asAddress).filter(Boolean);
+  const signers = everyone.filter((signer) => board.has(signer));
+  const [description, inspection] = await Promise.all([
+    describeAction(data, address),
+    inspectAction(data, address)
+  ]);
+  return {
+    actionId,
+    name: String(data?.name ?? data?.type ?? ''),
+    description: description + membershipNote(data, state as any),
+    checks: inspection.checks,
+    upgrade: inspection.upgrade,
+    perform: inspection.perform,
+    signerCount: signers.length,
+    signers,
+    formerSigners: everyone.filter((signer) => !board.has(signer)),
+    quorumReached: signers.length >= (state.quorum ?? Number.MAX_SAFE_INTEGER)
+  };
+};
+
+/**
+ * The pending actions read one by one, for when the contract cannot return
+ * them in one piece. A single stored action of about 12 KB makes
+ * getPendingActionFullInfo fail to decode while every other action, and the
+ * signers of that one, still answer by id (audit SC-01, proven on devnet,
+ * 21 Oct 2026). Throws when the network itself does not answer.
+ */
+// Per safe, the action ids carried out or discarded. An id is never reused,
+// so one that answered Nothing always will: it is read once, and kept through
+// forget(), or a safe with a long history took minutes to read after every
+// transaction (review of PR #11, 21 Oct 2026). Not the newest ids: a node a
+// few seconds behind answers Nothing for an action proposed moments ago.
+const finished = new Map<string, Set<number>>();
+const ALWAYS_REREAD = 10;
+
+const readPendingOneByOne = async (
+  address: string,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
+): Promise<PendingAction[]> => {
+  const last = asNumber(
+    await cached(`actions:${address}`, () =>
+      query<any>(address, 'getActionLastIndex')
+    )
+  );
+  const board = new Set(state.boardMembers);
+  const entries: PendingAction[] = [];
+  const done = finished.get(address) ?? new Set<number>();
+  finished.set(address, done);
+  for (let id = 1; id <= last; id++) {
+    if (done.has(id)) continue;
+    let data: any = null;
+    let unreadable = false;
+    try {
+      data = await cached(`action:${address}:${id}`, () =>
+        query<any>(address, 'getActionData', [new U32Value(id)])
+      );
+    } catch (error) {
+      if (!isDecodeFailure(error)) throw error;
+      unreadable = true;
+    }
+    // Carried out or discarded: the contract keeps Nothing in its place.
+    if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing') {
+      if (id <= last - ALWAYS_REREAD) done.add(id);
+      continue;
+    }
+    const signersAnswer = await cached(`signers:${address}:${id}`, () =>
+      query<any>(address, 'getActionSigners', [new U32Value(id)])
+    );
+    const allSigners = Array.isArray(signersAnswer)
+      ? signersAnswer
+      : signersAnswer
+        ? [signersAnswer]
+        : [];
+    if (!unreadable) {
+      entries.push(await pendingEntry(address, state, id, data, allSigners));
+      continue;
+    }
+    const everyone: string[] = allSigners.map(asAddress).filter(Boolean);
+    const signers = everyone.filter((signer) => board.has(signer));
+    entries.push({
+      actionId: id,
+      name: 'Unreadable',
+      unreadable: true,
+      description: `Action #${id} cannot be read: the contract fails to return its data, most likely because it carries more than about 9 KB. Nothing it would do can be shown, so do not sign it or carry it out.`,
+      checks: [
+        {
+          tone: 'bad',
+          text: 'Whoever signed it should remove their signature; then any board member or proposer can discard it. While it stays, the contract cannot list the pending actions in one piece, so this page reads them one by one.'
+        }
+      ],
+      perform: { simulate: true },
+      signerCount: signers.length,
+      signers,
+      formerSigners: everyone.filter((signer) => !board.has(signer)),
+      quorumReached: false
+    });
+  }
+  return entries;
+};
+
 /**
  * Actions still waiting for signatures, each turned into a sentence. A signer's
  * only defence against approving something unexpected is reading it in words,
  * so the decoding happens here, in describe.ts, rather than in a view.
  *
  * Only signatures from CURRENT board members count, exactly as the contract
- * counts them: a former member's signature stays in the list but no longer
- * moves anything, and it no longer blocks a discard (display audit DISP-05).
- *
- * A failed read THROWS. It used to answer "no pending actions", which put
- * "Nothing is waiting for a signature" on a page that simply could not see
- * (DISP-11).
+ * counts them (display audit DISP-05). A failed read THROWS (DISP-11). When the
+ * contract cannot return the list in one piece, it is read action by action
+ * (SC-01).
  */
 export const readPendingActions = async (
   address: string
 ): Promise<PendingAction[]> => {
-  const [pending, state] = await Promise.all([
-    cached(`pending:${address}`, () =>
-      query<any>(address, 'getPendingActionFullInfo')
-    ),
-    readMultisigState(address)
-  ]);
+  const state = await readMultisigState(address);
   if (state.quorum === null) {
     throw new Error('The board and quorum of this safe could not be read.');
   }
-  const board = new Set(state.boardMembers);
+  let pending: any;
+  try {
+    pending = await cached(`pending:${address}`, () =>
+      query<any>(address, 'getPendingActionFullInfo')
+    );
+  } catch (bulkError) {
+    try {
+      return await readPendingOneByOne(address, state as any);
+    } catch {
+      throw bulkError;
+    }
+  }
   const list = (
     Array.isArray(pending) ? pending : pending ? [pending] : []
   ).filter(Boolean);
 
   return Promise.all(
-    list.map(async (action: any) => {
-      const everyone: string[] = (action.signers ?? [])
-        .map(asAddress)
-        .filter(Boolean);
-      const signers = everyone.filter((signer) => board.has(signer));
-      const data = action.action_data ?? action.actionData;
-      const [description, inspection] = await Promise.all([
-        describeAction(data, address),
-        inspectAction(data, address)
-      ]);
-      return {
-        actionId: asNumber(action.action_id ?? action.actionId),
-        name: String(data?.name ?? data?.type ?? ''),
-        description: description + membershipNote(data, state as any),
-        checks: inspection.checks,
-        upgrade: inspection.upgrade,
-        perform: inspection.perform,
-        signerCount: signers.length,
-        signers,
-        formerSigners: everyone.filter((signer) => !board.has(signer)),
-        quorumReached:
-          signers.length >= (state.quorum ?? Number.MAX_SAFE_INTEGER)
-      };
-    })
+    list.map((action: any) =>
+      pendingEntry(
+        address,
+        state as any,
+        asNumber(action.action_id ?? action.actionId),
+        action.action_data ?? action.actionData,
+        action.signers ?? []
+      )
+    )
   );
 };
 

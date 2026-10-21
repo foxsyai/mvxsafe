@@ -30,10 +30,27 @@ cd "$HERE"
 git fetch -q origin main
 git merge-base --is-ancestor HEAD origin/main ||
   { echo "REFUSING: $(git rev-parse --short HEAD) is not on origin/main. Push it first."; exit 1; }
+# Any older commit of main passed the check above, so a stale checkout rolled
+# the site back. The tip of origin/main is what a deploy means; an older commit
+# only on purpose (ops audit OPX-02, 21 Oct 2026).
+[ "${OLD_COMMIT:-}" = 1 ] || [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] ||
+  { echo "REFUSING: $(git rev-parse --short HEAD) is behind origin/main ($(git rev-parse --short origin/main)). Pull first, or OLD_COMMIT=1 to ship an older commit on purpose."; exit 1; }
+# git status does not list what .gitignore hides, and Vite copies all of
+# public/ as it is: a *.pem or a screenshot there shipped under a clean
+# commit's name (OPX-01). Nothing may sit there that is not in the commit.
+stray="$(git ls-files --others --ignored --exclude-standard -- public index.html)"
+[ -z "$stray" ] || { echo "REFUSING: files git ignores would ship from public/:"; echo "$stray" | sed 's/^/  /'; exit 1; }
+# Nor is git status told about a tracked file flagged skip-worktree or
+# assume-unchanged, which then ships changed (OPX-07).
+flagged="$(git ls-files -v | grep -E '^[a-zS] ' || true)"
+[ -z "$flagged" ] || { echo "REFUSING: files hidden from git status (skip-worktree / assume-unchanged):"; echo "$flagged" | sed 's/^/  /'; exit 1; }
 
 # Exactly the locked dependencies, and nothing ships that fails lint or its
 # tests, run against the network's own config.
 pnpm install --frozen-lockfile
+# No high advisory with a fix in what ships; pnpm-workspace.yaml lists the
+# ones without (OPX-05).
+pnpm audit --prod --audit-level=high
 pnpm -s "copy-$NETWORK-config"
 npx eslint src --max-warnings 0
 npx jest --silent
@@ -70,7 +87,11 @@ case "$NETWORK" in
 esac
 
 echo "Shipping to $REMOTE:$DIR ..."
-rsync -a --delete build/ "$REMOTE:$DIR/"
+# Every file lands under a temporary name and all are switched in together at
+# the end, the old ones deleted after: a plain --delete removed the old bundle
+# while the old index.html still named it, a blank page for whoever loaded the
+# site during the upload (OPX-03).
+rsync -a --delete --delay-updates --delete-delay build/ "$REMOTE:$DIR/"
 
 code=$(curl -s -o /dev/null -w '%{http_code}' "$URL")
 echo "$URL -> HTTP $code"

@@ -428,16 +428,18 @@ export const describeAction = async (
     case 'SendAsyncCall':
       return describeCall(fields[0], safe);
     case 'SCDeployFromSource': {
-      const [amount, source, , args] = fields;
+      // The new contract's metadata is said too, as an upgrade's is (SEE-02).
+      const [amount, source, metadata, args] = fields;
       const egld = toBigInt(amount);
-      if (egld === null) return `Unreadable deploy. ${DO_NOT_SIGN}`;
+      const flags = metadataOf(metadata);
+      if (egld === null || !flags) return `Unreadable deploy. ${DO_NOT_SIGN}`;
       const list = (args ?? []).map((arg: any) =>
         describeArgument(bytesOf(arg) ?? new Uint8Array(0))
       );
       return (
         `Deploy a new contract with the code of ${asAddress(source)}` +
         (egld > 0n ? `, sending ${formatUnits(egld, 18)} EGLD to it` : '') +
-        `, with the arguments (${list.join(', ')})`
+        `, with the arguments (${list.join(', ')}). It will be ${describeMetadata(flags)}`
       );
     }
     case 'SCUpgradeFromSource': {

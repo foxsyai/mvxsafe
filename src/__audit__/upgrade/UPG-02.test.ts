@@ -18,14 +18,18 @@ jest.mock(
 import { describeAction } from 'multisig/describe';
 import { inspectUpgrade } from 'multisig/inspect';
 import { predictSafeAddress } from 'multisig/legacyCalls';
-import { contract, mockAccounts } from '../../multisig/tests/contractsMock';
+import {
+  contract,
+  mockAccounts,
+  mockCode
+} from '../../multisig/tests/contractsMock';
 import { ALICE, CAROL, SAFE } from '../display/fixtures';
 
 const TARGET = predictSafeAddress(CAROL, 40); // an ordinary contract the safe owns
 const SOURCE = predictSafeAddress(ALICE, 60); // shard 1, the safe's shard
-const NEW_CODE =
-  'fd32f4e161653fe2f5c5b673dc8f2786d718a21f4ec25b663c365afcf5a67d32';
-const OLD_CODE = '11'.repeat(32);
+// Code hashes with code behind them: the app hashes the code itself (EXT-01).
+const NEW_CODE = mockCode('new');
+const OLD_CODE = mockCode('old');
 const METADATA = Uint8Array.of(0x05, 0x00);
 
 beforeEach(() => {

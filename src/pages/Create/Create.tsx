@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ConnectButton } from 'components/ConnectButton';
 import { Info, Tip } from 'components/Info';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
-import { createSafe } from 'multisig/actions';
+import { createSafe, SafeNotHandedOver } from 'multisig/actions';
 import { checkBoard, majority, MAX_BOARD } from 'multisig/newSafe';
 import { addSafe } from 'multisig/savedSafes';
 import { explainWalletFailure } from 'multisig/walletFailure';
@@ -75,6 +75,15 @@ export const Create = () => {
       addSafe({ name: name.trim() || 'New safe', address: safe });
       navigate(`/safe/${safe}`, { state: { creating: true } });
     } catch (failure: unknown) {
+      // The safe exists but is still in this wallet's hands: keep it and open
+      // it, where its owner is offered the handover (tx audit TXN-02).
+      if (failure instanceof SafeNotHandedOver) {
+        addSafe({ name: name.trim() || 'New safe', address: failure.safe });
+        navigate(`/safe/${failure.safe}`, {
+          state: { creating: true, handOverRefused: true }
+        });
+        return;
+      }
       setProblem(explainWalletFailure(failure, 'Creating the safe'));
       setBusy(false);
     }

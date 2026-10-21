@@ -79,7 +79,8 @@ interface ProposePanelProps {
   tokens: TokenBalance[];
   boardSize: number;
   /** After every attempt that reached the wallet, success or not. */
-  onProposed: () => void;
+  /** After any attempt the wallet saw; `sent` when it reached the network. */
+  onProposed: (sent: boolean) => void;
   /** The safe's EGLD in base units; an EGLD proposal above it is refused. */
   egldBalance?: string;
   /** True while another wallet prompt is open on the page. */
@@ -161,6 +162,7 @@ export const ProposePanel = ({
     setBusy(true);
     onBusyChange?.(true);
     let reachedWallet = false;
+    let sent = false;
     try {
       switch (kind) {
         case 'token': {
@@ -224,6 +226,7 @@ export const ProposePanel = ({
           break;
         }
       }
+      sent = true;
       setTo('');
       setAmount('');
       setQuorum('');
@@ -239,7 +242,7 @@ export const ProposePanel = ({
     // Read the chain again after any attempt the wallet saw: a proposal whose
     // answer was lost may be on chain, and proposing it again would put a
     // second identical action in front of the board (web audit WEB-07).
-    if (reachedWallet) onProposed();
+    if (reachedWallet) onProposed(sent);
   };
 
   // What the change would do, said while typing, in the words the signers
@@ -442,7 +445,12 @@ export const ProposePanel = ({
                 Your wallet has not answered. If you dismissed the request,{' '}
                 <button
                   type='button'
-                  onClick={() => setBusy(false)}
+                  onClick={() => {
+                    // The whole page waits on this form, not only the form
+                    // (web audit BRW-09).
+                    setBusy(false);
+                    onBusyChange?.(false);
+                  }}
                   className='text-[#FF6E0A] hover:underline'
                 >
                   start over

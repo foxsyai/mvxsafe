@@ -21,6 +21,7 @@ import {
   PerformPlan
 } from './gas';
 import {
+  codeHashOf,
   isSystemContract,
   normalizeCodeHash,
   PROTOCOL_BUILTINS,
@@ -42,8 +43,13 @@ export interface AccountFacts {
   address: string;
   shard: number;
   ownerAddress: string;
-  /** 64 hex characters, or null when the address holds no code. */
+  /**
+   * 64 hex characters, or null when the address holds no code: the hash of
+   * the code the API returned, or the hash it states when it returned none.
+   */
   codeHash: string | null;
+  /** The API stated a hash that is not the hash of the code it returned. */
+  codeHashMismatch?: boolean;
   /** Size of the code in bytes, 0 when unknown. */
   codeBytes: number;
   /** Null for an account without code, or when the API did not say. */
@@ -72,14 +78,26 @@ export const readAccountFacts = async (
   address: string
 ): Promise<AccountFacts> => {
   const account = await api<AccountResponse>(`/accounts/${address}`);
-  const codeHash = account?.codeHash
-    ? normalizeCodeHash(account.codeHash)
-    : null;
+  const stated = account?.codeHash ? normalizeCodeHash(account.codeHash) : null;
+  // The code itself, hashed here: the stated hash is only the API's word for
+  // it, and a signer compares it with the release (EXT-01, 21 Oct 2026).
+  const code =
+    typeof account?.code === 'string' &&
+    account.code.length > 0 &&
+    account.code.length % 2 === 0 &&
+    /^[0-9a-f]+$/i.test(account.code)
+      ? Uint8Array.from(account.code.match(/../g) as string[], (pair) =>
+          parseInt(pair, 16)
+        )
+      : null;
+  const hashed = stated && code ? codeHashOf(code) : null;
+  const codeHash = hashed ?? stated;
   return {
     address,
     shard: shardOf(address),
     ownerAddress: account?.ownerAddress ?? '',
     codeHash,
+    codeHashMismatch: Boolean(hashed && stated && hashed !== stated),
     codeBytes:
       typeof account?.code === 'string'
         ? Math.floor(account.code.length / 2)
@@ -179,11 +197,28 @@ export const inspectUpgrade = async (
     });
   }
 
+  for (const [facts, which] of [
+    [sourceFacts, 'the source'],
+    [targetFacts, 'the contract to upgrade']
+  ] as const) {
+    if (facts?.codeHashMismatch) {
+      checks.push({
+        tone: 'bad',
+        text: `The code hash the network's API states for ${which} does not match the code it returned. The hash shown is the code's own. Check both on another explorer before signing.`
+      });
+    }
+  }
+
   if (sourceFacts) {
     if (!sourceFacts.codeHash) {
       checks.push({
         tone: 'bad',
         text: 'The source holds no code. Carrying this out would fail.'
+      });
+    } else if (!sourceFacts.metadata && sourceFacts.ownerAddress !== safe) {
+      checks.push({
+        tone: 'warn',
+        text: `The network's API does not say whether the source is upgradeable. If it is, its owner ${sourceFacts.ownerAddress || '(unknown)'} can replace its code before this is carried out. Check it on another explorer before signing.`
       });
     } else if (
       sourceFacts.metadata?.upgradeable &&
@@ -232,6 +267,11 @@ export const inspectUpgrade = async (
     checks.push({
       tone: 'bad',
       text: 'After this the contract is NOT upgradeable: it can never be changed again, by anyone, this board included.'
+    });
+  } else if (targetFacts?.codeHash && !targetFacts.metadata) {
+    checks.push({
+      tone: 'warn',
+      text: `The network's API does not say whether the contract is upgradeable today, so the new metadata (${describeMetadata(flags)}) cannot be compared with its current one. Check it on another explorer before signing.`
     });
   } else if (targetFacts?.metadata) {
     const changes = metadataChanges(targetFacts.metadata, flags);
@@ -401,6 +441,48 @@ export const builtInChecks = (
 };
 
 /**
+ * The function a token transfer calls after it, if any: ESDTTransfer's third
+ * argument, ESDTNFTTransfer's fifth, MultiESDTNFTTransfer's after its tokens.
+ */
+const functionAfterTransfer = (name: string, args: Uint8Array[]): string => {
+  const text = (bytes?: Uint8Array) =>
+    bytes ? new TextDecoder().decode(bytes) : '';
+  if (name === 'ESDTTransfer') return text(args[2]);
+  if (name === 'ESDTNFTTransfer') return text(args[4]);
+  if (name === 'MultiESDTNFTTransfer' && args.length >= 2) {
+    let count = 0;
+    for (const byte of args[1]) count = count * 256 + byte;
+    return text(args[2 + count * 3]);
+  }
+  return '';
+};
+
+/**
+ * A built-in named AFTER a token transfer runs on the receiver with the safe as
+ * the caller: ESDTTransfer(token, amount, ChangeOwnerAddress, someone) sent to
+ * a contract the safe owns hands it away. As red as the same built-in named
+ * on its own (audit SEE-03, 21 Oct 2026).
+ */
+export const nestedBuiltInChecks = (
+  name: string,
+  args: Uint8Array[]
+): Check[] => {
+  const after = functionAfterTransfer(name, args);
+  if (
+    !after ||
+    !PROTOCOL_BUILTINS.has(after) ||
+    after === 'ClaimDeveloperRewards'
+  )
+    return [];
+  return [
+    {
+      tone: 'bad',
+      text: `After the token transfer it calls ${after}, a built-in function of the network, on the receiving account with the safe as the caller. mvxsafe never proposes that. Check it in the explorer with every board member before signing.`
+    }
+  ];
+};
+
+/**
  * A call that leaves the safe: whom it goes to, whether it works when the safe
  * sends it, and the gas a perform gets from that.
  */
@@ -427,6 +509,7 @@ export const inspectCall = async (
   // cannot be checked against a release here, and a large one cannot even be
   // carried out: the stored action is too big ("storage decode error").
   checks.push(...builtInChecks(new TextDecoder().decode(endpoint), to, safe));
+  checks.push(...nestedBuiltInChecks(new TextDecoder().decode(endpoint), args));
 
   let callNeed: bigint | null = null;
   if (to && hasFunction) {
@@ -475,6 +558,22 @@ export const inspectAction = async (
       case 'SendAsyncCall':
       case 'SendTransferExecute':
         return await inspectCall(name, fields[0], safe);
+      case 'ChangeQuorum': {
+        // The contract accepts a quorum of 0 (audit SC-02, 21 Oct 2026).
+        const next = toBigInt(fields[0]) ?? 0n;
+        return {
+          checks:
+            next < 1n
+              ? [
+                  {
+                    tone: 'bad',
+                    text: "A quorum of 0: after this no action needs any signature, so any single board member or proposer could carry out anything, the safe's funds included. Do not sign it."
+                  }
+                ]
+              : [],
+          perform: performPlan({ name })
+        };
+      }
       default:
         return { checks: [], perform: performPlan({ name }) };
     }
