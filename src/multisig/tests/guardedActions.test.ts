@@ -7,8 +7,21 @@
 // the network refuses to simulate a guarded account's transaction without it
 // ("not allowed to bypass guardian", mainnet, 13 Oct 2026), and 50,000 must be
 // added to its limit afterwards, budgets included.
+// What reaches the wallet: through signAndSendTransactions, or, for a deploy,
+// signed first on its own so its nonce can be checked (TXN-01, 21 Oct 2026).
 jest.mock('helpers/signAndSendTransactions', () => ({
-  signAndSendTransactions: jest.fn(async () => 'session')
+  nonceToSign: (nonce: number) => nonce,
+  sendSigned: async (signed: unknown[]) => signed,
+  signAndSendTransactions: jest.fn(async ({ transactions }) => {
+    (globalThis as any).__sent = transactions;
+    return 'session';
+  }),
+  signOnly: jest.fn(async (transactions: unknown[]) => {
+    (globalThis as any).__sent = transactions;
+    return transactions;
+  }),
+  trackSent: async () => 'session',
+  windNonceBack: () => undefined
 }));
 jest.mock('multisig/network', () => ({
   chainId: 'D',
@@ -35,7 +48,6 @@ jest.mock('multisig/network', () => ({
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { signAndSendTransactions } from 'helpers/signAndSendTransactions';
 import * as actions from 'multisig/actions';
 import { GUARDIAN_GAS, handOverGas } from 'multisig/gas';
 import { predictSafeAddress } from 'multisig/legacyCalls';
@@ -53,9 +65,7 @@ const wasm = new Uint8Array(
   readFileSync(join(__dirname, '../../../public/contracts/multisig.wasm'))
 );
 
-const sent = () =>
-  (signAndSendTransactions as jest.Mock).mock.calls.slice(-1)[0][0]
-    .transactions;
+const sent = () => (globalThis as any).__sent;
 
 beforeEach(() => {
   (globalThis as any).__simulated = [];

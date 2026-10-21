@@ -35,7 +35,7 @@ const ALPHABETS = [
 ];
 
 /** The name as it may be shown, or '' when it may not be shown at all. */
-export const safeLabel = (raw: unknown): string => {
+export const safeLabel = (raw: unknown, max = 40): string => {
   if (typeof raw !== 'string') return '';
   // NFKC folds wide and other compatibility lookalikes into ordinary letters.
   const text = raw
@@ -48,7 +48,7 @@ export const safeLabel = (raw: unknown): string => {
     if (ALPHABETS.filter((alphabet) => alphabet.test(word)).length > 1)
       return '';
   }
-  return Array.from(text).slice(0, 40).join('').trim();
+  return Array.from(text).slice(0, max).join('').trim();
 };
 
 /**
@@ -69,14 +69,34 @@ const clean = (value: unknown): Labels => {
   return labels;
 };
 
-const read = (): Labels => {
+// The labels as last parsed, with the text they were parsed from. Every
+// address on a page looks its label up, and parsing and checking the whole
+// stored set each time froze the page for seconds after a large import (web
+// audit BRW-04, 21 Oct 2026). Keyed on the stored text, so a change from any
+// tab or any module is still seen.
+let parsed: { raw: string | null; labels: Labels } | null = null;
+
+/** The stored labels, shared: not to be changed in place. */
+const lookup = (): Labels => {
+  let raw: string | null = null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return clean(raw ? JSON.parse(raw) : {});
+    raw = window.localStorage.getItem(STORAGE_KEY);
   } catch {
     return clean({});
   }
+  if (parsed && parsed.raw === raw) return parsed.labels;
+  let labels: Labels;
+  try {
+    labels = clean(raw ? JSON.parse(raw) : {});
+  } catch {
+    labels = clean({});
+  }
+  parsed = { raw, labels };
+  return labels;
 };
+
+/** A copy of the stored labels, to change and write back. */
+const read = (): Labels => Object.assign(Object.create(null), lookup());
 
 const write = (labels: Labels) => {
   try {
@@ -89,7 +109,7 @@ const write = (labels: Labels) => {
 export const getLabels = (): Labels => read();
 
 export const getLabel = (address: string): string => {
-  const labels = read();
+  const labels = lookup();
   return Object.prototype.hasOwnProperty.call(labels, address)
     ? labels[address]
     : '';

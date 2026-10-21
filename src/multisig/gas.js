@@ -175,6 +175,11 @@ const reasonOf = (error) =>
  * a 5xx is the network being unavailable.
  */
 const isRefusal = (error) => {
+  // The cost endpoint also checks the nonce against the account. That nonce is
+  // the app's own bookkeeping, not the action, and the next read puts it right
+  // (tx audit TXN-05, 21 Oct 2026).
+  if (/(lower|higher) nonce in transaction/i.test(reasonOf(error)))
+    return false;
   if (error instanceof ErrEstimateTransactionCost) return true;
   const status = Number(error?.inner?.response?.status ?? 0);
   if (status)

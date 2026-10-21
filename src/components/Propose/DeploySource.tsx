@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Tip } from 'components/Info';
 import { deploySource, Signer } from 'multisig/actions';
-import { feeOf, upgradeNeed, withMargin } from 'multisig/gas';
+import { feeOf, MAX_GAS, upgradeNeed, withMargin } from 'multisig/gas';
 import { expectedHashCheck, readAccountFacts } from 'multisig/inspect';
 import { codeHashOf, shardOf } from 'multisig/legacyCalls';
 import { forget } from 'multisig/network';
@@ -36,6 +36,14 @@ interface DeploySourceProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
+// A deploy's data carries the whole code as hex, paid in full, then compiling
+// it, at a hundredth (audit UPG-06, 14 Oct 2026; 26,540 bytes cost 0.0799 EGLD
+// on devnet).
+const deployDataLength = (codeBytes: number) =>
+  2 * codeBytes + '@0500@0400'.length;
+const deployGasOf = (codeBytes: number) =>
+  50000n + 1500n * BigInt(deployDataLength(codeBytes)) + upgradeNeed(codeBytes);
+
 export const DeploySource = ({
   safe,
   signer,
@@ -61,15 +69,14 @@ export const DeploySource = ({
     []
   );
 
-  const hash = bytes ? codeHashOf(bytes) : null;
-  // What the deploy costs: its data carries the whole code as hex, paid in
-  // full, then compiling it, at a hundredth (audit UPG-06, 14 Oct 2026; 26,540
-  // bytes cost 0.0799 EGLD on devnet). Before a file is picked, mvxvest's size.
+  // Once per file: it was hashed again at every character typed into the
+  // expected hash (web audit BRW-10, 21 Oct 2026).
+  const hash = useMemo(() => (bytes ? codeHashOf(bytes) : null), [bytes]);
+  // What the deploy costs. Before a file is picked, mvxvest's size.
   const codeBytes = bytes?.length ?? 26540;
-  const dataLength = 2 * codeBytes + '@0500@0400'.length;
   const deployFee = feeOf(
-    withMargin(50000n + 1500n * BigInt(dataLength) + upgradeNeed(codeBytes)),
-    dataLength
+    withMargin(deployGasOf(codeBytes)),
+    deployDataLength(codeBytes)
   );
   const deployCost = `about ${(Number(deployFee) / 1e18).toFixed(4)} EGLD ${bytes ? 'for this file' : 'for a 26 KB contract'}`;
   const hashCheck = hash ? expectedHashCheck(expected, hash, 'the file') : null;
@@ -89,6 +96,14 @@ export const DeploySource = ({
     setBytes(null);
     setFileName(file?.name ?? '');
     if (!file) return;
+    // Refused before it is read or hashed: a file this large could never be
+    // deployed, and reading it froze the tab.
+    if (deployGasOf(file.size) > MAX_GAS) {
+      setFileProblem(
+        `That file is ${file.size.toLocaleString('en-US')} bytes. Deploying it would need more gas than a transaction can carry, so it could never be sent.`
+      );
+      return;
+    }
     const read = new Uint8Array(await file.arrayBuffer());
     if (!WASM_MAGIC.every((byte, at) => read[at] === byte)) {
       setFileProblem(
@@ -220,7 +235,13 @@ export const DeploySource = ({
             </button>
           </Tip>
           {busy && stuck && (
-            <StuckNote onStartOver={() => setBusy(false)} where='here' />
+            <StuckNote
+              onStartOver={() => {
+                setBusy(false);
+                onBusyChange?.(false);
+              }}
+              where='here'
+            />
           )}
         </div>
       )}

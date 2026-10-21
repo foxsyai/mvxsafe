@@ -66,13 +66,20 @@ const inflight = new Map<string, Promise<unknown>>();
 const queue: (() => void)[] = [];
 let running = 0;
 let tokens = BURST;
-let lastRefill = Date.now();
+
+// The pace, the pauses and the cache run on a clock that only moves forward.
+// The wall clock can be set back, by the visitor or by a time sync, and a
+// step back of ten minutes stalled every read for ten minutes (web audit
+// BRW-11, 21 Oct 2026).
+const monotonic = () =>
+  typeof performance !== 'undefined' ? performance.now() : Date.now();
+let lastRefill = monotonic();
 
 const refill = () => {
-  const now = Date.now();
+  const now = monotonic();
   tokens = Math.min(
     BURST,
-    tokens + ((now - lastRefill) / 1000) * RATE_PER_SECOND
+    tokens + (Math.max(0, now - lastRefill) / 1000) * RATE_PER_SECOND
   );
   lastRefill = now;
 };
@@ -93,7 +100,7 @@ const pumpIn = (ms: number) => {
 };
 
 const pump = () => {
-  const wait = pausedUntil - Date.now();
+  const wait = pausedUntil - monotonic();
   if (wait > 0) {
     pumpIn(wait);
     return;
@@ -175,12 +182,17 @@ let pausedUntil = 0;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 /**
- * fetch, but settled within REQUEST_TIMEOUT_MS whatever the connection does. A
- * stalled connection used to hold one of the six request slots for ever, and
- * six of them stopped every read in the app until a reload (WEB-06). The race
- * settles even when the request ignores the abort.
+ * fetch and `read` its answer, settled within REQUEST_TIMEOUT_MS whatever the
+ * connection does. A stalled connection used to hold one of the six request
+ * slots for ever, and six of them stopped every read in the app until a reload
+ * (WEB-06). The body is read inside the same time: headers that arrive and a
+ * body that never does held a slot for ever too (web audit BRW-03, 21 Oct
+ * 2026). The race settles even when the request ignores the abort.
  */
-const fetchWithTimeout = (url: string): Promise<Response> => {
+const fetchWithTimeout = <T>(
+  url: string,
+  read: (response: Response) => Promise<T>
+): Promise<T> => {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -196,7 +208,7 @@ const fetchWithTimeout = (url: string): Promise<Response> => {
     }, REQUEST_TIMEOUT_MS);
   });
   return Promise.race([
-    fetch(url, { signal: controller.signal }),
+    fetch(url, { signal: controller.signal }).then(read),
     timeout
   ]).finally(() => clearTimeout(timer));
 };
@@ -217,7 +229,7 @@ export const cached = async <T>(
   work: () => Promise<T>
 ): Promise<T> => {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value as T;
+  if (hit && monotonic() - hit.at < CACHE_MS) return hit.value as T;
 
   const already = inflight.get(key);
   if (already) return already as Promise<T>;
@@ -232,7 +244,7 @@ export const cached = async <T>(
           startedIn >= clearedIn &&
           (forgottenIn.get(key) ?? -1) <= startedIn
         ) {
-          cache.set(key, { at: Date.now(), value });
+          cache.set(key, { at: monotonic(), value });
         }
         return value;
       } catch (error) {
@@ -241,7 +253,7 @@ export const cached = async <T>(
         if (isRateLimit(error)) {
           pausedUntil = Math.max(
             pausedUntil,
-            Date.now() + 2000 * Math.pow(2, round)
+            monotonic() + 2000 * Math.pow(2, round)
           );
         }
         await wait(600 * Math.pow(2, round));
@@ -290,24 +302,24 @@ export const forget = (address: string) => {
  */
 export const api = async <T>(path: string): Promise<T> =>
   cached(`api:${path}`, async () => {
-    let response: Response;
     try {
-      response = await fetchWithTimeout(`${apiUrl}${path}`);
+      return await fetchWithTimeout(`${apiUrl}${path}`, async (response) => {
+        if (!response.ok) {
+          throw new ApiError(
+            `${path} answered ${response.status}`,
+            response.status,
+            RETRY_STATUS.has(response.status)
+          );
+        }
+        return (await response.json()) as T;
+      });
     } catch (failure: any) {
       if (failure instanceof ApiError) throw failure;
-      // fetch rejects only when the request never got an answer: worth retrying.
+      // The request or its body never fully arrived: worth retrying.
       throw new ApiError(
         `${path}: ${failure?.message ?? 'network error'}`,
         undefined,
         true
       );
     }
-    if (!response.ok) {
-      throw new ApiError(
-        `${path} answered ${response.status}`,
-        response.status,
-        RETRY_STATUS.has(response.status)
-      );
-    }
-    return (await response.json()) as T;
   });

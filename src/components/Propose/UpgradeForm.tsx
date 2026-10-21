@@ -167,6 +167,7 @@ export const UpgradeForm = ({
     setBusy(true);
     onBusyChange?.(true);
     let reachedWallet = false;
+    let sent = false;
     try {
       reachedWallet = true;
       await proposeUpgrade(signer, safe, {
@@ -175,12 +176,21 @@ export const UpgradeForm = ({
         metadata: flags,
         args: encoded.typed
       });
+      sent = true;
+      // Proposed: the same upgrade is not one press away from a duplicate
+      // (web audit BRW-07).
+      setTarget('');
+      setSource('');
+      setExpected('');
+      setRows([]);
+      setFlags(null);
+      setFlagsTouched(false);
     } catch (failure) {
       setError(explainWalletFailure(failure, 'The proposal'));
     }
     setBusy(false);
     onBusyChange?.(false);
-    if (reachedWallet) onProposed();
+    if (reachedWallet) onProposed(sent);
   };
 
   const toggle = (flag: keyof MetadataFlags) => {
@@ -376,7 +386,14 @@ export const UpgradeForm = ({
               source.
             </p>
           )}
-        {busy && stuck && <StuckNote onStartOver={() => setBusy(false)} />}
+        {busy && stuck && (
+          <StuckNote
+            onStartOver={() => {
+              setBusy(false);
+              onBusyChange?.(false);
+            }}
+          />
+        )}
       </div>
     </div>
   );

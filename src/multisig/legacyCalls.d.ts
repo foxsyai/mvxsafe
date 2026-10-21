@@ -127,6 +127,7 @@ export declare const buildDeploySource: (
 ) => Promise<Transaction>;
 
 export declare const PROTOCOL_BUILTINS: Set<string>;
+export declare const MAX_ARGUMENT_BYTES: number;
 export declare const builtInRefusal: (name: string) => string;
 export declare const isSystemContract: (address: string) => boolean;
 

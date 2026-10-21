@@ -54,7 +54,7 @@ export interface FormProps {
   disabled?: boolean;
   disabledReason?: string;
   onBusyChange?: (busy: boolean) => void;
-  onProposed: () => void;
+  onProposed: (sent: boolean) => void;
 }
 
 export const CallForm = ({
@@ -198,6 +198,7 @@ export const CallForm = ({
     setBusy(true);
     onBusyChange?.(true);
     let reachedWallet = false;
+    let sent = false;
     try {
       reachedWallet = true;
       await proposeCall(signer, safe, {
@@ -206,12 +207,18 @@ export const CallForm = ({
         functionName,
         args: encoded.typed
       });
+      sent = true;
+      // Proposed: the same call is not one press away from a duplicate
+      // (web audit BRW-07). The contract and its ABI stay.
+      setFunctionName('');
+      setEgld('');
+      setRows([]);
     } catch (failure) {
       setError(explainWalletFailure(failure, 'The proposal'));
     }
     setBusy(false);
     onBusyChange?.(false);
-    if (reachedWallet) onProposed();
+    if (reachedWallet) onProposed(sent);
   };
 
   const repeatSlot = chosen?.slots.find((slot) => slot.repeat);
@@ -395,7 +402,14 @@ export const CallForm = ({
               argument.
             </p>
           )}
-        {busy && stuck && <StuckNote onStartOver={() => setBusy(false)} />}
+        {busy && stuck && (
+          <StuckNote
+            onStartOver={() => {
+              setBusy(false);
+              onBusyChange?.(false);
+            }}
+          />
+        )}
       </div>
     </div>
   );

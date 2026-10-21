@@ -22,14 +22,14 @@ import { UpgradeForm } from 'components/Propose/UpgradeForm';
 import { deploySource, proposeCall, proposeUpgrade } from 'multisig/actions';
 import { codeHashOf, predictSafeAddress } from 'multisig/legacyCalls';
 import { ALICE, CAROL, SAFE } from '../../__audit__/display/fixtures';
-import { contract, mockAccounts, mockTrial } from './contractsMock';
+import { contract, mockAccounts, mockCode, mockTrial } from './contractsMock';
 
 const TARGET = predictSafeAddress(CAROL, 40); // shard 0
 const SOURCE = predictSafeAddress(ALICE, 60); // shard 1, the safe's
 const WRONG_SHARD_SOURCE = predictSafeAddress(CAROL, 41); // shard 0
-const NEW_CODE =
-  'fd32f4e161653fe2f5c5b673dc8f2786d718a21f4ec25b663c365afcf5a67d32';
-const OLD_CODE = '11'.repeat(32);
+// Code hashes with code behind them: the app hashes the code itself (EXT-01).
+const NEW_CODE = mockCode('new');
+const OLD_CODE = mockCode('old');
 const signer = { address: ALICE, nonce: 1 };
 
 beforeEach(() => {
@@ -208,7 +208,11 @@ describe('deploying a source', () => {
   test('deployed, its code is read back and compared, then offered as the source', async () => {
     const at = predictSafeAddress(ALICE, 61);
     (globalThis as any).__deployedTo = at;
-    mockAccounts[at] = contract({ owner: ALICE, hash, upgradeable: false });
+    // The deployed code is the file, as the API returns it (EXT-01).
+    mockAccounts[at] = {
+      ...contract({ owner: ALICE, hash, upgradeable: false }),
+      code: Buffer.from(wasm).toString('hex')
+    };
     const onUse = jest.fn();
     render(<DeploySource safe={SAFE} signer={signer} onUse={onUse} />);
     await pick();

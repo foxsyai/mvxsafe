@@ -97,6 +97,14 @@ const SafeView = ({ address }: { address: string }) => {
     address: account.address,
     nonce: Number(account.nonce ?? 0)
   };
+  // A wallet prompt is open: an action, a proposal or the handover. Nothing
+  // else may start meanwhile, or two transactions are built on one nonce
+  // (WEB-08; the handover was outside it, web audit BRW-02).
+  const walletOpen = working !== 0 || proposing || handingOver;
+  // Which prompt is the newest. "start over" gives up on the open one, and an
+  // abandoned prompt that settles later must not release the one opened after
+  // it (web audit BRW-08, 21 Oct 2026).
+  const promptRef = useRef(0);
   const canPropose = role === 'BoardMember' || role === 'Proposer';
   const canSign = role === 'BoardMember';
 
@@ -120,44 +128,59 @@ const SafeView = ({ address }: { address: string }) => {
   const readBefore = useRef({ overview: false, pending: false });
   const staleRetries = useRef(0);
   const loadRef = useRef<() => Promise<boolean>>(async () => false);
+  // Every load has a number, and only the newest one writes. A wallet change
+  // or a Refresh starts a new load without stopping the old one, whose role
+  // read, answering last, used to become the NEW wallet's role: a stranger was
+  // told "a board member here" and shown Sign (web audit BRW-01, 21 Oct 2026).
+  const generation = useRef(0);
   const load = useCallback(async (): Promise<boolean> => {
     if (!alive.current) return false;
+    const mine = ++generation.current;
+    const current = () => alive.current && generation.current === mine;
     setLoading(true);
     let fresh = true;
     readContractInfo(address)
-      .then(setContract)
+      .then((info) => current() && setContract(info))
       .catch(() => undefined);
     try {
-      setOverview(await readOverview(address));
-      readBefore.current.overview = true;
-      setFailed(false);
+      const next = await readOverview(address);
+      if (current()) {
+        setOverview(next);
+        readBefore.current.overview = true;
+        setFailed(false);
+      }
     } catch {
       fresh = false;
-      if (!readBefore.current.overview) setFailed(true);
+      if (current() && !readBefore.current.overview) setFailed(true);
     }
     try {
-      setPending(await readPendingActions(address));
-      readBefore.current.pending = true;
+      const next = await readPendingActions(address);
+      if (current()) {
+        setPending(next);
+        readBefore.current.pending = true;
+      }
     } catch {
       fresh = false;
-      if (!readBefore.current.pending) setPending(null);
+      if (current() && !readBefore.current.pending) setPending(null);
     }
     // History and role keep their last value when refused, without blocking.
     readHistory(address)
       .then((entries) => {
-        if (!alive.current) return;
+        if (!current()) return;
         setHistory(entries);
         setHistoryRead(true);
       })
       .catch(() => undefined);
     try {
-      setRole(
-        isLoggedIn ? await readUserRole(address, account.address) : 'None'
-      );
+      const next = isLoggedIn
+        ? await readUserRole(address, account.address)
+        : 'None';
+      if (current()) setRole(next);
     } catch {
       // Unknown stays unknown: never "not on this board" for a refused read.
     }
-    if (!alive.current) return fresh;
+    // A newer load is under way and decides what the page shows.
+    if (!current()) return fresh;
     const isStale =
       !fresh && (readBefore.current.overview || readBefore.current.pending);
     setStale(isStale);
@@ -191,7 +214,8 @@ const SafeView = ({ address }: { address: string }) => {
   const run = async (actionId: number, work: () => Promise<unknown>) => {
     // One wallet prompt at a time: every action button is disabled while this
     // runs, or a second transaction could be built on the same nonce (WEB-08).
-    if (working !== 0 || proposing || awaiting) return;
+    if (walletOpen || awaiting) return;
+    const mine = ++promptRef.current;
     setWorking(actionId);
     setProblem('');
     let sent = false;
@@ -201,7 +225,7 @@ const SafeView = ({ address }: { address: string }) => {
     } catch (failure: unknown) {
       setProblem(explainWalletFailure(failure, 'That'));
     }
-    setWorking(0);
+    if (promptRef.current === mine) setWorking(0);
     if (sent) {
       // Sent: the network needs a few seconds. The buttons wait for the
       // processed signal, so the same action is not sent twice meanwhile.
@@ -244,17 +268,25 @@ const SafeView = ({ address }: { address: string }) => {
   const ownsItself = !contract?.exists || contract.ownerAddress === address;
   const youOwnIt = isLoggedIn && contract?.ownerAddress === account.address;
 
+  // The same rules as run: one prompt at a time, and "Sent" only when it was.
   const handOver = async () => {
-    if (working !== 0 || proposing) return;
+    if (walletOpen || awaiting) return;
     setHandingOver(true);
     setProblem('');
+    let sent = false;
     try {
       await handOverSafe(signer, address);
+      sent = true;
     } catch (failure: unknown) {
       setProblem(explainWalletFailure(failure, 'The handover'));
     }
     setHandingOver(false);
-    awaitNetwork();
+    if (sent) {
+      awaitNetwork();
+    } else {
+      forget(address);
+      await load();
+    }
   };
 
   // A transaction sent from this page lands seconds after the wallet returns, so
@@ -367,7 +399,7 @@ const SafeView = ({ address }: { address: string }) => {
             <div className='mt-3 flex flex-wrap items-center gap-3'>
               <button
                 type='button'
-                disabled={handingOver}
+                disabled={walletOpen || awaiting}
                 onClick={handOver}
                 className='rounded-lg bg-[#FF6E0A] px-4 py-2 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
               >
@@ -402,6 +434,15 @@ const SafeView = ({ address }: { address: string }) => {
         </p>
       )}
 
+      {/* The contract accepts a quorum of 0, and then nothing needs a signature (SC-02). */}
+      {overview?.quorum === 0 && (
+        <p className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+          This safe needs no signatures: its quorum is 0, so any board member or
+          proposer can carry out any action alone. Propose a new quorum before
+          anything else.
+        </p>
+      )}
+
       {stale && !failed && (
         <p className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>
           The network did not answer just now, so this is what was read a moment
@@ -415,7 +456,10 @@ const SafeView = ({ address }: { address: string }) => {
           Your wallet has not answered. If you dismissed the request,{' '}
           <button
             type='button'
-            onClick={() => setWorking(0)}
+            onClick={() => {
+              promptRef.current++;
+              setWorking(0);
+            }}
             className='text-[#FF6E0A] hover:underline'
           >
             start over
@@ -432,7 +476,7 @@ const SafeView = ({ address }: { address: string }) => {
             <Info text='How many of the board members have to sign before an action can be carried out.' />
           </p>
           <p className='mt-1 text-2xl font-semibold text-white'>
-            {overview?.quorum
+            {overview && overview.quorum !== null
               ? `${overview.quorum} of ${overview.boardMembers.length}`
               : overview
                 ? 'unknown'
@@ -566,9 +610,7 @@ const SafeView = ({ address }: { address: string }) => {
                           <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'>
                             <button
                               type='button'
-                              disabled={
-                                working !== 0 || proposing || stale || awaiting
-                              }
+                              disabled={walletOpen || stale || awaiting}
                               onClick={() =>
                                 run(action.actionId, () =>
                                   unsignAction(signer, address, action.actionId)
@@ -579,13 +621,12 @@ const SafeView = ({ address }: { address: string }) => {
                               Remove my signature
                             </button>
                           </Tip>
-                        ) : (
+                        ) : action.unreadable ? null : (
+                          // An action the contract cannot return is never signed (SC-01).
                           <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'>
                             <button
                               type='button'
-                              disabled={
-                                working !== 0 || proposing || stale || awaiting
-                              }
+                              disabled={walletOpen || stale || awaiting}
                               onClick={() =>
                                 run(action.actionId, () =>
                                   signAction(signer, address, action.actionId)
@@ -598,13 +639,12 @@ const SafeView = ({ address }: { address: string }) => {
                           </Tip>
                         ))}
 
-                      {action.quorumReached && (
+                      {action.quorumReached && !action.unreadable && (
                         <Tip text='Makes it happen. Enough signatures are in. Any board member may press this.'>
                           <button
                             type='button'
                             disabled={
-                              working !== 0 ||
-                              proposing ||
+                              walletOpen ||
                               stale ||
                               awaiting ||
                               Boolean(gas.problem)
@@ -636,8 +676,7 @@ const SafeView = ({ address }: { address: string }) => {
                         <button
                           type='button'
                           disabled={
-                            working !== 0 ||
-                            proposing ||
+                            walletOpen ||
                             stale ||
                             awaiting ||
                             action.signerCount > 0
@@ -671,20 +710,28 @@ const SafeView = ({ address }: { address: string }) => {
           boardMembers={overview.boardMembers}
           proposers={overview.proposers ?? []}
           quorum={overview.quorum}
-          disabled={working !== 0 || stale || awaiting}
+          disabled={working !== 0 || handingOver || stale || awaiting}
           disabledReason={
             awaiting
               ? 'Waiting for the network to confirm the last transaction; this unlocks by itself.'
               : stale
                 ? 'The network did not answer the last read; this unlocks as soon as it does.'
-                : working !== 0
+                : working !== 0 || handingOver
                   ? 'Another transaction is waiting for your wallet.'
                   : undefined
           }
           onBusyChange={setProposing}
-          onProposed={() => {
-            forget(address);
-            load();
+          onProposed={(sent) => {
+            // Sent: like a signature, the form waits for the processed signal,
+            // or a second press files the same proposal again before the
+            // first is visible (web audit BRW-07). Not sent, but the wallet saw
+            // it: only the chain can say whether it went through (WEB-07).
+            if (sent) {
+              awaitNetwork();
+            } else {
+              forget(address);
+              load();
+            }
           }}
         />
       )}
