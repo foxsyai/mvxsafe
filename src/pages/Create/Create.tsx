@@ -79,7 +79,9 @@ export const Create = () => {
       // it, where its owner is offered the handover (tx audit TXN-02).
       if (failure instanceof SafeNotHandedOver) {
         addSafe({ name: name.trim() || 'New safe', address: failure.safe });
-        navigate(`/safe/${failure.safe}`, { state: { creating: true } });
+        navigate(`/safe/${failure.safe}`, {
+          state: { creating: true, handOverRefused: true }
+        });
         return;
       }
       setProblem(explainWalletFailure(failure, 'Creating the safe'));

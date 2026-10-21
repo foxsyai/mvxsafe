@@ -175,11 +175,6 @@ const reasonOf = (error) =>
  * a 5xx is the network being unavailable.
  */
 const isRefusal = (error) => {
-  // The cost endpoint also checks the nonce against the account. That nonce is
-  // the app's own bookkeeping, not the action, and the next read puts it right
-  // (tx audit TXN-05, 21 Oct 2026).
-  if (/(lower|higher) nonce in transaction/i.test(reasonOf(error)))
-    return false;
   if (error instanceof ErrEstimateTransactionCost) return true;
   const status = Number(error?.inner?.response?.status ?? 0);
   if (status)
@@ -188,6 +183,16 @@ const isRefusal = (error) => {
     reasonOf(error)
   );
 };
+
+/**
+ * The cost endpoint also checks the nonce of the person's own transaction
+ * against the account. That nonce is the app's bookkeeping, not the action, and
+ * the next read puts it right (tx audit TXN-05, 21 Oct 2026). Only there: in a
+ * trial as the safe the target contract writes the answer, and could word a
+ * refusal like this (review of PR #11).
+ */
+const isNonceComplaint = (error) =>
+  /(lower|higher) nonce in transaction/i.test(reasonOf(error));
 
 /**
  * Gives the transaction its gas limit, as the last step before signing.
@@ -220,7 +225,7 @@ export const settleGas = async (
         (await provider.estimateTransactionCost(transaction)).gasLimit ?? 0
       );
     } catch (error) {
-      throw isRefusal(error)
+      throw isRefusal(error) && !isNonceComplaint(error)
         ? new GasError(
             `The network refused it when trying it in advance: ${reasonOf(error)}. Nothing was sent.`,
             true

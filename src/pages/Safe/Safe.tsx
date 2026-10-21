@@ -86,9 +86,13 @@ const SafeView = ({ address }: { address: string }) => {
 
   // Set by the create page: the deploy was just sent, so for a little while an
   // address that cannot be read yet is expected, not a failure.
-  const creating = Boolean(
-    (useLocation().state as { creating?: boolean } | null)?.creating
-  );
+  const created = useLocation().state as {
+    creating?: boolean;
+    handOverRefused?: boolean;
+  } | null;
+  const creating = Boolean(created?.creating);
+  // The deploy was sent but the handover was not (TXN-02).
+  const handOverRefused = Boolean(created?.handOverRefused);
   const [waitedFor, setWaitedFor] = useState(0);
 
   const isLoggedIn = useGetIsLoggedIn();
@@ -373,9 +377,9 @@ const SafeView = ({ address }: { address: string }) => {
       {failed &&
         (creating && waitedFor < 40 ? (
           <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
-            Being created. The network needs a few seconds to run the two
-            transactions; this page fills in by itself as soon as the safe
-            exists.
+            {handOverRefused
+              ? "Being created. The transaction that makes the safe its own owner was not sent, so until it is, the safe is in your wallet's hands. As soon as the safe exists, this page offers to hand it to itself."
+              : 'Being created. The network needs a few seconds to run the two transactions; this page fills in by itself as soon as the safe exists.'}
           </p>
         ) : (
           <p className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>

@@ -57,12 +57,7 @@ const contextOf = async (signer: Signer, safe: string) => {
   } catch {
     // Fall back to what the page knows, rather than refusing to act at all.
   }
-  return {
-    chainId,
-    sender: signer.address,
-    nonce: nonceToSign(nonce),
-    safe
-  };
+  return { chainId, sender: signer.address, nonce, safe };
 };
 
 /**
@@ -142,7 +137,10 @@ const sendAll = async (
 /**
  * Signs, and goes no further unless the first was signed at `nonce` and the
  * rest after it: a new contract's address follows from its deploy's nonce, and
- * the wallet may raise it (tx audit TXN-01, 21 Oct 2026).
+ * the wallet may raise it (tx audit TXN-01, 21 Oct 2026). A deploy is built and
+ * simulated at the chain's nonce, since the network will not simulate one
+ * ahead of the account ("higher nonce in transaction"), and moved to the nonce
+ * it is signed at, nonceToSign, just before signing (review of PR #11).
  */
 const signAt = async (transactions: any[], nonce: number) => {
   const signed = await signOnly(transactions);
@@ -314,13 +312,15 @@ export const deploySource = async (
   bytecode: Uint8Array
 ): Promise<string> => {
   const { chainId: chain, sender, nonce } = await contextOf(signer, '');
-  const address = predictSafeAddress(sender, nonce);
+  const at = nonceToSign(nonce);
+  const address = predictSafeAddress(sender, at);
   const deploy = await buildDeploySource(
     { chainId: chain, sender, nonce },
     { bytecode }
   );
   await settleAll([deploy]);
-  const signed = await signAt([deploy], nonce);
+  deploy.nonce = BigInt(at);
+  const signed = await signAt([deploy], at);
   await trackSent(
     signed,
     await sendSigned(signed),
@@ -383,7 +383,8 @@ export const createSafe = async (
 ): Promise<string> => {
   const bytecode = await loadSafeCode();
   const { chainId, sender, nonce } = await contextOf(signer, '');
-  const safe = predictSafeAddress(sender, nonce);
+  const at = nonceToSign(nonce);
+  const safe = predictSafeAddress(sender, at);
   const deploy = await buildDeploySafe(
     { chainId, sender, nonce },
     { bytecode, quorum, board }
@@ -393,7 +394,7 @@ export const createSafe = async (
   const handOver = await buildHandOver({
     chainId,
     sender,
-    nonce: nonce + 1,
+    nonce: at + 1,
     safe
   });
   // The deploy is simulated. The handover cannot be, before the safe it hands
@@ -402,7 +403,8 @@ export const createSafe = async (
     [deploy, handOver],
     [undefined, handOverGas(handOver.data.length)]
   );
-  const signed = await signAt([deploy, handOver], nonce);
+  deploy.nonce = BigInt(at);
+  const signed = await signAt([deploy, handOver], at);
   // One after the other, not together: sdk-dapp posts a batch as separate
   // requests and fails it whole if any one fails, although the others were
   // already accepted. A refused handover then looked like nothing was sent,

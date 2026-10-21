@@ -5,7 +5,13 @@
 import '../../web/fixSetImmediate';
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useParams
+} from 'react-router-dom';
 import { createSafe } from 'multisig/actions';
 import { getSavedSafes } from 'multisig/savedSafes';
 import { Create } from 'pages/Create/Create';
@@ -25,7 +31,12 @@ jest.mock('multisig/actions', () => ({
   createSafe: jest.fn()
 }));
 
-const SafePage = () => <p>safe page {useParams().address}</p>;
+const SafePage = () => (
+  <p>
+    safe page {useParams().address}
+    <span>{JSON.stringify(useLocation().state)}</span>
+  </p>
+);
 
 const renderCreate = () =>
   render(
@@ -56,4 +67,6 @@ test('a safe created without its handover is saved and opened', async () => {
   fireEvent.click(await screen.findByText('Create a 1 of 1 safe'));
   expect(await screen.findByText(`safe page ${SAFE}`)).toBeInTheDocument();
   expect(getSavedSafes().map((safe) => safe.address)).toContain(SAFE);
+  // The safe page is told, so it can say the handover was not sent.
+  expect(screen.getByText(/"handOverRefused":true/)).toBeInTheDocument();
 });

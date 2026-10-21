@@ -542,6 +542,14 @@ const pendingEntry = async (
  * signers of that one, still answer by id (audit SC-01, proven on devnet,
  * 21 Oct 2026). Throws when the network itself does not answer.
  */
+// Per safe, the action ids carried out or discarded. An id is never reused,
+// so one that answered Nothing always will: it is read once, and kept through
+// forget(), or a safe with a long history took minutes to read after every
+// transaction (review of PR #11, 21 Oct 2026). Not the newest ids: a node a
+// few seconds behind answers Nothing for an action proposed moments ago.
+const finished = new Map<string, Set<number>>();
+const ALWAYS_REREAD = 10;
+
 const readPendingOneByOne = async (
   address: string,
   state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
@@ -553,7 +561,10 @@ const readPendingOneByOne = async (
   );
   const board = new Set(state.boardMembers);
   const entries: PendingAction[] = [];
+  const done = finished.get(address) ?? new Set<number>();
+  finished.set(address, done);
   for (let id = 1; id <= last; id++) {
+    if (done.has(id)) continue;
     let data: any = null;
     let unreadable = false;
     try {
@@ -565,8 +576,10 @@ const readPendingOneByOne = async (
       unreadable = true;
     }
     // Carried out or discarded: the contract keeps Nothing in its place.
-    if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing')
+    if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing') {
+      if (id <= last - ALWAYS_REREAD) done.add(id);
       continue;
+    }
     const signersAnswer = await cached(`signers:${address}:${id}`, () =>
       query<any>(address, 'getActionSigners', [new U32Value(id)])
     );
