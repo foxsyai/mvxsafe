@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react';
 import { defineConfig, Plugin } from 'vite';
@@ -73,8 +74,15 @@ export default defineConfig({
       globals: { Buffer: true, global: true, process: true }
     })
   ],
-  resolve: {    
-    tsconfigPaths: true
+  resolve: {
+    tsconfigPaths: true,
+    // blake2b's WebAssembly half, which the CSP refuses, replaced by a stand-in
+    // that rejects nothing (see the file).
+    alias: {
+      'blake2b-wasm': fileURLToPath(
+        new URL('./src/lib/blake2b-wasm-off.cjs', import.meta.url)
+      )
+    }
   },
   css: {
     postcss: './postcss.config.js'

@@ -16,7 +16,9 @@ module.exports = {
   transformIgnorePatterns: ['node_modules/(^.+\\\\.(ts|js)$)'],
   testMatch: ['**/src/**/?(*.)+(spec|test|bgTest).ts?(x)'],
   moduleNameMapper: {
-    '\\.(css|sass|scss)$': 'identity-obj-proxy'
+    '\\.(css|sass|scss)$': 'identity-obj-proxy',
+    // As in vite.config.ts: blake2b in JavaScript, as on the live site.
+    '^blake2b-wasm$': '<rootDir>/src/lib/blake2b-wasm-off.cjs'
   },
   moduleFileExtensions: [
     // Place tsx and ts to beginning as suggestion from Jest team
