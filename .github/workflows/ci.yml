@@ -63,7 +63,9 @@ jobs:
             exit 1
           fi
 
-      - uses: pnpm/action-setup@v4
+      # Every action by commit, never by a tag that can be moved (ops audit
+      # OPX-04, 21 Oct 2026). This is the commit v4 named that day.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 10
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -71,6 +73,9 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # No high advisory with a fix in what ships; pnpm-workspace.yaml lists
+      # the ones without (OPX-05).
+      - run: pnpm audit --prod --audit-level=high
       # src/config/index.ts is generated per network and is not in git, so it
       # has to exist before anything typechecks.
       - name: Choose the network config
