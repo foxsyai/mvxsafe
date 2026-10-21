@@ -243,15 +243,17 @@ const SafeView = ({ address }: { address: string }) => {
   };
 
   // A wallet that never answers, an xPortal request dismissed on the phone for
-  // example, would leave the buttons disabled until the page is reloaded.
+  // example, would leave the buttons disabled until the page is reloaded. The
+  // handover too: it holds every button since BRW-02 (review of PR #11).
+  const prompting = working !== 0 || handingOver;
   useEffect(() => {
-    if (!working) {
+    if (!prompting) {
       setStuck(false);
       return;
     }
     const timer = setTimeout(() => setStuck(true), 25000);
     return () => clearTimeout(timer);
-  }, [working]);
+  }, [prompting]);
 
   useEffect(() => {
     load();
@@ -275,6 +277,7 @@ const SafeView = ({ address }: { address: string }) => {
   // The same rules as run: one prompt at a time, and "Sent" only when it was.
   const handOver = async () => {
     if (walletOpen || awaiting) return;
+    const mine = ++promptRef.current;
     setHandingOver(true);
     setProblem('');
     let sent = false;
@@ -284,7 +287,7 @@ const SafeView = ({ address }: { address: string }) => {
     } catch (failure: unknown) {
       setProblem(explainWalletFailure(failure, 'The handover'));
     }
-    setHandingOver(false);
+    if (promptRef.current === mine) setHandingOver(false);
     if (sent) {
       awaitNetwork();
     } else {
@@ -455,7 +458,7 @@ const SafeView = ({ address }: { address: string }) => {
         </p>
       )}
 
-      {working > 0 && stuck && (
+      {prompting && stuck && (
         <p className='mt-6 rounded-lg border border-[#2A2A32] bg-[#121218] p-4 text-sm text-[#9AA0A6]'>
           Your wallet has not answered. If you dismissed the request,{' '}
           <button
@@ -463,6 +466,7 @@ const SafeView = ({ address }: { address: string }) => {
             onClick={() => {
               promptRef.current++;
               setWorking(0);
+              setHandingOver(false);
             }}
             className='text-[#FF6E0A] hover:underline'
           >
