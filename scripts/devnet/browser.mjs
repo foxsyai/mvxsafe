@@ -36,11 +36,19 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const browser = await chromium.launch(
   process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {}
 );
-const context = await browser.newContext({ ignoreHTTPSErrors: true });
+// Certificate errors only for a local preview, which has a self-signed one:
+// for the real site, a TLS-intercepting proxy must not pass for it.
+const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(TARGET);
+const context = await browser.newContext({ ignoreHTTPSErrors: isLocal });
 const signed = [];
+// Every frame in the context can call this, so it signs only what this
+// rehearsal sends: devnet, from alice (review of PR #13).
 await context.exposeFunction('__rehearsalSign', async (plains) => {
   const signatures = [];
   for (const plain of plains) {
+    if (plain?.chainID !== 'D' || plain?.sender !== ADDRESS) {
+      throw new Error(`refused: chain ${plain?.chainID}, sender ${plain?.sender}`);
+    }
     const transaction = Transaction.newFromPlainObject(plain);
     signatures.push(Buffer.from(await alice.signTransaction(transaction)).toString('hex'));
     const fn = Buffer.from(transaction.data).toString().split('@')[0].slice(0, 28);
