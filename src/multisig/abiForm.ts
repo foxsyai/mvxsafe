@@ -61,9 +61,27 @@ const slotOf = (
   else if (TEXTS.test(type)) slot.kind = 'text';
   else {
     const custom = types[type];
+    // Every variant a variant: a null showed the form's own TypeError, and one
+    // without a discriminant was offered with the value "undefined" (the last
+    // cosmetic point of the audit of 21 Oct 2026).
+    if (
+      custom?.type === 'enum' &&
+      (!Array.isArray(custom.variants) ||
+        !custom.variants.every(
+          (variant: any) =>
+            variant &&
+            typeof variant === 'object' &&
+            typeof variant.name === 'string' &&
+            Number.isInteger(variant.discriminant) &&
+            variant.discriminant >= 0
+        ))
+    ) {
+      throw new Error(
+        `The ABI's type ${type} lists its variants in a shape that is not an ABI's, so this file cannot be used.`
+      );
+    }
     const plainEnum =
       custom?.type === 'enum' &&
-      Array.isArray(custom.variants) &&
       custom.variants.every((variant: any) => !variant.fields?.length);
     if (plainEnum) {
       slot.kind = 'number';
