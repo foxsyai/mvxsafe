@@ -559,6 +559,12 @@ const SafeView = ({ address }: { address: string }) => {
           <div className='mt-3 space-y-3'>
             {pending.map((action) => {
               const gas = performGas(action.perform, gasText[action.actionId]);
+              // An upgrade whose code the API did not return: its hash would be
+              // the API's word and its gas unknown, so it is neither signed nor
+              // carried out on that answer (EXT-01, found 23 Oct 2026).
+              const codeUnread = Boolean(
+                action.upgrade?.sourceUnread || action.upgrade?.targetUnread
+              );
               return (
                 // Orange, unlike every other card: something is waiting here.
                 <div key={action.actionId} className={pendingCard}>
@@ -650,7 +656,9 @@ const SafeView = ({ address }: { address: string }) => {
                           <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'>
                             <button
                               type='button'
-                              disabled={walletOpen || stale || awaiting}
+                              disabled={
+                                walletOpen || stale || awaiting || codeUnread
+                              }
                               onClick={() =>
                                 run(action.actionId, () =>
                                   signAction(signer, address, action.actionId)
@@ -671,6 +679,7 @@ const SafeView = ({ address }: { address: string }) => {
                               walletOpen ||
                               stale ||
                               awaiting ||
+                              codeUnread ||
                               Boolean(gas.problem)
                             }
                             onClick={() =>

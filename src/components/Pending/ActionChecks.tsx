@@ -76,7 +76,12 @@ export const ActionChecks = ({
   const upgrade = action.upgrade;
   const plan = action.perform;
   const hashCheck = upgrade
-    ? expectedHashCheck(expected, upgrade.sourceHash)
+    ? expectedHashCheck(
+        expected,
+        upgrade.sourceHash,
+        'the source',
+        upgrade.sourceUnread
+      )
     : null;
   const typed = performGas(plan, gasText);
 
@@ -89,10 +94,11 @@ export const ActionChecks = ({
         <div className='rounded-lg border border-[#2A2A32] bg-[#0E0E12] p-3 text-xs text-[#6B7280]'>
           <p>
             Code of the source, which the contract will run:{' '}
-            <Hash value={upgrade.sourceHash} />
+            <Hash value={upgrade.sourceHash} unread={upgrade.sourceUnread} />
           </p>
           <p className='mt-1'>
-            Code the contract runs today: <Hash value={upgrade.targetHash} />
+            Code the contract runs today:{' '}
+            <Hash value={upgrade.targetHash} unread={upgrade.targetUnread} />
           </p>
           <label className='mt-3 flex items-center text-xs text-[#6B7280]'>
             Check it against the release
