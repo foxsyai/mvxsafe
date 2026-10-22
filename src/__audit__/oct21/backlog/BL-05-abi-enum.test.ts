@@ -40,7 +40,13 @@ test('control: a well-formed enum is offered as its choices', () => {
 test.each([
   ['a variant that is null', [null]],
   ['a variant with no discriminant', [{ name: 'Off' }]],
-  ['a variant with no name', [{ discriminant: 0 }]]
+  ['a variant with no name', [{ discriminant: 0 }]],
+  // Asked for by the review of PR #16: the guard is all that stands in front
+  // of variants.every(...), and the discriminant has to be a whole number.
+  ['no variants at all', undefined],
+  ['variants that are not a list', 'Off,On'],
+  ['a discriminant written as text', [{ name: 'Off', discriminant: '0' }]],
+  ['a negative discriminant', [{ name: 'Off', discriminant: -1 }]]
 ])(
   'an enum with %s is refused with a sentence that names it',
   (_, variants) => {
