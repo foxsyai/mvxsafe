@@ -72,9 +72,16 @@ export const StuckNote = ({
 );
 
 /** A code hash, broken anywhere so it never pushes the page sideways. */
-export const Hash = ({ value }: { value: string | null }) => (
+/** A code hash; "not read" when the API stated one without the code (EXT-01). */
+export const Hash = ({
+  value,
+  unread = false
+}: {
+  value: string | null;
+  unread?: boolean;
+}) => (
   <span className='font-mono text-[11px] [overflow-wrap:anywhere] text-[#C9CDD2]'>
-    {value ?? 'none'}
+    {unread ? 'not read just now (refresh)' : (value ?? 'none')}
   </span>
 );
 

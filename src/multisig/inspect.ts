@@ -46,10 +46,18 @@ export interface AccountFacts {
   /**
    * 64 hex characters, or null when the address holds no code: the hash of
    * the code the API returned, or the hash it states when it returned none.
+   * Then codeUnread is true, and the hash is only the API's word.
    */
   codeHash: string | null;
   /** The API stated a hash that is not the hash of the code it returned. */
   codeHashMismatch?: boolean;
+  /**
+   * The API stated a code hash but returned no code that could be hashed
+   * (missing, empty, odd length, not hex): the hash is unverified and the size
+   * unknown. Nothing may be called a match on it (found by the mvxvest side,
+   * 23 Oct 2026).
+   */
+  codeUnread: boolean;
   /** Size of the code in bytes, 0 when unknown. */
   codeBytes: number;
   /** Null for an account without code, or when the API did not say. */
@@ -98,6 +106,7 @@ export const readAccountFacts = async (
     ownerAddress: account?.ownerAddress ?? '',
     codeHash,
     codeHashMismatch: Boolean(hashed && stated && hashed !== stated),
+    codeUnread: Boolean(stated && !hashed),
     codeBytes:
       typeof account?.code === 'string'
         ? Math.floor(account.code.length / 2)
@@ -130,9 +139,15 @@ const hexOf = (bytes: Uint8Array) =>
 export interface UpgradeFacts {
   target: string;
   source: string;
-  /** Null when the source holds no code or could not be read. */
+  /**
+   * Null when the source holds no code or could not be read, and when the API
+   * stated a hash without returning the code (sourceUnread): only a hash of
+   * the code itself is shown or compared.
+   */
   sourceHash: string | null;
   targetHash: string | null;
+  sourceUnread?: boolean;
+  targetUnread?: boolean;
   sourceShard: number;
   safeShard: number;
 }
@@ -207,6 +222,20 @@ export const inspectUpgrade = async (
         text: `The code hash the network's API states for ${which} does not match the code it returned. The hash shown is the code's own. Check both on another explorer before signing.`
       });
     }
+  }
+  // Blocking, not advisory: the hash would be the API's word alone, and the
+  // source's size, which the upgrade's gas is worked out from, unknown.
+  if (sourceFacts?.codeUnread) {
+    checks.push({
+      tone: 'bad',
+      text: "The network's API did not return the source's code, so its hash and size (and the upgrade's gas) are unknown. Refresh and try again before signing."
+    });
+  }
+  if (targetFacts?.codeUnread) {
+    checks.push({
+      tone: 'bad',
+      text: "The network's API did not return the code of the contract to upgrade, so the code it runs today is unknown. Refresh and try again before signing."
+    });
   }
 
   if (sourceFacts) {
@@ -292,6 +321,8 @@ export const inspectUpgrade = async (
   if (
     sourceFacts?.codeHash &&
     targetFacts?.codeHash &&
+    !sourceFacts.codeUnread &&
+    !targetFacts.codeUnread &&
     sourceFacts.codeHash === targetFacts.codeHash
   ) {
     checks.push({
@@ -305,8 +336,14 @@ export const inspectUpgrade = async (
     upgrade: {
       target,
       source,
-      sourceHash: sourceFacts?.codeHash ?? null,
-      targetHash: targetFacts?.codeHash ?? null,
+      sourceHash: sourceFacts?.codeUnread
+        ? null
+        : (sourceFacts?.codeHash ?? null),
+      targetHash: targetFacts?.codeUnread
+        ? null
+        : (targetFacts?.codeHash ?? null),
+      sourceUnread: Boolean(sourceFacts?.codeUnread),
+      targetUnread: Boolean(targetFacts?.codeUnread),
       sourceShard,
       safeShard
     },
@@ -587,12 +624,20 @@ export const expectedHashCheck = (
   pasted: string,
   actual: string | null,
   /** What is compared: the source on chain, or the file before it is deployed. */
-  what: 'the source' | 'the file' = 'the source'
+  what: 'the source' | 'the file' = 'the source',
+  /** The API stated a hash for it but did not return the code (codeUnread). */
+  unread = false
 ): Check | null => {
   if (!pasted.trim()) return null;
   const expected = normalizeCodeHash(pasted);
   if (!expected)
     return { tone: 'bad', text: 'That is not a code hash: 64 hex characters.' };
+  if (unread) {
+    return {
+      tone: 'bad',
+      text: `The code of ${what} could not be read just now, so its hash cannot be checked. Refresh and try again.`
+    };
+  }
   if (!actual) {
     return {
       tone: 'bad',

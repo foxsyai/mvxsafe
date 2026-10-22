@@ -124,7 +124,9 @@ export const DeploySource = ({
       forget(deployed);
       try {
         const facts = await readAccountFacts(deployed);
-        if (facts.codeHash && alive.current) {
+        // Only the hash of the code itself: a hash the API states without
+        // returning the code is read again (EXT-01, found 23 Oct 2026).
+        if (facts.codeHash && !facts.codeUnread && alive.current) {
           setOnChainHash(facts.codeHash);
           clearInterval(timer);
         }

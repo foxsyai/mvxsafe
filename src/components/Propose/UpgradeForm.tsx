@@ -150,7 +150,12 @@ export const UpgradeForm = ({
   }
 
   const sourceHash = inspection?.upgrade?.sourceHash ?? null;
-  const hashCheck = expectedHashCheck(expected, sourceHash);
+  const hashCheck = expectedHashCheck(
+    expected,
+    sourceHash,
+    'the source',
+    inspection?.upgrade?.sourceUnread
+  );
   const blocking = (inspection?.checks ?? []).filter(
     (check) => check.tone === 'bad' && !check.advisory
   );
@@ -224,7 +229,10 @@ export const UpgradeForm = ({
         {targetFacts && (
           <p className='mt-2 text-xs text-[#6B7280]'>
             Shard {targetFacts.shard}. Code it runs today:{' '}
-            <Hash value={targetFacts.codeHash} />
+            <Hash
+              value={targetFacts.codeHash}
+              unread={targetFacts.codeUnread}
+            />
             {targetFacts.metadata && (
               <> It is {describeMetadata(targetFacts.metadata)}.</>
             )}
@@ -251,7 +259,10 @@ export const UpgradeForm = ({
         {inspection?.upgrade && (
           <p className='mt-2 text-xs text-[#6B7280]'>
             Shard {inspection.upgrade.sourceShard}. Code it holds:{' '}
-            <Hash value={sourceHash} />
+            <Hash
+              value={sourceHash}
+              unread={inspection?.upgrade?.sourceUnread}
+            />
           </p>
         )}
         <button
