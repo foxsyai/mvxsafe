@@ -19,23 +19,32 @@ export const deleteProfile = (dir) => {
 /**
  * Closes Chrome, then deletes its profile, on Ctrl+C, on SIGTERM and at the
  * end of the run (call the returned finish). Launch with handleSIGINT and
- * handleSIGTERM false, so the order is this one. A run that fails ends without
- * finish: Playwright's own exit handler, registered at launch and so before
- * this one, kills Chrome first, and the profile is deleted after it.
+ * handleSIGTERM false, so the order is this one.
+ *
+ * However the run ends otherwise, the exit listener deletes what is still
+ * there: a failed step, the main body failing on a page that closing Chrome
+ * closed first (it then ends the process before finish can delete: second
+ * review of PR #15), or a second Ctrl+C, which exits at once. Playwright's own
+ * exit handler, registered at launch and so before this one, has killed Chrome
+ * by then.
  */
 export const guardProfile = (dir, context, { keep = false } = {}) => {
-  let done = false;
+  let closing = false;
+  let deleted = keep;
+  const deleteOnce = () => {
+    if (deleted) return;
+    deleted = true;
+    deleteProfile(dir);
+  };
   const finish = async (code = 0) => {
-    if (done) return;
-    done = true;
+    if (closing) process.exit(code);
+    closing = true;
     await context.close().catch(() => {});
-    if (!keep) deleteProfile(dir);
+    deleteOnce();
     process.exit(code);
   };
   process.on('SIGINT', () => finish(130));
   process.on('SIGTERM', () => finish(143));
-  process.on('exit', () => {
-    if (!done && !keep) deleteProfile(dir);
-  });
+  process.on('exit', deleteOnce);
   return finish;
 };
