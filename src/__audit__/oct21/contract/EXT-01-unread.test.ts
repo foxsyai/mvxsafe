@@ -112,3 +112,26 @@ test('the contract to upgrade with no usable code: unverified and red too', asyn
   ).toBe(true);
   expect(upgrade?.targetHash).toBeNull();
 });
+
+// The review of PR #17: an unread code still got a size, so the upgrade's gas
+// was shown as measured for code that was never read.
+test.each([
+  ['code of odd length', 'abc'],
+  ['code that is not hex', 'zz'.repeat(100)]
+])(
+  'a source whose answer has %s has no size, and its gas is not called measured',
+  async (_, code) => {
+    mockAccounts[SOURCE] = sourceWithCode(code);
+    expect((await readAccountFacts(SOURCE)).codeBytes).toBe(0);
+    const { perform } = await inspectUpgrade(fields, SAFE);
+    expect(perform.simulate).toBe(false);
+    expect(perform.simulate === false && perform.known).toBe(false);
+  }
+);
+
+test('control: code returned and hashed has its size, and its gas is measured', async () => {
+  const facts = await readAccountFacts(SOURCE);
+  expect(facts.codeBytes).toBeGreaterThan(0);
+  const { perform } = await inspectUpgrade(fields, SAFE);
+  expect(perform.simulate === false && perform.known).toBe(true);
+});

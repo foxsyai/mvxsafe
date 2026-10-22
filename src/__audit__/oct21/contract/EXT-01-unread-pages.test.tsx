@@ -97,6 +97,35 @@ describe('the pending card', () => {
   });
 });
 
+describe('the pending card, the contract to upgrade unread (review of PR #17)', () => {
+  const targetCodeUnread = () => {
+    mockAccounts[TARGET] = {
+      ...contract({ owner: SAFE, hash: mockCode('old') }),
+      code: undefined
+    };
+  };
+
+  test('Sign is held, with the reason', async () => {
+    sourceCodeReturned(true);
+    targetCodeUnread();
+    upgradeSignedBy([ALICE]);
+    await renderSafe(SAFE);
+    expect(
+      screen.getByText(/did not return the code of the contract to upgrade/)
+    ).toBeInTheDocument();
+    expect(button('Sign').disabled).toBe(true);
+  });
+
+  test('with the quorum in, Carry it out is held, and a signature can still be removed', async () => {
+    sourceCodeReturned(true);
+    targetCodeUnread();
+    upgradeSignedBy([ALICE, BOB]);
+    await renderSafe(SAFE);
+    expect(button('Carry it out').disabled).toBe(true);
+    expect(button('Remove my signature').disabled).toBe(false);
+  });
+});
+
 describe('the upgrade form', () => {
   const type = (placeholder: string, value: string, nth = 0) =>
     fireEvent.change(screen.getAllByPlaceholderText(placeholder)[nth], {

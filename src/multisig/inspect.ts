@@ -107,10 +107,9 @@ export const readAccountFacts = async (
     codeHash,
     codeHashMismatch: Boolean(hashed && stated && hashed !== stated),
     codeUnread: Boolean(stated && !hashed),
-    codeBytes:
-      typeof account?.code === 'string'
-        ? Math.floor(account.code.length / 2)
-        : 0,
+    // The size of the code that was hashed, or 0 (unknown): a code never read
+    // gave a size, and with it a gas budget called measured (review of PR #17).
+    codeBytes: hashed && code ? code.length : 0,
     metadata:
       codeHash && typeof account?.isUpgradeable === 'boolean'
         ? {
