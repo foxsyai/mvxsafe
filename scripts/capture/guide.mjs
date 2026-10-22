@@ -14,9 +14,16 @@
 // neutral name: the guide is public.
 //
 // NOTHING IS SIGNED BY THIS SCRIPT. It fills forms, waits and photographs.
+//
+// The Chrome profile holds the wallets' sessions, so it is deleted when the run
+// ends, however it ends, after Chrome is closed (profile.mjs): a board member's
+// session was left on this disk between captures (backlog of the audit of 21
+// Oct 2026). KEEP_PROFILE=1 keeps it, for a run that will be resumed with FROM
+// or ONLY; delete it by hand afterwards.
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { guardProfile } from './profile.mjs';
 
 const SITE = process.env.SITE || 'https://mvxsafe.io';
 const OUT = process.env.OUT || 'public/shots/';
@@ -45,8 +52,12 @@ const ctx = await chromium.launchPersistentContext(PROFILE, {
   deviceScaleFactor: 2,
   // Chrome on this laptop runs under XWayland; its Qt plugin exists for xcb only.
   args: ['--ozone-platform=x11'],
-  env: { ...process.env, QT_QPA_PLATFORM: 'xcb' }
+  env: { ...process.env, QT_QPA_PLATFORM: 'xcb' },
+  // Ctrl+C and SIGTERM are handled by guardProfile: Chrome closed first.
+  handleSIGINT: false,
+  handleSIGTERM: false
 });
+const finish = guardProfile(PROFILE, ctx, { keep: process.env.KEEP_PROFILE === '1' });
 const page = ctx.pages()[0] || (await ctx.newPage());
 
 // --- the banner ---------------------------------------------------------------
@@ -365,4 +376,4 @@ if (phase(15, 18)) {
 await say('All pictures taken. You can close the window.', 'ok');
 console.log('\nDone. Turn them into JPEGs with ./scripts/capture/to-web.sh');
 await until(() => false, null, 'the window to close', 600000);
-await ctx.close().catch(() => {});
+await finish(0);

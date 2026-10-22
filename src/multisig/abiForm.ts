@@ -98,22 +98,46 @@ export const readAbi = (
         endpoint?.mutability !== 'readonly' &&
         typeof endpoint?.name === 'string'
     )
-    .map((endpoint: any) => ({
-      name: endpoint.name,
-      onlyOwner: Boolean(endpoint.onlyOwner),
-      takesEgld: (endpoint.payableInTokens ?? []).some(
-        (token: string) => token === 'EGLD' || token === '*'
-      ),
-      docs: (endpoint.docs ?? []).join(' '),
-      slots: (endpoint.inputs ?? []).map((input: any) =>
-        slotOf(
-          String(input.name ?? ''),
-          String(input.type ?? ''),
-          types,
-          Boolean(input.multi_arg)
+    .map((endpoint: any) => {
+      // An endpoint whose arguments cannot all be read is refused with a
+      // sentence, never offered with some missing; a malformed file showed
+      // the form's own TypeError (backlog of the 21 Oct audit).
+      const inputs = endpoint.inputs ?? [];
+      const tokens = endpoint.payableInTokens ?? [];
+      if (
+        !Array.isArray(inputs) ||
+        inputs.some((input: any) => !input || typeof input !== 'object')
+      ) {
+        throw new Error(
+          `The ABI's endpoint ${endpoint.name} lists its arguments in a shape that is not an ABI's, so this file cannot be used.`
+        );
+      }
+      if (!Array.isArray(tokens)) {
+        throw new Error(
+          `The ABI's endpoint ${endpoint.name} lists the tokens it accepts in a shape that is not an ABI's, so this file cannot be used.`
+        );
+      }
+      return {
+        name: endpoint.name,
+        onlyOwner: Boolean(endpoint.onlyOwner),
+        takesEgld: tokens.some(
+          (token: unknown) => token === 'EGLD' || token === '*'
+        ),
+        docs: Array.isArray(endpoint.docs)
+          ? endpoint.docs
+              .filter((line: unknown) => typeof line === 'string')
+              .join(' ')
+          : '',
+        slots: inputs.map((input: any) =>
+          slotOf(
+            String(input.name ?? ''),
+            String(input.type ?? ''),
+            types,
+            Boolean(input.multi_arg)
+          )
         )
-      )
-    }));
+      };
+    });
   endpoints.sort((a, b) => Number(b.onlyOwner) - Number(a.onlyOwner));
   return { name: String(json.name ?? 'contract'), endpoints };
 };

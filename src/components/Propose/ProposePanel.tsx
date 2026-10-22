@@ -10,7 +10,11 @@ import {
   Signer
 } from 'multisig/actions';
 import { formatUnits } from 'multisig/describe';
-import { parseAddress, toRawAmount } from 'multisig/legacyCalls';
+import {
+  normalizeBech32,
+  parseAddress,
+  toRawAmount
+} from 'multisig/legacyCalls';
 import { isAccountAddress } from 'multisig/newSafe';
 import {
   membershipNote,
@@ -345,6 +349,12 @@ export const ProposePanel = ({
                 {tokens.length === 0 && (
                   <option value=''>This safe holds no tokens</option>
                 )}
+                {/* The choice matches no token (it left the list, or the list
+                    came after): say so. React would show the first token while
+                    the form held none (backlog of the 21 Oct audit). */}
+                {tokens.length > 0 && !token && (
+                  <option value=''>Choose a token</option>
+                )}
                 {tokens.map((candidate) => (
                   <option
                     key={candidate.identifier}
@@ -371,7 +381,7 @@ export const ProposePanel = ({
               </label>
               <input
                 value={to}
-                onChange={(event) => setTo(event.target.value)}
+                onChange={(event) => setTo(normalizeBech32(event.target.value))}
                 placeholder='erd1...'
                 className={`${input} font-mono`}
               />

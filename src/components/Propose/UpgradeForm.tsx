@@ -10,7 +10,11 @@ import {
   inspectUpgrade,
   readAccountFacts
 } from 'multisig/inspect';
-import { parseAddress, upgradeProblem } from 'multisig/legacyCalls';
+import {
+  normalizeBech32,
+  parseAddress,
+  upgradeProblem
+} from 'multisig/legacyCalls';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import { FormProps } from './CallForm';
 import { DeploySource } from './DeploySource';
@@ -208,7 +212,7 @@ export const UpgradeForm = ({
         </label>
         <input
           value={target}
-          onChange={(event) => setTarget(event.target.value)}
+          onChange={(event) => setTarget(normalizeBech32(event.target.value))}
           placeholder='erd1qqqqqqqqqqqqqpgq...'
           className={`${input} font-mono`}
         />
@@ -235,7 +239,7 @@ export const UpgradeForm = ({
         </label>
         <input
           value={source}
-          onChange={(event) => setSource(event.target.value)}
+          onChange={(event) => setSource(normalizeBech32(event.target.value))}
           placeholder='erd1qqqqqqqqqqqqqpgq...'
           className={`${input} font-mono`}
         />
