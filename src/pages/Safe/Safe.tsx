@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
@@ -30,6 +30,7 @@ import {
   PendingAction,
   PendingCoverage,
   PendingList,
+  readActionByNumber,
   readCardChecks,
   readContractInfo,
   readHistory,
@@ -90,6 +91,11 @@ const SafeView = ({ address }: { address: string }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreFailed, setMoreFailed] = useState(false);
   const [allTokens, setAllTokens] = useState(false);
+  // One action asked for by its number, whatever the list has reached.
+  const [goText, setGoText] = useState('');
+  const [wanted, setWanted] = useState<PendingAction | null>(null);
+  const [wantedNote, setWantedNote] = useState('');
+  const [wantedReading, setWantedReading] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   // False until the history was read once: before that, "none" would be a guess.
   const [historyRead, setHistoryRead] = useState(false);
@@ -235,13 +241,39 @@ const SafeView = ({ address }: { address: string }) => {
     [address]
   );
 
-  // How many cards the page shows, so a Refresh brings as many back.
-  const shown = useRef(0);
+  // The list on the page: a Refresh brings as many cards back.
+  const shown = useRef<PendingList>([]);
   const showList = useCallback((list: PendingList) => {
-    shown.current = list.length;
+    shown.current = list;
     setPending(list);
     setCoverage(list.coverage ?? null);
   }, []);
+
+  // The number asked for, read again with every load: it can be gone by then.
+  const wantedId = useRef<number | null>(null);
+  const readWanted = useCallback(
+    async (id: number, current: () => boolean) => {
+      const found = await readActionByNumber(address, id, {
+        known: shown.current,
+        olderUnread: shown.current.coverage?.olderUnread ?? 0
+      });
+      if (!current() || wantedId.current !== id) return;
+      if (found.status === 'card') {
+        setWanted(found.card);
+        setWantedNote('');
+        await askChecks([found.card], current);
+        return;
+      }
+      wantedId.current = null;
+      setWanted(null);
+      setWantedNote(
+        found.status === 'finished'
+          ? `Action #${id} was carried out or discarded: the contract keeps nothing under that number, so nothing is waiting there.`
+          : `Action #${id} does not exist yet: the last one proposed is #${found.last}.`
+      );
+    },
+    [address, askChecks]
+  );
 
   const load = useCallback(async (): Promise<boolean> => {
     if (!alive.current) return false;
@@ -269,7 +301,7 @@ const SafeView = ({ address }: { address: string }) => {
     const pendingRead = (async () => {
       try {
         const next = await readPendingActions(address, {
-          limit: Math.max(PENDING_PAGE, shown.current),
+          limit: Math.max(PENDING_PAGE, shown.current.length),
           // A card as soon as its sentence is known. On a later read the page
           // keeps the list it has until the new one is whole.
           onProgress: (list) => {
@@ -307,7 +339,16 @@ const SafeView = ({ address }: { address: string }) => {
         // Unknown stays unknown: never "not on this board" for a refused read.
       }
     })();
-    await Promise.all([overviewRead, pendingRead, roleRead, codeChecked]);
+    const wantedRead = (async () => {
+      await pendingRead;
+      if (wantedId.current === null) return;
+      try {
+        await readWanted(wantedId.current, current);
+      } catch {
+        fresh = false;
+      }
+    })();
+    await Promise.all([overviewRead, wantedRead, roleRead, codeChecked]);
     // A newer load is under way and decides what the page shows. Not "fresh":
     // what this one read is not on the page, and the processed signal would
     // release the buttons over the state from before the transaction (third
@@ -331,7 +372,15 @@ const SafeView = ({ address }: { address: string }) => {
       staleRetries.current = 0;
     }
     return fresh;
-  }, [address, isLoggedIn, account.address, checkCode, askChecks, showList]);
+  }, [
+    address,
+    isLoggedIn,
+    account.address,
+    checkCode,
+    askChecks,
+    showList,
+    readWanted
+  ]);
   loadRef.current = load;
 
   // Older actions, on request. What is on the page stays whatever this finds.
@@ -358,6 +407,38 @@ const SafeView = ({ address }: { address: string }) => {
       if (current()) setMoreFailed(true);
     }
     setLoadingMore(false);
+  };
+
+  const goToAction = async (event: FormEvent) => {
+    event.preventDefault();
+    const text = goText.trim().replace(/^#\s*/, '');
+    const id = /^\d+$/.test(text) ? Number(text) : 0;
+    setWanted(null);
+    if (id < 1 || !Number.isSafeInteger(id)) {
+      wantedId.current = null;
+      setWantedNote('An action number is a whole number, from 1.');
+      return;
+    }
+    wantedId.current = id;
+    setWantedNote('');
+    setWantedReading(true);
+    const mine = generation.current;
+    try {
+      await readWanted(id, () => alive.current && generation.current === mine);
+    } catch {
+      if (alive.current && wantedId.current === id) {
+        setWantedNote(
+          `The network did not answer for action #${id} just now, so nothing can be said about it. Try again.`
+        );
+      }
+    }
+    if (alive.current) setWantedReading(false);
+  };
+
+  const closeWanted = () => {
+    wantedId.current = null;
+    setWanted(null);
+    setWantedNote('');
   };
 
   // A check that failed stays on its card until it has been run again.
@@ -518,6 +599,222 @@ const SafeView = ({ address }: { address: string }) => {
       : coverage
         ? '?'
         : overview?.pendingCount);
+
+  const renderCard = (listed: PendingAction) => {
+    // The sentence is on the card before its checks. Until they have
+    // arrived, or when they could not be run, it is neither signed
+    // nor carried out: they may hold the very line that says not to
+    // (FND-02, RED-03, 1 Nov 2026).
+    const answer = cardChecks[listed.actionId];
+    const action: PendingAction = answer
+      ? {
+          ...listed,
+          checks: [...answer.checks, ...(listed.checks ?? [])],
+          upgrade: answer.upgrade,
+          perform: answer.perform
+        }
+      : listed;
+    const checksWaiting = Boolean(listed.checksDue && !answer);
+    const checksFailed = Boolean(answer?.failed);
+    const gas = performGas(action.perform, gasText[action.actionId]);
+    // An upgrade whose code the API did not return: its hash would be
+    // the API's word and its gas unknown, so it is neither signed nor
+    // carried out on that answer (EXT-01, found 23 Oct 2026).
+    const codeUnread = Boolean(
+      action.upgrade?.sourceUnread || action.upgrade?.targetUnread
+    );
+    // Nor one whose source has no upgrade function: it fails after the
+    // signatures and uses the action up. Discard stays, to clear it
+    // (FND-04, 1 Nov 2026).
+    const cannotUpgrade = Boolean(action.upgrade?.noUpgradeFunction);
+    return (
+      // Orange, unlike every other card: something is waiting here.
+      <div key={action.actionId} className={pendingCard}>
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          {/* Full addresses and identifiers make this long; it wraps
+                      anywhere rather than hiding the part that matters. */}
+          <p className='min-w-0 flex-1 text-white [overflow-wrap:anywhere]'>
+            <span className='mr-2 font-mono text-xs text-[#6B7280]'>
+              #{action.actionId}
+            </span>
+            {action.description}
+          </p>
+          <span
+            className={
+              action.quorumReached
+                ? 'rounded-full bg-[#FF6E0A]/15 px-3 py-1 text-xs text-[#FF6E0A]'
+                : 'rounded-full bg-[#2A2A32] px-3 py-1 text-xs text-[#9AA0A6]'
+            }
+          >
+            {action.signerCount} of {overview?.quorum ?? '?'} signatures
+          </span>
+        </div>
+        {action.signers.length > 0 && (
+          <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
+            <span>signed by</span>
+            {action.signers.map((who) => (
+              <AddressLine
+                key={who}
+                address={who}
+                className='text-xs text-[#6B7280]'
+              />
+            ))}
+          </div>
+        )}
+        {action.formerSigners.length > 0 && (
+          <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
+            <span>also signed, but has left the board and does not count:</span>
+            {action.formerSigners.map((who) => (
+              <AddressLine
+                key={who}
+                address={who}
+                className='text-xs text-[#6B7280] line-through'
+              />
+            ))}
+          </div>
+        )}
+
+        {checksWaiting && (
+          <p className='mt-2 text-xs text-[#6B7280]'>
+            Checking this action on chain. Sign and Carry it out wait for the
+            result.
+          </p>
+        )}
+
+        <ActionChecks
+          action={action}
+          showGas={
+            // Whoever may carry it out, proposers included: the
+            // contract lets them (backlog of the 21 Oct audit).
+            isLoggedIn && (canSign || canPropose) && action.quorumReached
+          }
+          gasText={gasText[action.actionId]}
+          onGasText={(text) =>
+            setGasText((current) => ({
+              ...current,
+              [action.actionId]: text
+            }))
+          }
+        />
+
+        {checksFailed && (
+          <button
+            type='button'
+            onClick={() => checkCardAgain(listed)}
+            className='mt-2 text-xs font-semibold text-[#F87171] underline'
+          >
+            Check again
+          </button>
+        )}
+
+        {isLoggedIn && (canSign || canPropose) && (
+          <div className='mt-3 flex flex-wrap items-center gap-2'>
+            {canSign &&
+              (action.signers.includes(account.address) ? (
+                <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'>
+                  <button
+                    type='button'
+                    disabled={walletOpen || stale || awaiting || held}
+                    onClick={() =>
+                      run(action.actionId, () =>
+                        unsignAction(signer, address, action.actionId)
+                      )
+                    }
+                    className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
+                  >
+                    Remove my signature
+                  </button>
+                </Tip>
+              ) : action.unreadable ? null : (
+                // An action the contract cannot return is never signed (SC-01).
+                <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'>
+                  <button
+                    type='button'
+                    disabled={
+                      walletOpen ||
+                      stale ||
+                      awaiting ||
+                      codeUnread ||
+                      cannotUpgrade ||
+                      checksWaiting ||
+                      checksFailed ||
+                      held
+                    }
+                    onClick={() =>
+                      run(action.actionId, () =>
+                        signAction(signer, address, action.actionId)
+                      )
+                    }
+                    className='rounded-lg bg-[#FF6E0A] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
+                  >
+                    Sign
+                  </button>
+                </Tip>
+              ))}
+
+            {action.quorumReached && !action.unreadable && (
+              <Tip text='Makes it happen. Enough signatures are in. Any board member or proposer may press this.'>
+                <button
+                  type='button'
+                  disabled={
+                    walletOpen ||
+                    stale ||
+                    awaiting ||
+                    codeUnread ||
+                    cannotUpgrade ||
+                    checksWaiting ||
+                    checksFailed ||
+                    held ||
+                    Boolean(gas.problem)
+                  }
+                  onClick={() =>
+                    run(action.actionId, () =>
+                      performAction(
+                        signer,
+                        address,
+                        action.actionId,
+                        gas.budget
+                      )
+                    )
+                  }
+                  className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
+                >
+                  Carry it out
+                </button>
+              </Tip>
+            )}
+
+            <Tip
+              text={
+                action.signerCount > 0
+                  ? 'Cannot be discarded while it carries signatures. The contract refuses it. Everyone who signed has to remove their signature first.'
+                  : 'Throws the action away without doing it. Nothing moves and nothing is spent.'
+              }
+            >
+              <button
+                type='button'
+                disabled={
+                  walletOpen ||
+                  stale ||
+                  awaiting ||
+                  held ||
+                  action.signerCount > 0
+                }
+                onClick={() =>
+                  run(action.actionId, () =>
+                    discardAction(signer, address, action.actionId)
+                  )
+                }
+                className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
+              >
+                Discard
+              </button>
+            </Tip>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className='mx-auto w-full max-w-5xl px-4 py-10'>
@@ -771,10 +1068,53 @@ const SafeView = ({ address }: { address: string }) => {
       </div>
 
       <section className='mt-8'>
-        <h2 className='flex items-center text-lg font-semibold text-white'>
-          Pending actions
-          <Info text='Each one is written in plain words. Read it before signing: this is what the safe will do.' />
-        </h2>
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          <h2 className='flex items-center text-lg font-semibold text-white'>
+            Pending actions
+            <Info text='Each one is written in plain words. Read it before signing: this is what the safe will do.' />
+          </h2>
+          {overview && overview.quorum !== null && (
+            <form onSubmit={goToAction} className='flex items-center gap-2'>
+              <label className='flex items-center gap-2 text-xs text-[#6B7280]'>
+                Go to action #
+                <input
+                  value={goText}
+                  onChange={(event) => setGoText(event.target.value)}
+                  inputMode='numeric'
+                  aria-label='Go to action number'
+                  className='w-20 rounded-lg border border-[#2A2A32] bg-[#121218] px-2 py-1 font-mono text-xs text-white'
+                />
+              </label>
+              <button
+                type='submit'
+                disabled={wantedReading}
+                className='rounded-lg border border-[#2A2A32] px-3 py-1 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
+              >
+                Go
+              </button>
+            </form>
+          )}
+        </div>
+        {wantedNote && (
+          <p className='mt-3 rounded-lg border border-[#2A2A32] bg-[#121218] p-3 text-sm text-[#9AA0A6]'>
+            {wantedNote}
+          </p>
+        )}
+        {wanted && (
+          <div className='mt-3'>
+            <div className='mb-2 flex items-center justify-between text-xs text-[#6B7280]'>
+              <span>The action you asked for:</span>
+              <button
+                type='button'
+                onClick={closeWanted}
+                className='hover:text-white'
+              >
+                Close
+              </button>
+            </div>
+            {renderCard(wanted)}
+          </div>
+        )}
         {pending === null ? (
           <p className='mt-3 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
             The actions waiting for a signature could not be read. Refresh
@@ -815,238 +1155,9 @@ const SafeView = ({ address }: { address: string }) => {
               </p>
             )}
             <div className='mt-3 space-y-3'>
-              {cards.map((listed) => {
-                // The sentence is on the card before its checks. Until they have
-                // arrived, or when they could not be run, it is neither signed
-                // nor carried out: they may hold the very line that says not to
-                // (FND-02, RED-03, 1 Nov 2026).
-                const answer = cardChecks[listed.actionId];
-                const action: PendingAction = answer
-                  ? {
-                      ...listed,
-                      checks: [...answer.checks, ...(listed.checks ?? [])],
-                      upgrade: answer.upgrade,
-                      perform: answer.perform
-                    }
-                  : listed;
-                const checksWaiting = Boolean(listed.checksDue && !answer);
-                const checksFailed = Boolean(answer?.failed);
-                const gas = performGas(
-                  action.perform,
-                  gasText[action.actionId]
-                );
-                // An upgrade whose code the API did not return: its hash would be
-                // the API's word and its gas unknown, so it is neither signed nor
-                // carried out on that answer (EXT-01, found 23 Oct 2026).
-                const codeUnread = Boolean(
-                  action.upgrade?.sourceUnread || action.upgrade?.targetUnread
-                );
-                // Nor one whose source has no upgrade function: it fails after the
-                // signatures and uses the action up. Discard stays, to clear it
-                // (FND-04, 1 Nov 2026).
-                const cannotUpgrade = Boolean(
-                  action.upgrade?.noUpgradeFunction
-                );
-                return (
-                  // Orange, unlike every other card: something is waiting here.
-                  <div key={action.actionId} className={pendingCard}>
-                    <div className='flex flex-wrap items-center justify-between gap-3'>
-                      {/* Full addresses and identifiers make this long; it wraps
-                      anywhere rather than hiding the part that matters. */}
-                      <p className='min-w-0 flex-1 text-white [overflow-wrap:anywhere]'>
-                        <span className='mr-2 font-mono text-xs text-[#6B7280]'>
-                          #{action.actionId}
-                        </span>
-                        {action.description}
-                      </p>
-                      <span
-                        className={
-                          action.quorumReached
-                            ? 'rounded-full bg-[#FF6E0A]/15 px-3 py-1 text-xs text-[#FF6E0A]'
-                            : 'rounded-full bg-[#2A2A32] px-3 py-1 text-xs text-[#9AA0A6]'
-                        }
-                      >
-                        {action.signerCount} of {overview?.quorum ?? '?'}{' '}
-                        signatures
-                      </span>
-                    </div>
-                    {action.signers.length > 0 && (
-                      <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
-                        <span>signed by</span>
-                        {action.signers.map((who) => (
-                          <AddressLine
-                            key={who}
-                            address={who}
-                            className='text-xs text-[#6B7280]'
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {action.formerSigners.length > 0 && (
-                      <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B7280]'>
-                        <span>
-                          also signed, but has left the board and does not
-                          count:
-                        </span>
-                        {action.formerSigners.map((who) => (
-                          <AddressLine
-                            key={who}
-                            address={who}
-                            className='text-xs text-[#6B7280] line-through'
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    {checksWaiting && (
-                      <p className='mt-2 text-xs text-[#6B7280]'>
-                        Checking this action on chain. Sign and Carry it out
-                        wait for the result.
-                      </p>
-                    )}
-
-                    <ActionChecks
-                      action={action}
-                      showGas={
-                        // Whoever may carry it out, proposers included: the
-                        // contract lets them (backlog of the 21 Oct audit).
-                        isLoggedIn &&
-                        (canSign || canPropose) &&
-                        action.quorumReached
-                      }
-                      gasText={gasText[action.actionId]}
-                      onGasText={(text) =>
-                        setGasText((current) => ({
-                          ...current,
-                          [action.actionId]: text
-                        }))
-                      }
-                    />
-
-                    {checksFailed && (
-                      <button
-                        type='button'
-                        onClick={() => checkCardAgain(listed)}
-                        className='mt-2 text-xs font-semibold text-[#F87171] underline'
-                      >
-                        Check again
-                      </button>
-                    )}
-
-                    {isLoggedIn && (canSign || canPropose) && (
-                      <div className='mt-3 flex flex-wrap items-center gap-2'>
-                        {canSign &&
-                          (action.signers.includes(account.address) ? (
-                            <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'>
-                              <button
-                                type='button'
-                                disabled={
-                                  walletOpen || stale || awaiting || held
-                                }
-                                onClick={() =>
-                                  run(action.actionId, () =>
-                                    unsignAction(
-                                      signer,
-                                      address,
-                                      action.actionId
-                                    )
-                                  )
-                                }
-                                className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#9AA0A6] hover:border-[#FF6E0A] hover:text-white disabled:opacity-50'
-                              >
-                                Remove my signature
-                              </button>
-                            </Tip>
-                          ) : action.unreadable ? null : (
-                            // An action the contract cannot return is never signed (SC-01).
-                            <Tip text='Approves this action. It still needs the rest of the quorum before anything happens.'>
-                              <button
-                                type='button'
-                                disabled={
-                                  walletOpen ||
-                                  stale ||
-                                  awaiting ||
-                                  codeUnread ||
-                                  cannotUpgrade ||
-                                  checksWaiting ||
-                                  checksFailed ||
-                                  held
-                                }
-                                onClick={() =>
-                                  run(action.actionId, () =>
-                                    signAction(signer, address, action.actionId)
-                                  )
-                                }
-                                className='rounded-lg bg-[#FF6E0A] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
-                              >
-                                Sign
-                              </button>
-                            </Tip>
-                          ))}
-
-                        {action.quorumReached && !action.unreadable && (
-                          <Tip text='Makes it happen. Enough signatures are in. Any board member or proposer may press this.'>
-                            <button
-                              type='button'
-                              disabled={
-                                walletOpen ||
-                                stale ||
-                                awaiting ||
-                                codeUnread ||
-                                cannotUpgrade ||
-                                checksWaiting ||
-                                checksFailed ||
-                                held ||
-                                Boolean(gas.problem)
-                              }
-                              onClick={() =>
-                                run(action.actionId, () =>
-                                  performAction(
-                                    signer,
-                                    address,
-                                    action.actionId,
-                                    gas.budget
-                                  )
-                                )
-                              }
-                              className='rounded-lg bg-[#F5F5F5] px-4 py-1.5 text-xs font-semibold text-black hover:bg-white disabled:opacity-50'
-                            >
-                              Carry it out
-                            </button>
-                          </Tip>
-                        )}
-
-                        <Tip
-                          text={
-                            action.signerCount > 0
-                              ? 'Cannot be discarded while it carries signatures. The contract refuses it. Everyone who signed has to remove their signature first.'
-                              : 'Throws the action away without doing it. Nothing moves and nothing is spent.'
-                          }
-                        >
-                          <button
-                            type='button'
-                            disabled={
-                              walletOpen ||
-                              stale ||
-                              awaiting ||
-                              held ||
-                              action.signerCount > 0
-                            }
-                            onClick={() =>
-                              run(action.actionId, () =>
-                                discardAction(signer, address, action.actionId)
-                              )
-                            }
-                            className='rounded-lg border border-[#2A2A32] px-3 py-1.5 text-xs text-[#6B7280] hover:border-[#F87171] hover:text-[#F87171] disabled:opacity-50'
-                          >
-                            Discard
-                          </button>
-                        </Tip>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {cards
+                .filter((listed) => listed.actionId !== wanted?.actionId)
+                .map(renderCard)}
             </div>
             {(olderUnread > 0 || olderKnown > 0) && (
               <div className='mt-3 flex flex-wrap items-center gap-3'>

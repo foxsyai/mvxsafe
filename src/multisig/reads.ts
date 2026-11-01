@@ -821,6 +821,48 @@ export interface PendingReadOptions {
   onProgress?: (list: PendingList) => void;
 }
 
+/**
+ * One action by its number, as a card, or null when the contract keeps Nothing
+ * in its place: carried out or discarded. Throws when the network does not
+ * answer; one the contract cannot return (SC-01) is a card that says so.
+ */
+const readOneAction = async (
+  address: string,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  actionId: number,
+  last: number
+): Promise<PendingAction | null> => {
+  const done = finished.get(address) ?? new Set<number>();
+  finished.set(address, done);
+  if (done.has(actionId)) return null;
+  let data: any = null;
+  let unreadable = false;
+  try {
+    data = await cached(`action:${address}:${actionId}`, () =>
+      query<any>(address, 'getActionData', [new U32Value(actionId)])
+    );
+  } catch (error) {
+    if (!isDecodeFailure(error)) throw error;
+    unreadable = true;
+  }
+  if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing') {
+    if (actionId <= last - ALWAYS_REREAD) done.add(actionId);
+    return null;
+  }
+  const allSigners = asSigners(
+    await cached(`signers:${address}:${actionId}`, () =>
+      query<any>(address, 'getActionSigners', [new U32Value(actionId)])
+    )
+  );
+  return unreadable
+    ? unreadableEntry(state, new Set(state.boardMembers), actionId, allSigners)
+    : describedEntry(
+        address,
+        state,
+        actionFacts(state, actionId, data, allSigners)
+      );
+};
+
 const readPendingOneByOne = async (
   address: string,
   state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
@@ -831,7 +873,6 @@ const readPendingOneByOne = async (
       query<any>(address, 'getActionLastIndex')
     )
   );
-  const board = new Set(state.boardMembers);
   const cards: PendingAction[] = [];
   const done = finished.get(address) ?? new Set<number>();
   finished.set(address, done);
@@ -869,35 +910,8 @@ const readPendingOneByOne = async (
     scanned++;
     const actionId = id;
     try {
-      let data: any = null;
-      let unreadable = false;
-      try {
-        data = await cached(`action:${address}:${actionId}`, () =>
-          query<any>(address, 'getActionData', [new U32Value(actionId)])
-        );
-      } catch (error) {
-        if (!isDecodeFailure(error)) throw error;
-        unreadable = true;
-      }
-      // Carried out or discarded: the contract keeps Nothing in its place.
-      if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing') {
-        if (actionId <= last - ALWAYS_REREAD) done.add(actionId);
-      } else {
-        const allSigners = asSigners(
-          await cached(`signers:${address}:${actionId}`, () =>
-            query<any>(address, 'getActionSigners', [new U32Value(actionId)])
-          )
-        );
-        cards.push(
-          unreadable
-            ? unreadableEntry(state, board, actionId, allSigners)
-            : await describedEntry(
-                address,
-                state,
-                actionFacts(state, actionId, data, allSigners)
-              )
-        );
-      }
+      const card = await readOneAction(address, state, actionId, last);
+      if (card) cards.push(card);
     } catch (error) {
       // Nothing read at all is a failed read, as it always was. What was read
       // stays on the page, and the list says where it stopped.
@@ -910,6 +924,21 @@ const readPendingOneByOne = async (
   }
   return listSoFar();
 };
+
+const bulkFacts = (
+  pending: any,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
+) =>
+  asList(pending)
+    .map((action: any) =>
+      actionFacts(
+        state,
+        asNumber(action.action_id ?? action.actionId),
+        action.action_data ?? action.actionData,
+        action.signers ?? []
+      )
+    )
+    .sort((a, b) => a.actionId - b.actionId);
 
 const asSigners = (answer: any): any[] =>
   Array.isArray(answer) ? answer : answer ? [answer] : [];
@@ -980,16 +1009,7 @@ export const readPendingActions = async (
   const { before, limit = PENDING_PAGE, known = [], onProgress } = options;
   // Everything but the sentences costs nothing, so signatures on actions that
   // are not on the page still count on the cards that are.
-  const all = asList(pending)
-    .map((action: any) =>
-      actionFacts(
-        state as any,
-        asNumber(action.action_id ?? action.actionId),
-        action.action_data ?? action.actionData,
-        action.signers ?? []
-      )
-    )
-    .sort((a, b) => a.actionId - b.actionId);
+  const all = bulkFacts(pending, state as any);
   const waiting = all.filter(
     (action) => before === undefined || action.actionId < before
   );
@@ -1014,6 +1034,60 @@ export const readPendingActions = async (
     })
   );
   return listSoFar();
+};
+
+export type ActionByNumber =
+  | { status: 'card'; card: PendingAction }
+  | { status: 'finished' }
+  | { status: 'notYet'; last: number };
+
+/**
+ * The one action a signer asks for by its number, reading only that number. Junk
+ * filed on top of an old action, or of the poison a board has to discard, must
+ * not stand between them, and it works when the list cannot be read in one piece
+ * (fix phase of the 1 Nov 2026 audit). Throws when the network does not answer.
+ */
+export const readActionByNumber = async (
+  address: string,
+  actionId: number,
+  {
+    known = [],
+    olderUnread = 0
+  }: { known?: PendingAction[]; olderUnread?: number } = {}
+): Promise<ActionByNumber> => {
+  const state = await readMultisigState(address);
+  if (state.quorum === null) {
+    throw new Error('The board and quorum of this safe could not be read.');
+  }
+  let last = asNumber(
+    await cached(`actions:${address}`, () =>
+      query<any>(address, 'getActionLastIndex')
+    )
+  );
+  // Remembered, it could be older than the action someone was just told about.
+  if (actionId > last) {
+    last = asNumber(
+      await cached(`actions:${address}:${Date.now()}`, () =>
+        query<any>(address, 'getActionLastIndex')
+      )
+    );
+    if (actionId > last) return { status: 'notYet', last };
+  }
+  const card = await readOneAction(address, state as any, actionId, last);
+  if (!card) return { status: 'finished' };
+  const bulk = await cached(`pending:${address}`, () =>
+    query<any>(address, 'getPendingActionFullInfo')
+  ).then(
+    (pending) => bulkFacts(pending, state as any),
+    () => null
+  );
+  const [checked] = withSeatChecks(
+    [card],
+    state,
+    bulk ?? mergedCards(known, [card]),
+    bulk ? 0 : olderUnread
+  );
+  return { status: 'card', card: checked };
 };
 
 export const formatRaw = (
