@@ -584,7 +584,7 @@ export const selfCallChecks = (name: string, egld: bigint): Check[] => {
     return [
       {
         tone: 'bad',
-        text: `dnsRegister forwards the EGLD it is given to its first argument, and here the safe pays it${egld > 0n ? ': this is a payment out of the safe, whatever else it looks like' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+        text: `${egld > 0n ? 'dnsRegister forwards the EGLD it is given to its first argument, and here the safe pays it: this is a payment out of the safe, whatever else it looks like' : "dnsRegister calls its first argument in the safe's name. This one carries no EGLD"}. mvxsafe never proposes it. Check it with every board member before signing.`
       }
     ];
   }
@@ -597,7 +597,7 @@ export const selfCallChecks = (name: string, egld: bigint): Check[] => {
   return [
     {
       tone: 'bad',
-      text: `A call on the safe itself: the safe calls its own ${visible(name)}, with its own authority${egld > 0n ? ', paying with its own EGLD' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+      text: `${name ? `A call on the safe itself: the safe calls its own ${visible(name)}, with its own authority${egld > 0n ? ', paying with its own EGLD' : ''}` : `A call on the safe itself that names no function${egld > 0n ? ', sending the safe its own EGLD' : ''}`}. mvxsafe never proposes it. Check it with every board member before signing.`
     }
   ];
 };
