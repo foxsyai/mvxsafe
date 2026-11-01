@@ -4,7 +4,7 @@
 #   ./scripts/capture/to-web.sh
 #
 # The captures are 2732 wide because the browser runs at twice the scale, which
-# is right for a retina screen and far too heavy for a page with nine pictures.
+# is right for a retina screen and far too heavy for a page full of pictures.
 # Each one is halved and written as a JPEG; the PNG is kept out of the build by
 # living in docs/shots-raw, so a picture can be re-cropped without a new capture.
 set -euo pipefail

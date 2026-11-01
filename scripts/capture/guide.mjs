@@ -1,143 +1,165 @@
-// The pictures of /guide, taken from the live site with real wallets.
+// The pictures of /guide, taken from the live devnet site with throwaway keys.
 //
-//   node scripts/capture/guide.mjs              all steps
-//   FROM=12 node scripts/capture/guide.mjs      from a given picture on
-//   ONLY=4,8,10,11 node scripts/capture/guide.mjs   just those pictures
+//   node scripts/capture/guide.mjs                 all steps
+//   FROM=12 node scripts/capture/guide.mjs         from a given picture on
+//   ONLY=4,8,19 node scripts/capture/guide.mjs     just those pictures
+//   CHROMIUM=<path> node scripts/capture/guide.mjs another browser
+//   ./scripts/capture/to-web.sh                    then, for the JPEGs the guide loads
 //
-// A Chrome window opens with an orange banner along the bottom saying what to
-// do. The script fills in every form itself and photographs each state as soon
-// as it appears; a person only acts where a wallet has to sign. Six transactions
-// in all, on the test safe, from two board members: "Alice" signs with xPortal,
-// "Bob" with the web wallet.
+// It runs headless with no person at hand. The wallet is a provider registered on
+// window.multiversx; its signatures are made here in node, so no key enters the
+// page. Keys live in ~/.mvxsafe-devnet, devnet only, no value, never in git. It
+// refuses to sign for any other chain or any other sender, and no mainnet safe or
+// wallet appears in a picture. Six transactions in all, on the test safe, from two
+// board members: three by "Alice" to discard a small payment, one by her and two by
+// "Bob" for a payment from proposal to history.
 //
-// Only the test safe appears, as "Team safe", and every board member carries a
-// neutral name: the guide is public.
-//
-// NOTHING IS SIGNED BY THIS SCRIPT. It fills forms, waits and photographs.
-//
-// The Chrome profile holds the wallets' sessions, so it is deleted when the run
-// ends, however it ends, after Chrome is closed (profile.mjs): a board member's
-// session was left on this disk between captures (backlog of the audit of 21
-// Oct 2026). KEEP_PROFILE=1 keeps it, for a run that will be resumed with FROM
-// or ONLY; delete it by hand afterwards.
+// Pictures 1 to 5 use a browser without that provider: the wallet chooser would
+// list it.
+import { Account, Address, ApiNetworkProvider, Transaction } from '@multiversx/sdk-core';
 import { chromium } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { guardProfile } from './profile.mjs';
 
-const SITE = process.env.SITE || 'https://mvxsafe.io';
+const SITE = 'https://devnet.mvxsafe.io';
+const API = 'https://devnet-api.multiversx.com';
 const OUT = process.env.OUT || 'public/shots/';
-const PROFILE = `${homedir()}/.mvxsafe-shots-profile`;
+const LONG = 180000;
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',').map(Number)) : null;
 const FROM = Number(process.env.FROM || (ONLY ? Math.min(...ONLY) : 1));
-const TO = Number(process.env.TO || (ONLY ? Math.max(...ONLY) : 18));
+const TO = Number(process.env.TO || (ONLY ? Math.max(...ONLY) : 21));
 /** Whether picture n is to be taken in this run. */
 const wanted = (n) => n >= FROM && n <= TO && (!ONLY || ONLY.has(n));
+// Each phase runs only when the pictures asked for reach into it.
+const phase = (first, last) => FROM <= last && first <= TO;
 
-const SAFE = 'erd1qqqqqqqqqqqqqpgq4a8ursp5sf376rpqecz89p56pzjh9cv76qlsljglrq';
-const ALICE = 'erd1u05m7s9u4dthgzzgxd0795kaxpadhj93yv24nydjczw832a66qlsgw5esx';
-const BOB = 'erd1q83m7yeunpjctjzyk6u30qfwphwvrg6ez0glcnar50s55dykcnqqr3s7j4';
-const CAROL = 'erd1cn8w9h2gfks6fglhxcmfka5w98hym47s0w8r9y4nqq9syh3ddfvsr0ljwe';
-const DAVE = 'erd16pe79ay2m6g7ap9vpshvvqaqc3ayplwuqw0rkwj2gqvv0egn0wjsyzvjwd';
-const STRANGER = 'erd1v6zzkkmhhq9vrtyedy0xwmzdnme8tzj5pvcvlnrys87zmkunxezsvh4kq3';
+// The rehearsal safe of docs/upgrade-and-calls.md: 2 of 3, in its own hands, owning
+// a devnet contract, so the call and upgrade forms have something real to read.
+const SAFE = 'erd1qqqqqqqqqqqqqpgqa36jq897x6drcq8arsumtw7tns8f98t3xezs2vdjvf';
+const OWNED = 'erd1qqqqqqqqqqqqqpgqntmhxqa29ar4juhlprjjxaq790ykcj3uaujq2l9dzg';
+const SOURCE = 'erd1qqqqqqqqqqqqqpgqsy2ept5xx2cprx3htj0l5lwkk52hh9amxezsygtpgl';
+// A contract on devnet that runs some other code.
+const OTHER_CODE = 'erd1qqqqqqqqqqqqqpgqt7gkxh4a4rqsunake3prr3s8p7wnp4wjmg8sv42dpy';
+const TOKEN = 'TSAFED-e52b18';
+
+const load = (name) =>
+  Account.newFromMnemonic(readFileSync(`${homedir()}/.mvxsafe-devnet/${name}.mnemonic`, 'utf8').trim());
+const keys = { alice: load('alice'), bob: load('bob'), carol: load('carol') };
+const ALICE = keys.alice.address.toBech32();
+const BOB = keys.bob.address.toBech32();
+const CAROL = keys.carol.address.toBech32();
+const DAVE = load('dave').address.toBech32();
+const STRANGER = load('erin').address.toBech32();
 const LABELS = { [ALICE]: 'Alice', [BOB]: 'Bob', [CAROL]: 'Carol', [DAVE]: 'Dave' };
 const SAFES = [{ name: 'Team safe', address: SAFE }];
 
+const api = new ApiNetworkProvider(API, { clientName: 'mvxsafe-guide-pictures' });
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const say = (text) => console.log(`>>> ${text}`);
+
 mkdirSync(OUT, { recursive: true });
+const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
+let page;
 
-const ctx = await chromium.launchPersistentContext(PROFILE, {
-  channel: 'chrome',
-  headless: false,
-  viewport: { width: 1366, height: 900 },
-  deviceScaleFactor: 2,
-  // Chrome on this laptop runs under XWayland; its Qt plugin exists for xcb only.
-  args: ['--ozone-platform=x11'],
-  env: { ...process.env, QT_QPA_PLATFORM: 'xcb' },
-  // Ctrl+C and SIGTERM are handled by guardProfile: Chrome closed first.
-  handleSIGINT: false,
-  handleSIGTERM: false
-});
-const finish = guardProfile(PROFILE, ctx, { keep: process.env.KEEP_PROFILE === '1' });
-const page = ctx.pages()[0] || (await ctx.newPage());
-
-// --- the banner ---------------------------------------------------------------
-
-let banner = { text: '', tone: 'ask' };
-const drawBanner = () =>
-  page
-    .evaluate(({ text, tone }) => {
-      let bar = document.getElementById('shot-bar');
-      if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'shot-bar';
-        bar.style.cssText =
-          // At the bottom: at the top it covered the header and its Disconnect.
-          'position:fixed;inset:auto 0 0 0;z-index:99999;padding:14px 18px;font:600 15px system-ui;text-align:center';
-        document.body.appendChild(bar);
+const newPage = async (account) => {
+  const context = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    deviceScaleFactor: 2
+  });
+  if (account) {
+    const address = account.address.toBech32();
+    await context.exposeFunction('__guideSign', async (plains) => {
+      const signatures = [];
+      for (const plain of plains) {
+        if (plain?.chainID !== 'D' || plain?.sender !== address) {
+          throw new Error(`refused: chain ${plain?.chainID}, sender ${plain?.sender}`);
+        }
+        const signature = await account.signTransaction(Transaction.newFromPlainObject(plain));
+        signatures.push(Buffer.from(signature).toString('hex'));
       }
-      bar.style.background = tone === 'ok' ? '#123d1c' : '#FF6E0A';
-      bar.style.color = tone === 'ok' ? '#b8f5c7' : '#1a0d00';
-      bar.textContent = text;
-      bar.style.display = 'block';
-    }, banner)
-    .catch(() => {});
-
-const say = async (text, tone = 'ask') => {
-  banner = { text, tone };
-  console.log(`>>> ${text}`);
-  await drawBanner();
+      return signatures;
+    });
+    await context.addInitScript((wallet) => {
+      const bytes = (hex) => new Uint8Array(hex.match(/../g).map((pair) => parseInt(pair, 16)));
+      const provider = {
+        init: async () => true,
+        isInitialized: () => true,
+        isConnected: () => true,
+        getType: () => 'guide',
+        getAddress: async () => wallet,
+        getAccount: () => ({ address: wallet }),
+        setAccount: () => undefined,
+        login: async () => ({ address: wallet, signature: '' }),
+        logout: async () => true,
+        getTokenLoginSignature: () => undefined,
+        signTransactions: async (transactions) => {
+          const signatures = await window.__guideSign(transactions.map((transaction) => transaction.toPlainObject()));
+          transactions.forEach((transaction, at) => {
+            transaction.signature = bytes(signatures[at]);
+          });
+          return transactions;
+        },
+        signTransaction: async (transaction) => (await provider.signTransactions([transaction]))[0],
+        signMessage: async () => {
+          throw new Error('No messages here');
+        }
+      };
+      window.multiversx = { providers: [{ name: 'Guide wallet', type: 'guide', iconUrl: '', constructor: async () => provider }] };
+    }, address);
+  }
+  page = await context.newPage();
+  await page.goto(`${SITE}/`, { waitUntil: 'domcontentloaded', timeout: LONG });
 };
 
 // Polled with evaluate, never waitForFunction: the site's content policy forbids
-// evaluating strings, which is how waitForFunction works. The banner is drawn
-// again on every poll, so a reload (a wallet switch) does not lose it.
-const until = async (fn, arg, label, timeout = 900000) => {
+// evaluating strings, which is how waitForFunction works.
+const until = async (fn, arg, label, timeout = LONG) => {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     try {
-      if (await page.evaluate(fn, arg)) return true;
+      if (await page.evaluate(fn, arg)) return;
     } catch {
       // mid navigation
     }
-    await drawBanner();
     await page.waitForTimeout(800);
   }
-  console.log(`    gave up waiting for ${label}`);
-  return false;
+  throw new Error(`gave up waiting for ${label}`);
 };
 
 // Every function passed to `until` runs in the page, so it must stand alone.
 const hasText = (needle) => document.body.innerText.includes(needle);
-/** Text inside the wallet panel too, which lives in shadow roots. */
-const deepText = (needle) => {
-  const walk = (root) =>
-    [...root.querySelectorAll('*')].some(
-      (el) => el.shadowRoot && (el.shadowRoot.textContent.includes(needle) || walk(el.shadowRoot))
-    );
-  return document.body.innerText.includes(needle) || walk(document);
-};
 const buttonEnabled = (name) =>
   [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === name && !b.disabled);
+const quiet = () => !document.body.innerText.includes('Loading');
 
-/** Photographs the window with the banner hidden; `section` scrolls to it first. */
+const session = async (account) => {
+  await newPage(account);
+  await until(() => Boolean(sessionStorage.getItem('sdk-dapp-store')), null, 'the store');
+  await page.evaluate(
+    ({ address, publicKey }) => {
+      const stored = JSON.parse(sessionStorage.getItem('sdk-dapp-store'));
+      stored.state.account.address = address;
+      stored.state.account.publicKey = publicKey;
+      stored.state.account.accounts[address] = {
+        address,
+        balance: '0',
+        isGuarded: false,
+        nonce: 0,
+        txCount: 0,
+        scrCount: 0,
+        claimableRewards: '0'
+      };
+      stored.state.loginInfo.providerType = 'guide';
+      sessionStorage.setItem('sdk-dapp-store', JSON.stringify(stored));
+    },
+    { address: account.address.toBech32(), publicKey: account.address.toHex() }
+  );
+  await seed(SAFES);
+};
+
+/** Photographs the window; `section` scrolls to it first. */
 const shot = async (name, section) => {
-  const number = Number(name.slice(0, 2));
-  if (!wanted(number)) return;
-  // The wallet-free pictures must not catch the wallet panel half open.
-  if (number <= 4) {
-    await until(
-      (needle) => {
-        const walk = (root) =>
-          [...root.querySelectorAll('*')].some(
-            (el) => el.shadowRoot && (el.shadowRoot.textContent.includes(needle) || walk(el.shadowRoot))
-          );
-        return !walk(document);
-      },
-      'Connect a wallet',
-      'the wallet panel to close',
-      60000
-    );
-  }
+  if (!wanted(Number(name.slice(0, 2)))) return;
   if (section) {
     await page.evaluate((start) => {
       const target = [...document.querySelectorAll('section, h2, h1')].find((el) =>
@@ -149,34 +171,24 @@ const shot = async (name, section) => {
   }
   // A resting pointer opens tooltips: park it on empty page margin first.
   await page.mouse.move(8, 450);
-  await page.evaluate(() => {
-    const bar = document.getElementById('shot-bar');
-    if (bar) bar.style.display = 'none';
-  });
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${OUT}${name}.png` });
-  await drawBanner();
   console.log(`    saved ${OUT}${name}.png`);
 };
 
 const go = async (path) => {
-  await page.goto(`${SITE}${path}`, { waitUntil: 'networkidle' });
-  await drawBanner();
+  await page.goto(`${SITE}${path}`, { waitUntil: 'domcontentloaded', timeout: LONG });
 };
 
-const seed = (safes, labels) =>
+const seed = (safes) =>
   page.evaluate(
     ([safes, labels]) => {
       localStorage.setItem('mvxsafe.savedSafes', JSON.stringify(safes));
       localStorage.setItem('mvxsafe.labels', JSON.stringify(labels));
       sessionStorage.removeItem('mvxsafe.cards');
     },
-    [safes, labels]
+    [safes, LABELS]
   );
-
-const connectedAs = (name) =>
-  Boolean(document.querySelector('[aria-label="Disconnect"]')) &&
-  Boolean(document.querySelector('header')?.innerText.includes(name));
 
 const fill = async (placeholder, value, nth = 0) =>
   page.locator(`input[placeholder="${placeholder}"]`).nth(nth).fill(value);
@@ -184,196 +196,255 @@ const fill = async (placeholder, value, nth = 0) =>
 // Buttons by their exact name: "Propose" would also match "Add proposer".
 const button = (name) => page.getByRole('button', { name, exact: true });
 
-// Each phase runs only when the pictures asked for reach into it, so a restart
-// from a later picture does not ask for wallets that are already connected.
-const phase = (first, last) => FROM <= last && first <= TO;
-
-console.log(`\nSite: ${SITE}. Follow the orange banner in the Chrome window.\n`);
-await go('/');
-
-// --- 1. Without a wallet (pictures 1 to 4) ------------------------------------
-
-if (phase(1, 4)) {
-  if (await page.evaluate(() => Boolean(document.querySelector('[aria-label="Disconnect"]')))) {
-    await say('Disconnecting: the first pictures are taken without a wallet.', 'ok');
-    await button('Disconnect').click();
-    await until(() => !Boolean(document.querySelector('[aria-label="Disconnect"]')), null, 'a disconnect', 60000);
-  }
-  await say('Nothing to do: photographing the site without a wallet.', 'ok');
-  await seed([], LABELS);
-  await go('/');
-  await page.waitForTimeout(1200);
-  await shot('01-empty');
-
-  await fill('Name', 'Team safe');
-  await fill('erd1...', SAFE);
-  await page.waitForTimeout(400);
-  await shot('02-add', 'Add a safe');
-
-  await seed(SAFES, LABELS);
-  await go('/');
-  // The card's counts are in: a number under "Proposed so far".
-  await until(() => /Proposed so far\s*\d/.test(document.body.innerText), null, 'the card', 120000);
-  await page.waitForTimeout(800);
-  await shot('03-list-read-only');
-
-  await go(`/safe/${SAFE}`);
-  await until(hasText, 'Board and proposers', 'the safe', 120000);
-  await until(() => !document.body.innerText.includes('Loading'), null, 'the reads', 120000);
-  await page.waitForTimeout(1000);
-  await shot('04-safe-read-only');
-} else {
-  await seed(SAFES, LABELS);
-  await go('/');
-}
-
-// --- 2. Connected as Alice (pictures 5 to 11) ---------------------------------
-
-if (phase(5, 5) && wanted(5)) {
-  await say('Press Connect, then WAIT a second before choosing xPortal, so the chooser can be photographed. Connect as Alice (your own wallet).');
-  await until(
-    (needle) => {
-      const walk = (root) =>
-        [...root.querySelectorAll('*')].some(
-          (el) => el.shadowRoot && (el.shadowRoot.textContent.includes(needle) || walk(el.shadowRoot))
-        );
-      return walk(document) || Boolean(document.querySelector('[aria-label="Disconnect"]'));
-    },
-    'Connect a wallet',
-    'the wallet chooser'
-  );
-  if (await page.evaluate(deepText, 'Connect a wallet')) {
-    await page.waitForTimeout(250);
-    await shot('05-connect');
-  }
-}
-// Alice is needed for pictures 5 to 14; from 15 on it is Bob.
-if (phase(5, 14)) {
-  if (!(await page.evaluate(connectedAs, 'Alice'))) {
-    await say('Connect as Alice (your own wallet, xPortal). I am waiting.');
-  }
-  await until(connectedAs, 'Alice', 'Alice to connect');
-  await say('Connected as Alice. Photographing.', 'ok');
-}
-
-if (phase(6, 10)) {
-  await go('/');
-  await until(() => document.body.innerText.includes('board member') && /Proposed so far\s*\d/.test(document.body.innerText), null, 'the badge', 120000);
-  await page.waitForTimeout(800);
-  await shot('06-list-board-member');
-
-  await go(`/safe/${SAFE}`);
-  await until(() => document.body.innerText.includes('a board member here') && !document.body.innerText.includes('Loading'), null, 'the safe', 120000);
-  await page.waitForTimeout(1000);
-  await shot('07-safe');
-  await shot('08-board-holdings', 'Board and proposers');
-
-  await go('/create');
-  await fill('Treasury', 'Team safe');
-  await fill('erd1...', ALICE, 0);
-  await fill('erd1...', BOB, 1);
-  await fill('erd1...', CAROL, 2);
-  await page.waitForTimeout(500);
-  await shot('09-create');
-
-  // A membership change says what it does while it is typed; nothing is proposed.
-  await go(`/safe/${SAFE}`);
-  await until(hasText, 'Propose an action', 'the propose form', 120000);
-  await button('Add proposer').click();
-  await fill('erd1...', ALICE);
-  await page.waitForTimeout(500);
-  await shot('10-membership-note', 'Propose an action');
-}
-
-if (phase(11, 14)) {
-  await go(`/safe/${SAFE}`);
-  await until(hasText, 'Propose an action', 'the propose form', 120000);
-}
-
-if (phase(11, 11)) {
-  // A change the contract would only refuse later is refused here at once.
-  await button('Remove member').click();
-  await fill('erd1...', STRANGER);
-  await button('Propose').click();
-  await page.waitForTimeout(500);
-  await shot('11-refused', 'Propose an action');
-  await fill('erd1...', '');
-}
-
-// --- 3. Discard (picture 12) --------------------------------------------------
-
-if (phase(12, 12)) {
-  if (!(await page.evaluate(buttonEnabled, 'Remove my signature'))) {
-    await button('Send tokens').click();
-    await page.locator('select').first().selectOption('FOXSY-5d5f3e');
-    await fill('erd1...', DAVE);
-    await fill('0.00', '1');
-    await say('Press Propose and approve in xPortal: a small action, to be discarded right after.');
-    await until(buttonEnabled, 'Remove my signature', 'a pending action Alice signed');
-  }
-  await say('Press "Remove my signature" on the pending action and approve in xPortal.');
-  await until(buttonEnabled, 'Discard', 'Discard to switch on');
-  await page.waitForTimeout(800);
-  await shot('12-discard-ready', 'Pending actions');
-  await say('Press Discard and approve in xPortal.');
-  await until(
-    () => !document.body.innerText.includes('Remove my signature') && !/\b0 of \d signatures/.test(document.body.innerText),
-    null,
-    'the discard'
-  );
-}
-
-// --- 4. A payment, proposed by Alice (pictures 13 and 14) ---------------------
-
-if (phase(13, 14)) {
-  await say('Filling in a payment of 10 FOXSY to Dave.', 'ok');
-  // The page waits for the last transaction to be confirmed before anything
-  // else can be proposed; the picture should not show that wait.
-  await until(buttonEnabled, 'Propose', 'the propose form to unlock', 120000);
-  await button('Send tokens').click();
-  await page.locator('select').first().selectOption('FOXSY-5d5f3e');
-  await fill('erd1...', DAVE);
-  await fill('0.00', '10');
-  await page.waitForTimeout(500);
-  await shot('13-propose-form', 'Propose an action');
-  await say('Press Propose and approve in xPortal.');
-  await until(() => /Send 10 FOXSY-5d5f3e[\s\S]*1 of \d signatures/.test(document.body.innerText), null, 'the proposal');
+const openSafe = async (address, ready = 'a board member here') => {
+  await go(`/safe/${address}`);
+  await until(hasText, ready, 'the safe');
+  await until(quiet, null, 'the reads');
   await page.waitForTimeout(1500);
-  await shot('14-pending-proposer', 'Pending actions');
-}
+};
 
-// --- 5. Bob signs and carries it out (pictures 15 to 18) ----------------------
+const fillPayment = async (amount) => {
+  await until(buttonEnabled, 'Propose', 'the propose form to unlock');
+  await button('Send tokens').click();
+  await until((token) => [...document.querySelectorAll('option')].some((o) => o.value === token), TOKEN, 'the token');
+  await page.locator('select').first().selectOption(TOKEN);
+  await fill('erd1...', CAROL);
+  await fill('0.00', amount);
+};
 
-if (phase(15, 18)) {
-  // Disconnecting is done here, so nobody has to find the button.
-  if (await page.evaluate(() => Boolean(document.querySelector('[aria-label="Disconnect"]'))) && !(await page.evaluate(connectedAs, 'Bob'))) {
-    await say('Disconnecting Alice.', 'ok');
-    await button('Disconnect').click();
-    await until(() => !Boolean(document.querySelector('[aria-label="Disconnect"]')), null, 'the disconnect', 60000);
+/** What the pictures need the safe to hold: 900 of the token and a little EGLD. */
+const stockTheSafe = async () => {
+  const send = async (account, data, value, gasLimit) => {
+    const fresh = await api.getAccount(account.address);
+    const transaction = new Transaction({
+      sender: account.address,
+      receiver: new Address(SAFE),
+      nonce: BigInt(fresh.nonce),
+      value,
+      gasLimit,
+      chainID: 'D',
+      data: new TextEncoder().encode(data)
+    });
+    transaction.signature = await account.signTransaction(transaction);
+    return api.sendTransaction(transaction);
+  };
+  const held = await (await fetch(`${API}/accounts/${SAFE}/tokens/${TOKEN}`)).json();
+  if (BigInt(held.balance ?? 0) === 0n) {
+    const amount = (900n * 10n ** 18n).toString(16).padStart(2, '0');
+    const even = amount.length % 2 ? `0${amount}` : amount;
+    say(`Sending the token to the safe: ${await send(keys.alice, `ESDTTransfer@${Buffer.from(TOKEN).toString('hex')}@${even}`, 0n, 600000n)}`);
+    await wait(30000);
   }
-  await say('Press Connect, choose MultiversX Web Wallet, and log in as Bob.');
-  await until(connectedAs, 'Bob', 'Bob to connect');
-  await say('Connected as Bob. Photographing the list.', 'ok');
-  await go('/');
-  await until(hasText, 'needs you', 'the "needs you" card', 120000);
-  await page.waitForTimeout(800);
-  await shot('15-list-needs-you');
+  const { balance } = await (await fetch(`${API}/accounts/${SAFE}?fields=balance`)).json();
+  if (BigInt(balance) < 300000000000000000n) {
+    say(`Sending EGLD to the safe: ${await send(keys.carol, '', 300000000000000000n, 60000n)}`);
+    await wait(30000);
+  }
+};
 
-  await go(`/safe/${SAFE}`);
-  await until(buttonEnabled, 'Sign', 'the Sign button', 120000);
-  await page.waitForTimeout(800);
-  await shot('16-sign', 'Pending actions');
-  await say('Press Sign and approve in the web wallet (with the 2FA code).');
-  await until(buttonEnabled, 'Carry it out', 'the quorum');
-  await page.waitForTimeout(800);
-  await shot('17-ready', 'Pending actions');
-  await say('Press "Carry it out" and approve in the web wallet.');
-  await until(() => !document.body.innerText.includes('Send 10 FOXSY-5d5f3e'), null, 'the payment to be carried out');
-  await page.waitForTimeout(3000);
-  await shot('18-history', 'History');
+try {
+  await stockTheSafe();
+
+  // --- 1. Without a wallet (pictures 1 to 5) ------------------------------------
+
+  if (phase(1, 5)) {
+    say('Without a wallet.');
+    await newPage();
+    await seed([]);
+    await go('/');
+    await until(hasText, 'Add a safe', 'the list');
+    await page.waitForTimeout(1500);
+    await shot('01-empty');
+
+    await fill('Name', 'Team safe');
+    await fill('erd1...', SAFE);
+    await page.waitForTimeout(400);
+    await shot('02-add', 'Add a safe');
+
+    await seed(SAFES);
+    await go('/');
+    // The card's counts are in: a number under "Proposed so far".
+    await until(() => /Proposed so far\s*\d/.test(document.body.innerText), null, 'the card');
+    await page.waitForTimeout(1500);
+    await shot('03-list-read-only');
+
+    await openSafe(SAFE, 'Board and proposers');
+    await shot('04-safe-read-only');
+
+    await go('/');
+    await until(hasText, 'Add a safe', 'the list');
+    await page.getByRole('button', { name: /^Connect/ }).first().click();
+    await page.waitForTimeout(2500);
+    await shot('05-connect');
+    await page.context().close();
+  }
+
+  // --- 2. Connected as Alice (pictures 6 to 14, 19 and 20) ----------------------
+
+  if (phase(6, 14) || phase(19, 20)) {
+    say('Connected as Alice.');
+    await session(keys.alice);
+  }
+
+  if (phase(6, 10)) {
+    await go('/');
+    await until(
+      () => document.body.innerText.includes('board member') && /Proposed so far\s*\d/.test(document.body.innerText),
+      null,
+      'the badge'
+    );
+    await page.waitForTimeout(1500);
+    await shot('06-list-board-member');
+
+    await openSafe(SAFE);
+    await shot('07-safe');
+    await shot('08-board-holdings', 'Board and proposers');
+
+    await go('/create');
+    await until(hasText, 'Create', 'the create page');
+    await fill('Treasury', 'Team safe');
+    await fill('erd1...', ALICE, 0);
+    await fill('erd1...', BOB, 1);
+    await fill('erd1...', DAVE, 2);
+    await page.waitForTimeout(800);
+    await shot('09-create');
+
+    // A membership change says what it does while it is typed; nothing is proposed.
+    await openSafe(SAFE);
+    await button('Add proposer').click();
+    await fill('erd1...', ALICE);
+    await page.waitForTimeout(800);
+    await shot('10-membership-note', 'Propose an action');
+  }
+
+  if (phase(11, 11)) {
+    // A change the contract would only refuse later is refused here at once.
+    await openSafe(SAFE);
+    await button('Remove member').click();
+    await fill('erd1...', STRANGER);
+    await button('Propose').click();
+    await page.waitForTimeout(800);
+    await shot('11-refused', 'Propose an action');
+  }
+
+  if (phase(19, 20)) {
+    // Filled in only: nothing is proposed.
+    await openSafe(SAFE);
+    await button('Call a contract').click();
+    await page.locator('input[placeholder="erd1qqqqqqqqqqqqqpgq..."]').first().fill(OWNED);
+    await fill('setFee', 'pauseCreation');
+    await page.waitForTimeout(12000);
+    await shot('19-call-form', 'Propose an action');
+
+    await openSafe(SAFE);
+    await button('Upgrade a contract').click();
+    const codeHash = async (address) => {
+      const { codeHash: hash } = await (await fetch(`${API}/accounts/${address}?fields=codeHash`)).json();
+      return Buffer.from(hash, 'base64').toString('hex');
+    };
+    await page.locator('input[placeholder="erd1qqqqqqqqqqqqqpgq..."]').first().fill(OWNED);
+    await page.locator('input[placeholder="erd1qqqqqqqqqqqqqpgq..."]').nth(1).fill(SOURCE);
+    await fill('64 hex characters from the release', await codeHash(SOURCE));
+    await page.waitForTimeout(12000);
+    await shot('20-upgrade-form', 'Propose an action');
+  }
+
+  // --- 3. Discard (picture 12) --------------------------------------------------
+
+  if (phase(12, 12)) {
+    say('A small payment, to be discarded.');
+    await openSafe(SAFE);
+    await fillPayment('1');
+    await button('Propose').click();
+    await until(buttonEnabled, 'Remove my signature', 'a pending action Alice signed');
+    await button('Remove my signature').click();
+    await until(buttonEnabled, 'Discard', 'Discard to switch on');
+    await page.waitForTimeout(1500);
+    await shot('12-discard-ready', 'Pending actions');
+    await button('Discard').click();
+    await until(() => !document.body.innerText.includes('Discard'), null, 'the discard');
+    await page.waitForTimeout(8000);
+  }
+
+  // --- 4. A payment, proposed by Alice (pictures 13 and 14) ---------------------
+
+  if (phase(13, 14)) {
+    say('A payment of 10 to Carol.');
+    await openSafe(SAFE);
+    await fillPayment('10');
+    await page.waitForTimeout(800);
+    await shot('13-propose-form', 'Propose an action');
+    await button('Propose').click();
+    await until(
+      (token) => new RegExp(`Send 10 ${token}[\\s\\S]*1 of \\d signatures`).test(document.body.innerText),
+      TOKEN,
+      'the proposal'
+    );
+    await page.waitForTimeout(2500);
+    await shot('14-pending-proposer', 'Pending actions');
+  }
+
+  // --- 5. Bob signs and carries it out (pictures 15 to 18) ----------------------
+
+  if (phase(15, 18)) {
+    say('Connected as Bob.');
+    await session(keys.bob);
+    await go('/');
+    await until(hasText, 'needs you', 'the "needs you" card');
+    await page.waitForTimeout(1500);
+    await shot('15-list-needs-you');
+
+    await go(`/safe/${SAFE}`);
+    await until(buttonEnabled, 'Sign', 'the Sign button');
+    await page.waitForTimeout(1500);
+    await shot('16-sign', 'Pending actions');
+    await button('Sign').click();
+    await until(buttonEnabled, 'Carry it out', 'the quorum');
+    await page.waitForTimeout(2500);
+    await shot('17-ready', 'Pending actions');
+    await button('Carry it out').click();
+    await until(
+      (token) => !document.body.innerText.includes(`Send 10 ${token}`),
+      TOKEN,
+      'the payment to be carried out'
+    );
+    await page.waitForTimeout(20000);
+    await go(`/safe/${SAFE}`);
+    await until(hasText, 'Board and proposers', 'the safe');
+    await until(quiet, null, 'the reads');
+    await page.waitForTimeout(3000);
+    await shot('18-history', 'History');
+  }
+
+  // --- 6. A contract on other code (picture 21) ---------------------------------
+
+  if (wanted(21)) {
+    await newPage();
+    await seed([]);
+    await go(`/safe/${OTHER_CODE}`);
+    await until(hasText, 'does not run the multisig code', 'the warning');
+    await page.waitForTimeout(3000);
+    // Only the warning: the rest of the page is empty reads.
+    const box = await page.getByText('does not run the multisig code').first().evaluate((el) => {
+      let card = el;
+      while (card.parentElement && !/rounded/.test(card.className)) card = card.parentElement;
+      const { x, y, width, height } = card.getBoundingClientRect();
+      return { x, y, width, height };
+    });
+    const margin = 24;
+    await page.screenshot({
+      path: `${OUT}21-other-code.png`,
+      clip: {
+        x: box.x - margin,
+        y: box.y - margin,
+        width: box.width + margin * 2,
+        height: box.height + margin * 2
+      }
+    });
+    console.log(`    saved ${OUT}21-other-code.png`);
+  }
+
+  say('All pictures taken. Turn them into JPEGs with ./scripts/capture/to-web.sh');
+} finally {
+  await browser.close();
 }
-
-await say('All pictures taken. You can close the window.', 'ok');
-console.log('\nDone. Turn them into JPEGs with ./scripts/capture/to-web.sh');
-await until(() => false, null, 'the window to close', 600000);
-await finish(0);

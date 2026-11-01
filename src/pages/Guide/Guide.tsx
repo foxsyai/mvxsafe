@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 
 // The public walkthrough. Written for someone who has never used a multisig, so
 // it explains the idea before the buttons, and shows the real interface rather
-// than describing it. The pictures are photographs of the live site operating a
-// real safe, taken by scripts/capture/guide.mjs in the order the steps follow:
-// one payment from proposal to history, by two board members. The board members
-// carry the names they were given in that browser, which is the feature step 4
-// explains.
+// than describing it. The pictures are photographs of the live devnet site
+// operating a test safe, taken by scripts/capture/guide.mjs in the order the steps
+// follow: one payment from proposal to history, by two board members. The board
+// members carry the names they were given in that browser, which is the feature
+// step 4 explains.
 
 const heading = 'text-xl font-semibold text-white';
 const body = 'mt-3 text-sm leading-relaxed text-[#9AA0A6]';
@@ -90,6 +90,11 @@ export const Guide = () => (
       lives on the blockchain. This interface only shows you what is there and
       prepares the transactions that you sign yourself.
     </p>
+    <p className={body}>
+      The pictures come from the test network, devnet, with test wallets and a
+      test token, so they carry a DEVNET badge. The real thing at mvxsafe.io
+      works the same way.
+    </p>
 
     <div className='mt-10'>
       <h2 className={heading}>The whole flow, step by step</h2>
@@ -115,8 +120,9 @@ export const Guide = () => (
       <Step number={2} title='Look inside, no wallet needed'>
         Everything about a safe is public, so opening one needs no wallet at
         all. You see the quorum, what it holds, the actions waiting for
-        signatures, who sits on the board and the full history. Everything on
-        this page is read from the contract itself.
+        signatures, who sits on the board and the full history. The quorum, the
+        board and the actions are read from the contract itself. The history and
+        the dollar values come from public network services.
         <Shot
           src='/shots/04-safe-read-only.jpg'
           caption='The same safe opened without a wallet. Two signatures out of three move anything. Nothing is waiting right now.'
@@ -159,12 +165,14 @@ export const Guide = () => (
 
       <Step number={5} title='Propose an action'>
         Sending tokens or EGLD, adding a board member or a proposer, removing
-        either, changing the quorum. Proposing costs a small network fee and
-        changes nothing on its own: it puts the request in front of the board,
-        where it waits. Proposing also counts as your signature.
+        either, changing the quorum, calling a contract or upgrading one.
+        Proposing costs a small network fee and changes nothing on its own: it
+        puts the request in front of the board, where it waits. A board member
+        who proposes has signed by doing so. A proposer has not, as proposers
+        never sign.
         <Shot
           src='/shots/13-propose-form.jpg'
-          caption='Alice proposes a payment of 10 FOXSY to Dave: which token, to whom, how much.'
+          caption='Alice proposes a payment of 10 TSAFED to Carol: which token, to whom, how much.'
         />
         <Shot
           src='/shots/14-pending-proposer.jpg'
@@ -178,7 +186,7 @@ export const Guide = () => (
         open it.
         <Shot
           src='/shots/15-list-needs-you.jpg'
-          caption='Bob connects and sees one action waiting for him.'
+          caption='Bob connects and sees one action waiting for a signature.'
         />
       </Step>
 
@@ -196,12 +204,15 @@ export const Guide = () => (
       </Step>
 
       <Step number={8} title='Carry it out'>
-        Once the signatures reach the quorum, any board member can carry the
-        action out. That is the moment the safe actually moves something.
-        Usually the last person to sign does it, in the same visit.
+        Once the signatures reach the quorum, any board member or proposer can
+        carry the action out. That is the moment the safe actually moves
+        something. Usually the last person to sign does it, in the same visit.
+        The card shows the gas the transaction will be given and about what it
+        costs. The figure is worked out for that action, so leave it unless you
+        have a reason to change it.
         <Shot
           src='/shots/17-ready.jpg'
-          caption='Two signatures of the two needed, so Carry it out appears. The note in the corner confirms that Bob signed.'
+          caption='Two signatures of the two needed, so Carry it out appears, with the gas it will be given.'
         />
         Afterwards the action leaves the list and joins the history, along with
         every step that led to it.
@@ -218,21 +229,21 @@ export const Guide = () => (
         to remove their signature first, the person who proposed it included.
         <Shot
           src='/shots/12-discard-ready.jpg'
-          caption='A small payment after Alice took her signature back. At zero signatures, Discard is open.'
+          caption='A small payment after Alice took back the signature. At zero signatures, Discard is open.'
         />
       </Step>
 
       <Step number={10} title='Change the board'>
         Adding or removing a board member or a proposer goes through the same
         propose, sign and carry out as a payment. So does changing the quorum. A
-        proposer can suggest actions but never sign them. An address holds one
-        role at a time, so a change can do more than it seems: while you type,
-        the form says what it would really do. A change that would do nothing is
-        stopped in the form before anybody pays a fee. So is a change the
-        contract would refuse when it is carried out.
+        proposer can suggest actions and carry them out but never sign them. An
+        address holds one role at a time, so a change can do more than it seems:
+        while you type, the form says what it would really do. A change that
+        would do nothing is stopped in the form before anybody pays a fee. So is
+        a change the contract would refuse when it is carried out.
         <Shot
           src='/shots/10-membership-note.jpg'
-          caption='Making Alice a proposer: the note warns that it would take her off the board.'
+          caption='Making Alice a proposer: the note warns that this would take Alice off the board.'
         />
         <Shot
           src='/shots/11-refused.jpg'
@@ -240,7 +251,30 @@ export const Guide = () => (
         />
       </Step>
 
-      <Step number={11} title='Create a new safe'>
+      <Step number={11} title='Act on a contract the safe owns'>
+        A safe can own other contracts. Only a vote of its board can change
+        those. Call a contract has the safe call one of a contract's functions,
+        to set a fee or pause it for example. The form shows the sentence the
+        signers will read and tries the call as the safe would send it, so a
+        call the contract refuses is not proposed. A call on the safe itself is
+        refused too: it would act with all of the board's authority.
+        <Shot
+          src='/shots/19-call-form.jpg'
+          caption='A call on a contract the safe owns: what the signers will read and the result of trying it.'
+        />
+        Upgrade a contract replaces a contract's code with the code of a source
+        contract in the safe's shard. Its address and storage stay. The form
+        wants the code hash of the release, which has to match the source. Every
+        signer sees both code hashes on the action and can paste the release's
+        hash there to check it. Take that hash from the release itself, not from
+        the person proposing.
+        <Shot
+          src='/shots/20-upgrade-form.jpg'
+          caption='An upgrade being filled in: the code the contract runs today, the code it would run and the checks the signers will see.'
+        />
+      </Step>
+
+      <Step number={12} title='Create a new safe'>
         Choose who sits on the board and how many signatures an action needs, on
         the{' '}
         <Link to='/create' className='text-[#FF6E0A] hover:underline'>
@@ -257,6 +291,41 @@ export const Guide = () => (
     </div>
 
     <div className='mt-12'>
+      <h2 className={heading}>When the page warns you</h2>
+      <p className={body}>
+        A red box means stop and read it. Ask the rest of the board before doing
+        anything. These are the ones at the top of a safe:
+      </p>
+      <Shot
+        src='/shots/21-other-code.jpg'
+        caption='A contract running other code. Everything that signs is held, with no way round it.'
+      />
+      <ul className='mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#9AA0A6]'>
+        <li>
+          This contract does not run the multisig code mvxsafe knows. What the
+          page shows is only that contract's own word. Nothing can be signed,
+          carried out, discarded or proposed from it. Do not send it funds.
+        </li>
+        <li>
+          This safe is not in its own hands. Whoever owns it can replace its
+          code alone, without the board. Ask that owner to hand it to itself
+          before trusting it with funds.
+        </li>
+        <li>
+          This safe needs no signatures. Its quorum is 0, so anyone with a role
+          can carry out any action alone. Propose a new quorum before anything
+          else.
+        </li>
+      </ul>
+      <p className={body}>
+        Each action also carries its own checks, in green, amber or red. When
+        the network does not answer or something could not be read, Sign and
+        Carry it out wait until it can be. They unlock by themselves or after
+        Refresh.
+      </p>
+    </div>
+
+    <div className='mt-12'>
       <h2 className={heading}>Worth knowing</h2>
       <ul className='mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#9AA0A6]'>
         <li>
@@ -268,6 +337,12 @@ export const Guide = () => (
           Read what you are signing. The description of an action is built from
           what the contract itself reports, not from what the proposer typed. An
           action the interface cannot read says so. Refuse it.
+        </li>
+        <li>
+          A long list of waiting actions is read in parts. Those with a
+          signature come first, then the newest. Load more reads the rest. If
+          the page says the list is not complete, an older action may still be
+          waiting. Go to action # opens any action by its number.
         </li>
         <li>
           Everything here is public. Balances, board members, signatures and
