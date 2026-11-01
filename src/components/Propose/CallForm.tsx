@@ -85,6 +85,10 @@ export const CallForm = ({
 
   const target = to.trim();
   const targetOk = isContract(target);
+  // A call on the safe itself acts with the board's authority: it can send the
+  // safe's EGLD out or sign for the board, under a sentence that reads like a
+  // call (audits RED-02 and RED-06, 1 Nov 2026). Refused, whatever the function.
+  const itself = target === safe;
   const chosen = abi?.endpoints.find(
     (endpoint) => endpoint.name === functionName
   );
@@ -104,6 +108,7 @@ export const CallForm = ({
 
   const ready =
     targetOk &&
+    !itself &&
     ENDPOINT.test(functionName) &&
     Object.keys(encoded.errors).length === 0 &&
     egldRaw !== null &&
@@ -149,7 +154,7 @@ export const CallForm = ({
       const result = await trialAsSafe(safe, target, egldRaw as bigint, data);
       if (!live) return;
       setTrying(false);
-      setTrial(trialCheck(result));
+      setTrial(trialCheck(result, { to: target, safe }));
     }, 700);
     return () => {
       live = false;
@@ -258,7 +263,15 @@ export const CallForm = ({
             }}
           />
         )}
-        {facts?.codeHash && (
+        {itself && (
+          <CheckLine
+            check={{
+              tone: 'bad',
+              text: 'This is the safe itself. mvxsafe does not propose a call on the safe itself: the caller would be the safe, with the board\'s authority, and such a call can send its EGLD out or sign for the board. To send, use "Send EGLD" or "Send tokens".'
+            }}
+          />
+        )}
+        {facts?.codeHash && !itself && (
           <CheckLine
             check={
               notOwner

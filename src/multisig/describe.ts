@@ -329,7 +329,99 @@ const describeOnItself = async (
   }
 };
 
-const describeCall = async (data: any, safe: string): Promise<string> => {
+/** An action id as it travels: a u32, on its own. Null for anything else. */
+const actionIdOf = (args: Uint8Array[]): bigint | null =>
+  args.length === 1 && args[0].length <= 4 ? bytesToBigInt(args[0]) : null;
+
+const addressOf = (args: Uint8Array[]): string | null =>
+  args.length === 1 && args[0].length === 32
+    ? new Address(args[0]).toBech32()
+    : null;
+
+const IF_ON_ITS_BOARD =
+  'That can only work if this safe holds a seat on its own board; otherwise the contract refuses it';
+const IF_IT_HAS_A_ROLE =
+  'That can only work if this safe holds a role on its own board or among its proposers; otherwise the contract refuses it';
+
+/**
+ * A call the safe makes on one of its own endpoints, in what it does. The
+ * caller is then the safe itself, which owns itself and may hold a seat on its
+ * own board, so these act with the board's authority (audits RED-02 and RED-06,
+ * 1 Nov 2026). Null for anything not recognised, whose arguments stay raw.
+ */
+const describeOwnEndpoint = (
+  name: string,
+  args: Uint8Array[],
+  egld: bigint,
+  route: string
+): string | null => {
+  const id = actionIdOf(args);
+  const who = addressOf(args);
+  switch (name) {
+    case 'dnsRegister': {
+      // Owner only, which the safe is, and it forwards what it is paid: the one
+      // way the safe's own EGLD reaches this endpoint. Run for real on devnet,
+      // 1 Nov 2026, and the two ways of proposing it behave differently.
+      if (args.length !== 2 || args[0].length !== 32) return null;
+      const target = new Address(args[0]).toBech32();
+      const register = `register(${visible(decodeText(args[1]))})`;
+      const what =
+        egld > 0n
+          ? `send ${formatUnits(egld, 18)} EGLD out of this safe to ${target}, calling ${register} there`
+          : `call ${register} on ${target} as this safe`;
+      return route === 'SendAsyncCall'
+        ? `Try to ${what}, through the safe's own dnsRegister. Proposed this way (proposeAsyncCall) it failed on devnet: the network refused the inner call, the EGLD stayed in the safe and the action was used up with its signatures`
+        : `${what.charAt(0).toUpperCase()}${what.slice(1)}, through the safe's own dnsRegister. Proposed this way (proposeTransferExecute) it really goes: on devnet the EGLD left the safe`;
+    }
+    case 'sign':
+      if (id === null) return null;
+      return `Have this safe approve action #${id} on the board's behalf, a signature that counts toward its quorum. ${IF_ON_ITS_BOARD}`;
+    case 'unsign':
+      if (id === null) return null;
+      return `Have this safe take back its own approval of action #${id} on the board's behalf. ${IF_ON_ITS_BOARD}`;
+    case 'performAction':
+      if (id === null) return null;
+      return `Have this safe carry out action #${id} on the board's behalf, whatever that action does. ${IF_IT_HAS_A_ROLE}`;
+    case 'discardAction':
+      if (id === null) return null;
+      return `Have this safe throw away action #${id} on the board's behalf. ${IF_IT_HAS_A_ROLE}`;
+    case 'proposeAddBoardMember':
+      return who
+        ? `Have this safe propose adding ${who} to the board. ${IF_IT_HAS_A_ROLE}`
+        : null;
+    case 'proposeAddProposer':
+      return who
+        ? `Have this safe propose adding ${who} as a proposer. ${IF_IT_HAS_A_ROLE}`
+        : null;
+    case 'proposeRemoveUser':
+      return who
+        ? `Have this safe propose removing ${who} from the board or the proposers. ${IF_IT_HAS_A_ROLE}`
+        : null;
+    case 'proposeChangeQuorum':
+      if (id === null) return null;
+      return `Have this safe propose changing the number of signatures needed to ${id}. ${IF_IT_HAS_A_ROLE}`;
+    case 'proposeTransferExecute':
+    case 'proposeAsyncCall': {
+      if (args.length < 2 || args[0].length !== 32) return null;
+      const then =
+        args[2]?.length > 0
+          ? `, calling ${describeCallOf(args[2], args.slice(3))} there`
+          : '';
+      return `Have this safe propose sending ${formatUnits(bytesToBigInt(args[1]), 18)} EGLD to ${new Address(args[0]).toBech32()}${then}. ${IF_IT_HAS_A_ROLE}`;
+    }
+    case 'proposeSCUpgradeFromSource':
+    case 'proposeSCDeployFromSource':
+      return `Have this safe propose ${describeCallOf(new TextEncoder().encode(name), args)}, which can replace or create a contract's code. ${IF_IT_HAS_A_ROLE}`;
+    default:
+      return null;
+  }
+};
+
+const describeCall = async (
+  data: any,
+  safe: string,
+  route: string
+): Promise<string> => {
   const { to, egld, endpoint, args } = readCall(data);
   if (!to || egld === null) return `Unreadable action. ${DO_NOT_SIGN}`;
   const name = decodeText(endpoint);
@@ -393,6 +485,12 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
   if (to === safe) {
     const builtIn = await describeOnItself(name, args);
     if (builtIn) return `${builtIn}${alsoEgld}`;
+    const own = describeOwnEndpoint(name, args, egld, route);
+    if (own) {
+      // dnsRegister says its EGLD for itself, as where it goes.
+      const paid = name === 'dnsRegister' ? '' : alsoEgld;
+      return `${own}${paid}. ${DO_NOT_SIGN}`;
+    }
     return `Call ${describeCallOf(endpoint, args)} on this safe itself${alsoEgld}. ${DO_NOT_SIGN}`;
   }
 
@@ -426,7 +524,7 @@ export const describeAction = async (
       return `Change the number of signatures needed to ${Number(toBigInt(fields[0]) ?? 0n)}`;
     case 'SendTransferExecute':
     case 'SendAsyncCall':
-      return describeCall(fields[0], safe);
+      return describeCall(fields[0], safe, name);
     case 'SCDeployFromSource': {
       // The new contract's metadata is said too, as an upgrade's is (SEE-02).
       const [amount, source, metadata, args] = fields;

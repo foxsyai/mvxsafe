@@ -403,6 +403,24 @@ export const readUserRole = async (
   return String(role?.name ?? role ?? 'None');
 };
 
+/** A board seat for something that is not a person's wallet (RED-06, 1 Nov 2026). */
+const seatNotes = (who: string, safe: string): string[] => {
+  if (who === safe) {
+    return [
+      'this is THIS SAFE itself: with a seat on its own board, a call on the safe can sign for the board'
+    ];
+  }
+  try {
+    return Address.newFromBech32(who).isSmartContract()
+      ? [
+          'this is a contract, not a wallet: it signs only through its own code, so whoever can change that code holds this seat'
+        ]
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 /**
  * What a membership action really does to that address today. One address
  * holds one role: adding a proposer to the board promotes them, adding a
@@ -412,7 +430,8 @@ export const readUserRole = async (
  */
 export const membershipNote = (
   action: any,
-  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  safe = ''
 ): string => {
   const name = String(action?.name ?? '');
   const board = state.boardMembers.length;
@@ -448,9 +467,13 @@ export const membershipNote = (
   switch (name) {
     case 'AddBoardMember':
       if (onBoard) return ' (already on the board: this changes nothing)';
-      if (proposer)
-        return ' (a proposer today: the board seat replaces that role)';
-      return '';
+      {
+        const notes = [
+          proposer ? 'a proposer today: the board seat replaces that role' : '',
+          ...seatNotes(who, safe)
+        ].filter(Boolean);
+        return notes.length > 0 ? ` (${notes.join('; ')})` : '';
+      }
     case 'AddProposer':
       if (proposer) return ' (already a proposer: this changes nothing)';
       if (onBoard) {
@@ -533,7 +556,7 @@ const pendingEntry = async (
   return {
     actionId,
     name: String(data?.name ?? data?.type ?? ''),
-    description: description + membershipNote(data, state as any),
+    description: description + membershipNote(data, state as any, address),
     checks: inspection.checks,
     upgrade: inspection.upgrade,
     perform: inspection.perform,

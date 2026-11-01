@@ -11,7 +11,8 @@ import {
   metadataChanges,
   MetadataFlags,
   metadataOf,
-  toBigInt
+  toBigInt,
+  visible
 } from './describe';
 import {
   GasError,
@@ -386,8 +387,32 @@ export const trialAsSafe = async (
   }
 };
 
+/**
+ * The network answered with no real figure. For a contract in another shard
+ * that is what it always does; for one in the safe's own shard, or the safe
+ * itself, "it runs in another shard" would be false (redteam RED-02, 1 Nov
+ * 2026). A system contract lives in the metachain, whatever its address looks
+ * like to shardOf.
+ */
+const unmeasuredText = (where?: { to: string; safe: string }) => {
+  if (where && where.to === where.safe) {
+    return 'Tried as the safe would send it, on the safe itself, the network gave no real figure, only its maximum. That says nothing about whether it works. The gas below is a default.';
+  }
+  if (
+    where &&
+    !isSystemContract(where.to) &&
+    shardOf(where.to) === shardOf(where.safe)
+  ) {
+    return "The network gave no real figure for it, only its maximum, though the contract is in the safe's own shard. That says nothing about whether it works. The gas below is a default.";
+  }
+  return 'The network could not try it in advance: it runs in another shard. The gas below is a default.';
+};
+
 /** What a trial means for a signer, in one line. */
-export const trialCheck = (trial: Trial): Check => {
+export const trialCheck = (
+  trial: Trial,
+  where?: { to: string; safe: string }
+): Check => {
   switch (trial.how) {
     case 'tried':
       return {
@@ -402,7 +427,7 @@ export const trialCheck = (trial: Trial): Check => {
     case 'unmeasured':
       return {
         tone: 'warn',
-        text: 'The network could not try it in advance: it runs in another shard. The gas below is a default.'
+        text: unmeasuredText(where)
       };
     case 'fee':
       return {
@@ -477,6 +502,37 @@ export const builtInChecks = (
 };
 
 /**
+ * Any call on the safe itself is red: the caller is the safe, which owns itself
+ * and may hold a seat on its own board, so the call acts with the board's
+ * authority, and mvxsafe never proposes one. Only the token moves a safe uses
+ * every day stay out of it, with the real recipient in their sentence, and the
+ * built-ins that are red already (audits RED-02 and RED-06, 1 Nov 2026).
+ */
+export const selfCallChecks = (name: string, egld: bigint): Check[] => {
+  if (TOKEN_MOVES_ON_ITSELF.has(name)) return [];
+  if (name === 'dnsRegister') {
+    return [
+      {
+        tone: 'bad',
+        text: `dnsRegister forwards the EGLD it is given to its first argument, and here the safe pays it${egld > 0n ? ': this is a payment out of the safe, whatever else it looks like' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+      }
+    ];
+  }
+  if (
+    PROTOCOL_BUILTINS.has(name) &&
+    name !== 'ESDTTransfer' &&
+    name !== 'ClaimDeveloperRewards'
+  )
+    return [];
+  return [
+    {
+      tone: 'bad',
+      text: `A call on the safe itself: the safe calls its own ${visible(name)}, with its own authority${egld > 0n ? ', paying with its own EGLD' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+    }
+  ];
+};
+
+/**
  * The function a token transfer calls after it, if any: ESDTTransfer's third
  * argument, ESDTNFTTransfer's fifth, MultiESDTNFTTransfer's after its tokens.
  */
@@ -544,13 +600,15 @@ export const inspectCall = async (
   // A code replacement dressed as a call (audit UPG-01, 14 Oct 2026). Its code
   // cannot be checked against a release here, and a large one cannot even be
   // carried out: the stored action is too big ("storage decode error").
-  checks.push(...builtInChecks(new TextDecoder().decode(endpoint), to, safe));
-  checks.push(...nestedBuiltInChecks(new TextDecoder().decode(endpoint), args));
+  const called = new TextDecoder().decode(endpoint);
+  checks.push(...builtInChecks(called, to, safe));
+  checks.push(...nestedBuiltInChecks(called, args));
+  if (to === safe) checks.push(...selfCallChecks(called, egld));
 
   let callNeed: bigint | null = null;
   if (to && hasFunction) {
     const trial = await trialAsSafe(safe, to, egld, callData(endpoint, args));
-    checks.push(trialCheck(trial));
+    checks.push(trialCheck(trial, { to, safe }));
     callNeed = trial.need;
   }
 
@@ -576,6 +634,27 @@ export const inspectCall = async (
   return { checks, perform: performPlan({ name, callNeed, hasFunction }) };
 };
 
+/** A seat for something that is not a person's wallet (redteam RED-06, 1 Nov 2026). */
+const boardSeatChecks = (value: any, safe: string): Check[] => {
+  const who = asAddress(value);
+  if (who === safe) {
+    return [
+      {
+        tone: 'bad',
+        text: "This gives THIS SAFE a seat on its own board. From then on, a call on the safe itself can sign, carry out and propose in the board's name, and counts as one signature of the quorum. Do not sign it unless every board member has agreed."
+      }
+    ];
+  }
+  return who && Address.newFromBech32(who).isSmartContract()
+    ? [
+        {
+          tone: 'warn',
+          text: 'This gives a contract a seat on the board. It signs only through its own code, so whoever can change that code holds this seat.'
+        }
+      ]
+    : [];
+};
+
 /**
  * The checks and the perform plan for one pending action. Never throws: what
  * could not be read is said as a check, and the gas falls back to a default
@@ -594,6 +673,11 @@ export const inspectAction = async (
       case 'SendAsyncCall':
       case 'SendTransferExecute':
         return await inspectCall(name, fields[0], safe);
+      case 'AddBoardMember':
+        return {
+          checks: boardSeatChecks(fields[0], safe),
+          perform: performPlan({ name })
+        };
       case 'ChangeQuorum': {
         // The contract accepts a quorum of 0 (audit SC-02, 21 Oct 2026).
         const next = toBigInt(fields[0]) ?? 0n;
