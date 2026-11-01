@@ -8,6 +8,8 @@
 // None of the current ones is reachable in the browser bundle (follow-redirects
 // is axios's Node adapter, which Vite does not bundle), so this is hygiene:
 // the pipeline has no step that turns a known advisory into a red check.
+// (Both have run it since this finding was fixed, on 21 Oct 2026; a failure
+// here now means their gate is red too.)
 //
 // Needs the npm registry (read-only). Advisories with no fixed release at all
 // (patched_versions "<0.0.0", e.g. braces) are listed but do not count: no
@@ -56,7 +58,7 @@ for (const a of serious) {
 }
 if (fixable.length) {
   console.log(
-    `\nBUG (OPX-05): ${fixable.length} high/critical advisories with a fixed release against production dependencies, and no pipeline step runs pnpm audit`
+    `\nBUG (OPX-05): ${fixable.length} high/critical advisories with a fixed release against production dependencies: pnpm audit stops CI and deploy.sh until an override in pnpm-workspace.yaml moves`
   );
   process.exit(1);
 }
