@@ -41,6 +41,8 @@ export interface Check {
   text: string;
   /** Red but allowed: said loudly, and not a reason to refuse the proposal. */
   advisory?: boolean;
+  /** Worked out from the other pending actions, and worked out again as more are read. */
+  aboutSeats?: boolean;
 }
 
 export interface AccountFacts {
@@ -169,7 +171,21 @@ export interface Inspection {
   checks: Check[];
   upgrade?: UpgradeFacts;
   perform: PerformPlan;
+  /** The checks could not be run: the card says so and holds Sign. */
+  failed?: boolean;
 }
+
+/** What a card gets when its checks could not be run: never an empty list. */
+export const uncheckedAction = (): Inspection => ({
+  checks: [
+    {
+      tone: 'bad',
+      text: 'The checks of this action could not be run, so it cannot be signed or carried out until they have been.'
+    }
+  ],
+  perform: { simulate: true },
+  failed: true
+});
 
 // --- upgrades ----------------------------------------------------------------
 
@@ -821,7 +837,7 @@ export const inspectAction = async (
         return { checks: [], perform: performPlan({ name }) };
     }
   } catch {
-    return { checks: [], perform: performPlan({ name }) };
+    return uncheckedAction();
   }
 };
 

@@ -13,7 +13,13 @@ import {
 } from '@multiversx/sdk-core';
 import { describeAction, toBigInt } from './describe';
 import { PerformPlan } from './gas';
-import { Check, inspectAction, UpgradeFacts } from './inspect';
+import {
+  Check,
+  inspectAction,
+  Inspection,
+  uncheckedAction,
+  UpgradeFacts
+} from './inspect';
 import {
   legacyAbi,
   MULTISIG_CODE_HASH,
@@ -91,6 +97,14 @@ export interface PendingAction {
   unreadable?: boolean;
   /** For a membership action: the address it gives a role or takes one from. */
   subject?: string;
+  /**
+   * True when the card was listed before its checks: `checks`, `upgrade` and
+   * `perform` come from readCardChecks, and until they have, nothing may be
+   * signed or carried out on it. Absent on actions built by older code and tests.
+   */
+  checksDue?: boolean;
+  /** What the contract holds for this action, which readCardChecks reads. */
+  data?: any;
   /** Signatures that count: only from addresses on the board today. */
   signerCount: number;
   /** Everyone who signed and still sits on the board. */
@@ -99,6 +113,28 @@ export interface PendingAction {
   formerSigners: string[];
   quorumReached: boolean;
 }
+
+/**
+ * How far a list of pending actions reaches. A list that stops short says so
+ * here, so that nothing can read it as complete (audits FND-02 and RED-03).
+ */
+export interface PendingCoverage {
+  /** How many are waiting in all. Null until that is known. */
+  pendingCount: number | null;
+  /** Known to be waiting, older than the cards in the list. */
+  olderKnown: number;
+  /** Action numbers older than the cards in the list, not read at all. */
+  olderUnread: number;
+  /** True when the contract could not list them in one piece. */
+  oneByOne: boolean;
+  /** "Load more" goes on with the numbers below this one. */
+  nextBefore: number;
+  /** The network stopped answering part way through this read. */
+  interrupted: boolean;
+}
+
+/** The cards, oldest first, and how far they reach (absent in older tests). */
+export type PendingList = PendingAction[] & { coverage?: PendingCoverage };
 
 export interface HistoryEntry {
   txHash: string;
@@ -120,6 +156,10 @@ const asAddress = (value: any): string => {
   if (value.bech32) return String(value.bech32);
   return String(value);
 };
+
+/** A view's answer as a list: one item comes back alone, none as nothing. */
+const asList = (answer: any): any[] =>
+  (Array.isArray(answer) ? answer : answer ? [answer] : []).filter(Boolean);
 
 interface AccountResponse {
   balance: string;
@@ -342,13 +382,7 @@ export const readCard = async (
   if (members) card.boardSize = members.length;
   if (last.status === 'fulfilled') card.actionCount = asNumber(last.value);
   if (pending.status === 'fulfilled') {
-    const list = (
-      Array.isArray(pending.value)
-        ? pending.value
-        : pending.value
-          ? [pending.value]
-          : []
-    ).filter(Boolean);
+    const list = asList(pending.value);
     card.pendingCount = list.length;
     const validSigners = (action: any) =>
       ((action.signers ?? []).map(asAddress) as string[]).filter((signer) =>
@@ -377,7 +411,13 @@ export const readOverview = async (address: string): Promise<SafeOverview> => {
   const [balances, state, pending, egldPrice] = await Promise.all([
     readBalances(address),
     readMultisigState(address),
-    readPendingActions(address).catch(() => null),
+    // The count only: the cards are read on their own, and a contract that
+    // cannot list them in one piece leaves it to them to say how far they got.
+    cached(`pending:${address}`, () =>
+      query<any>(address, 'getPendingActionFullInfo')
+    )
+      .then(asList)
+      .catch(() => null),
     readEgldPrice()
   ]);
 
@@ -540,29 +580,24 @@ const isDecodeFailure = (error: unknown) =>
     String((error as any)?.message ?? error ?? '')
   );
 
-/** One action as the card needs it, from its decoded data and its signers. */
-const pendingEntry = async (
-  address: string,
+/** What is known of one action without asking the network anything. */
+const actionFacts = (
   state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
   actionId: number,
   data: any,
   allSigners: any[]
-): Promise<PendingAction> => {
+): PendingAction => {
   const board = new Set(state.boardMembers);
   const everyone: string[] = (allSigners ?? []).map(asAddress).filter(Boolean);
   const signers = everyone.filter((signer) => board.has(signer));
-  const [description, inspection] = await Promise.all([
-    describeAction(data, address),
-    inspectAction(data, address)
-  ]);
+  const name = String(data?.name ?? data?.type ?? '');
   return {
     actionId,
-    name: String(data?.name ?? data?.type ?? ''),
-    description: description + membershipNote(data, state as any, address),
-    checks: inspection.checks,
-    upgrade: inspection.upgrade,
-    perform: inspection.perform,
-    subject: MEMBERSHIP_ACTIONS.has(String(data?.name ?? data?.type ?? ''))
+    name,
+    description: '',
+    checksDue: true,
+    data,
+    subject: MEMBERSHIP_ACTIONS.has(name)
       ? asAddress(data?.fields?.[0])
       : undefined,
     signerCount: signers.length,
@@ -570,6 +605,36 @@ const pendingEntry = async (
     formerSigners: everyone.filter((signer) => !board.has(signer)),
     quorumReached: signers.length >= (state.quorum ?? Number.MAX_SAFE_INTEGER)
   };
+};
+
+/** The same action with its sentence, which can need a token's decimals. */
+const describedEntry = async (
+  address: string,
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  facts: PendingAction
+): Promise<PendingAction> => ({
+  ...facts,
+  description:
+    (await describeAction(facts.data, address)) +
+    membershipNote(facts.data, state as any, address)
+});
+
+/**
+ * What a card shows under its sentence, read from the chain only for the cards
+ * on the page: a call is tried as the safe and a contract's code is read, and a
+ * flood of proposals must not pay for that before anyone sees a card (audits
+ * FND-02 and RED-03, 1 Nov 2026). A check that failed says so; it never reads
+ * as no check.
+ */
+export const readCardChecks = async (
+  address: string,
+  action: PendingAction
+): Promise<Inspection> => {
+  try {
+    return await inspectAction(action.data, address);
+  } catch {
+    return uncheckedAction();
+  }
 };
 
 const MEMBERSHIP_ACTIONS = new Set([
@@ -596,13 +661,21 @@ const listIds = (actions: PendingAction[]) => {
  */
 const withSeatChecks = (
   entries: PendingAction[],
-  state: { quorum: number | null; boardMembers: string[] }
+  state: { quorum: number | null; boardMembers: string[] },
+  /** Every action known, the cards' own and those not on the page. */
+  among: PendingAction[],
+  olderUnread: number
 ): PendingAction[] => {
   const quorum = state.quorum ?? Number.MAX_SAFE_INTEGER;
-  return entries.map((entry) => {
+  return entries.map((listed) => {
+    // A list can be built again as more of it is read.
+    const entry = {
+      ...listed,
+      checks: listed.checks?.filter((check) => !check.aboutSeats)
+    };
     const who = entry.subject;
     if (!who) return entry;
-    const others = entries.filter((other) => other.actionId !== entry.actionId);
+    const others = among.filter((other) => other.actionId !== entry.actionId);
     const onBoard = state.boardMembers.includes(who);
     let check: Check | null = null;
     if (entry.name === 'AddBoardMember' && !onBoard) {
@@ -647,10 +720,31 @@ const withSeatChecks = (
         };
       }
     }
-    return check
-      ? { ...entry, checks: [...(entry.checks ?? []), check] }
+    const lines = check ? [{ ...check, aboutSeats: true }] : [];
+    // Signatures on an action nobody has read cannot be counted here.
+    if (
+      olderUnread > 0 &&
+      ((entry.name === 'AddBoardMember' && !onBoard) ||
+        (entry.name !== 'AddBoardMember' && onBoard))
+    ) {
+      lines.push({
+        tone: 'warn',
+        aboutSeats: true,
+        text: `${olderUnread.toLocaleString('en-US')} older action numbers have not been read, so any signature of ${who} on one of them is not counted here. Load more before relying on this.`
+      });
+    }
+    return lines.length > 0
+      ? { ...entry, checks: [...(entry.checks ?? []), ...lines] }
       : entry;
   });
+};
+
+/** What has been read so far, oldest first, the older reads' cards included. */
+const mergedCards = (known: PendingAction[], cards: PendingAction[]) => {
+  const read = new Set(cards.map((card) => card.actionId));
+  return [...known.filter((card) => !read.has(card.actionId)), ...cards].sort(
+    (a, b) => a.actionId - b.actionId
+  );
 };
 
 /**
@@ -667,85 +761,161 @@ const withSeatChecks = (
 // few seconds behind answers Nothing for an action proposed moments ago.
 const finished = new Map<string, Set<number>>();
 const ALWAYS_REREAD = 10;
+/** How many action numbers one pass reads at most, one by one. */
+const SCAN_PASS = 300;
+
+/** How many cards one read brings: the newest, and "load more" for the rest. */
+export const PENDING_PAGE = 20;
+
+export interface PendingReadOptions {
+  /** Read only the actions older than this number. */
+  before?: number;
+  /** How many cards to bring. */
+  limit?: number;
+  /** The cards already on the page, which an older page joins. */
+  known?: PendingAction[];
+  onProgress?: (list: PendingList) => void;
+}
 
 const readPendingOneByOne = async (
   address: string,
-  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
-): Promise<PendingAction[]> => {
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  { before, limit = PENDING_PAGE, known = [], onProgress }: PendingReadOptions
+): Promise<PendingList> => {
   const last = asNumber(
     await cached(`actions:${address}`, () =>
       query<any>(address, 'getActionLastIndex')
     )
   );
   const board = new Set(state.boardMembers);
-  const entries: PendingAction[] = [];
+  const cards: PendingAction[] = [];
   const done = finished.get(address) ?? new Set<number>();
   finished.set(address, done);
-  for (let id = 1; id <= last; id++) {
-    if (done.has(id)) continue;
-    let data: any = null;
-    let unreadable = false;
-    try {
-      data = await cached(`action:${address}:${id}`, () =>
-        query<any>(address, 'getActionData', [new U32Value(id)])
-      );
-    } catch (error) {
-      if (!isDecodeFailure(error)) throw error;
-      unreadable = true;
-    }
-    // Carried out or discarded: the contract keeps Nothing in its place.
-    if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing') {
-      if (id <= last - ALWAYS_REREAD) done.add(id);
-      continue;
-    }
-    const signersAnswer = await cached(`signers:${address}:${id}`, () =>
-      query<any>(address, 'getActionSigners', [new U32Value(id)])
-    );
-    const allSigners = Array.isArray(signersAnswer)
-      ? signersAnswer
-      : signersAnswer
-        ? [signersAnswer]
-        : [];
-    if (!unreadable) {
-      entries.push(await pendingEntry(address, state, id, data, allSigners));
-      continue;
-    }
-    const everyone: string[] = allSigners.map(asAddress).filter(Boolean);
-    const signers = everyone.filter((signer) => board.has(signer));
-    entries.push({
-      actionId: id,
-      name: 'Unreadable',
-      unreadable: true,
-      description: `Action #${id} cannot be read: the contract fails to return its data, most likely because it carries more than about 9 KB. Nothing it would do can be shown, so do not sign it or carry it out.`,
-      checks: [
-        {
-          tone: 'bad',
-          text: 'Whoever signed it should remove their signature; then any board member or proposer can discard it. While it stays, the contract cannot list the pending actions in one piece, so this page reads them one by one.'
-        }
-      ],
-      perform: { simulate: true },
-      signerCount: signers.length,
-      signers,
-      formerSigners: everyone.filter((signer) => !board.has(signer)),
-      quorumReached: false
+  // A rogue's flood must not decide how long the page waits, so one pass reads
+  // the newest numbers and stops: at a page of cards, or at a limit of numbers
+  // for a long history of finished actions (audits FND-02 and RED-03).
+  const budget = Math.max(SCAN_PASS, limit * 3);
+  let scanned = 0;
+  let id = before === undefined ? last : Math.min(before - 1, last);
+  let interrupted = false;
+
+  const listSoFar = (): PendingList => {
+    let olderUnread = Math.max(id, 0);
+    done.forEach((finishedId) => {
+      if (finishedId <= id) olderUnread--;
     });
+    const all = mergedCards(known, cards);
+    return Object.assign(withSeatChecks(all, state, all, olderUnread), {
+      coverage: {
+        pendingCount: olderUnread === 0 && !interrupted ? all.length : null,
+        olderKnown: 0,
+        olderUnread,
+        oneByOne: true,
+        nextBefore: id + 1,
+        interrupted
+      }
+    });
+  };
+
+  while (id >= 1 && cards.length < limit && scanned < budget) {
+    if (done.has(id)) {
+      id--;
+      continue;
+    }
+    scanned++;
+    const actionId = id;
+    try {
+      let data: any = null;
+      let unreadable = false;
+      try {
+        data = await cached(`action:${address}:${actionId}`, () =>
+          query<any>(address, 'getActionData', [new U32Value(actionId)])
+        );
+      } catch (error) {
+        if (!isDecodeFailure(error)) throw error;
+        unreadable = true;
+      }
+      // Carried out or discarded: the contract keeps Nothing in its place.
+      if (!unreadable && String(data?.name ?? data?.type ?? '') === 'Nothing') {
+        if (actionId <= last - ALWAYS_REREAD) done.add(actionId);
+      } else {
+        const allSigners = asSigners(
+          await cached(`signers:${address}:${actionId}`, () =>
+            query<any>(address, 'getActionSigners', [new U32Value(actionId)])
+          )
+        );
+        cards.push(
+          unreadable
+            ? unreadableEntry(state, board, actionId, allSigners)
+            : await describedEntry(
+                address,
+                state,
+                actionFacts(state, actionId, data, allSigners)
+              )
+        );
+      }
+    } catch (error) {
+      // Nothing read at all is a failed read, as it always was. What was read
+      // stays on the page, and the list says where it stopped.
+      if (cards.length === 0 && known.length === 0) throw error;
+      interrupted = true;
+      break;
+    }
+    id--;
+    onProgress?.(listSoFar());
   }
-  return entries;
+  return listSoFar();
+};
+
+const asSigners = (answer: any): any[] =>
+  Array.isArray(answer) ? answer : answer ? [answer] : [];
+
+const unreadableEntry = (
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  board: Set<string>,
+  actionId: number,
+  allSigners: any[]
+): PendingAction => {
+  const everyone: string[] = allSigners.map(asAddress).filter(Boolean);
+  const signers = everyone.filter((signer) => board.has(signer));
+  return {
+    actionId,
+    name: 'Unreadable',
+    unreadable: true,
+    description: `Action #${actionId} cannot be read: the contract fails to return its data, most likely because it carries more than about 9 KB. Nothing it would do can be shown, so do not sign it or carry it out.`,
+    checks: [
+      {
+        tone: 'bad',
+        text: 'Whoever signed it should remove their signature; then any board member or proposer can discard it. While it stays, the contract cannot list the pending actions in one piece, so this page reads them one by one.'
+      }
+    ],
+    perform: { simulate: true },
+    signerCount: signers.length,
+    signers,
+    formerSigners: everyone.filter((signer) => !board.has(signer)),
+    quorumReached: false
+  };
 };
 
 /**
- * Actions still waiting for signatures, each turned into a sentence. A signer's
- * only defence against approving something unexpected is reading it in words,
- * so the decoding happens here, in describe.ts, rather than in a view.
+ * Actions still waiting for signatures, newest page only, each turned into a
+ * sentence. A signer's only defence against approving something unexpected is
+ * reading it in words, so the decoding happens here, in describe.ts, rather
+ * than in a view. The checks under the sentence are read apart, for the cards
+ * on the page (readCardChecks), and `coverage` on the list says what is not in
+ * it: anyone with a proposer's seat can file thousands of actions for a few
+ * cents, so the page never waits for all of them (FND-02, RED-03).
  *
  * Only signatures from CURRENT board members count, exactly as the contract
  * counts them (display audit DISP-05). A failed read THROWS (DISP-11). When the
  * contract cannot return the list in one piece, it is read action by action
- * (SC-01).
+ * (SC-01), newest first. onProgress gets the list as far as it was read, so a
+ * card shows as soon as its sentence is known.
  */
 export const readPendingActions = async (
-  address: string
-): Promise<PendingAction[]> => {
+  address: string,
+  options: PendingReadOptions = {}
+): Promise<PendingList> => {
   const state = await readMultisigState(address);
   if (state.quorum === null) {
     throw new Error('The board and quorum of this safe could not be read.');
@@ -757,32 +927,49 @@ export const readPendingActions = async (
     );
   } catch (bulkError) {
     try {
-      return withSeatChecks(
-        await readPendingOneByOne(address, state as any),
-        state
-      );
+      return await readPendingOneByOne(address, state as any, options);
     } catch {
       throw bulkError;
     }
   }
-  const list = (
-    Array.isArray(pending) ? pending : pending ? [pending] : []
-  ).filter(Boolean);
 
-  return withSeatChecks(
-    await Promise.all(
-      list.map((action: any) =>
-        pendingEntry(
-          address,
-          state as any,
-          asNumber(action.action_id ?? action.actionId),
-          action.action_data ?? action.actionData,
-          action.signers ?? []
-        )
+  const { before, limit = PENDING_PAGE, known = [], onProgress } = options;
+  // Everything but the sentences costs nothing, so signatures on actions that
+  // are not on the page still count on the cards that are.
+  const all = asList(pending)
+    .map((action: any) =>
+      actionFacts(
+        state as any,
+        asNumber(action.action_id ?? action.actionId),
+        action.action_data ?? action.actionData,
+        action.signers ?? []
       )
-    ),
-    state
+    )
+    .sort((a, b) => a.actionId - b.actionId);
+  const waiting = all.filter(
+    (action) => before === undefined || action.actionId < before
   );
+  const page = waiting.slice(-limit);
+  const coverage: PendingCoverage = {
+    pendingCount: all.length,
+    olderKnown: waiting.length - page.length,
+    olderUnread: 0,
+    oneByOne: false,
+    nextBefore: page[0]?.actionId ?? before ?? 0,
+    interrupted: false
+  };
+  const cards: PendingAction[] = [];
+  const listSoFar = (): PendingList =>
+    Object.assign(withSeatChecks(mergedCards(known, cards), state, all, 0), {
+      coverage
+    });
+  await Promise.all(
+    page.map(async (facts) => {
+      cards.push(await describedEntry(address, state as any, facts));
+      onProgress?.(listSoFar());
+    })
+  );
+  return listSoFar();
 };
 
 export const formatRaw = (
