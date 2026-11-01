@@ -34,7 +34,7 @@ it, the figures and the devnet rehearsal with its transactions, is in
 
 A new safe can be created from the interface too: the wallet signs the deployment and then a
 second transaction that hands the safe to itself. The guide at /guide walks through all of it
-with pictures of the live site, taken by `scripts/capture/guide.mjs`.
+with pictures of the live devnet site, taken by `scripts/capture/guide.mjs` with throwaway keys.
 
 ## The contracts and why the SDK's multisig helper is not used
 
