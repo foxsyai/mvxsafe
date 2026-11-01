@@ -8,6 +8,7 @@ import {
   callData,
   Check,
   readAccountFacts,
+  tokenOperationChecks,
   trialAsSafe,
   trialCheck
 } from 'multisig/inspect';
@@ -78,6 +79,7 @@ export const CallForm = ({
   const [facts, setFacts] = useState<AccountFacts | null>(null);
   const [sentence, setSentence] = useState('');
   const [trial, setTrial] = useState<Check | null>(null);
+  const [tokenLines, setTokenLines] = useState<Check[]>([]);
   const [trying, setTrying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -135,6 +137,7 @@ export const CallForm = ({
   useEffect(() => {
     setTrial(null);
     setSentence('');
+    setTokenLines([]);
     if (!ready || egldRaw === null) return;
     let live = true;
     const timer = setTimeout(async () => {
@@ -150,6 +153,9 @@ export const CallForm = ({
         ]
       };
       describeAction(action, safe).then((text) => live && setSentence(text));
+      tokenOperationChecks(target, functionName, encoded.bytes, safe).then(
+        (lines) => live && setTokenLines(lines)
+      );
       setTrying(true);
       const result = await trialAsSafe(safe, target, egldRaw as bigint, data);
       if (!live) return;
@@ -189,6 +195,9 @@ export const CallForm = ({
 
   const noCode = facts !== null && !facts.codeHash;
   const notOwner = facts?.codeHash && facts.ownerAddress !== safe;
+  // A system contract answers for itself: what counts there is who owns the
+  // token, said under the sentence (audit SGN-02, 1 Nov 2026).
+  const system = targetOk && isSystemContract(target);
   // Nothing is proposed before it has been tried: not during the wait after
   // typing, not while the network answers (audit UPG-04, 14 Oct 2026).
   // A built-in of the network is not a contract's function: refused, with the
@@ -271,7 +280,7 @@ export const CallForm = ({
             }}
           />
         )}
-        {facts?.codeHash && !itself && (
+        {facts?.codeHash && !itself && !system && (
           <CheckLine
             check={
               notOwner
@@ -380,6 +389,9 @@ export const CallForm = ({
           </p>
         </div>
       )}
+      {tokenLines.map((line) => (
+        <CheckLine key={line.text} check={line} />
+      ))}
       {trying && <p className={hint}>Trying it as the safe would send it...</p>}
       {trial && <CheckLine check={trial} />}
 

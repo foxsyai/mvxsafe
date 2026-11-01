@@ -329,6 +329,220 @@ const describeOnItself = async (
   }
 };
 
+// --- token operations ---------------------------------------------------------
+
+/** The system contract that issues tokens and keeps their settings and roles. */
+const ESDT_SYSTEM_SC =
+  'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
+
+export interface TokenOperation {
+  token: string;
+  sentence: string;
+  /** What the sentence alone would undersell, said in red or amber on the card. */
+  notes: { tone: 'warn' | 'bad'; text: string }[];
+}
+
+/** A flag of controlChanges and what each of its two values means. */
+const TOKEN_FLAGS: Record<string, [on: string, off: string]> = {
+  canFreeze: [
+    "its owner can freeze any address's balance",
+    'its owner can no longer freeze'
+  ],
+  canWipe: [
+    "its owner can wipe a frozen address's balance",
+    'its owner can no longer wipe'
+  ],
+  canPause: [
+    'its owner can pause every transfer',
+    'its owner can no longer pause'
+  ],
+  canMint: ['it can be minted', 'it can no longer be minted'],
+  canBurn: ['it can be burned', 'it can no longer be burned'],
+  canChangeOwner: [
+    'it can be handed to a new owner',
+    'it can no longer be handed to a new owner'
+  ],
+  canUpgrade: [
+    'its settings can still be changed',
+    'it can never be changed again, by anyone'
+  ],
+  canAddSpecialRoles: [
+    'its owner can give roles, the minting and the transfer role included',
+    'its owner can no longer give roles'
+  ],
+  canTransferNFTCreateRole: [
+    'the role that creates NFTs can be moved to another address',
+    'the role that creates NFTs can no longer be moved'
+  ],
+  canCreateMultiShard: [
+    'it can be created in several shards',
+    'it can no longer be created in several shards'
+  ]
+};
+
+const describeControlChanges = (
+  token: string,
+  rest: Uint8Array[]
+): TokenOperation | null => {
+  if (rest.length === 0 || rest.length % 2 !== 0) return null;
+  const pairs: [string, string][] = [];
+  for (let at = 0; at < rest.length; at += 2) {
+    pairs.push([decodeText(rest[at]), decodeText(rest[at + 1])]);
+  }
+  // The network runs them in order, so a flag named twice ends on its last value.
+  const last = new Map(pairs);
+  const words = pairs.map(([flag, value]) => {
+    const meaning =
+      TOKEN_FLAGS[flag] && value === last.get(flag)
+        ? value === 'true'
+          ? TOKEN_FLAGS[flag][0]
+          : value === 'false'
+            ? TOKEN_FLAGS[flag][1]
+            : ''
+        : '';
+    return `${visible(flag)} ${visible(value)}${meaning ? ` (${meaning})` : ''}`;
+  });
+  const locks = last.get('canUpgrade') === 'false';
+  return {
+    token,
+    sentence: `Change the settings of the token ${token}: ${words.join(', ')}${locks ? `. ${DO_NOT_SIGN}` : ''}`,
+    notes: locks
+      ? [
+          {
+            tone: 'bad',
+            text: `After this the settings of ${token} are locked for good: it can never be changed again, by anyone, this board included.`
+          }
+        ]
+      : []
+  };
+};
+
+/** The roles of a role call, each with what it means when there is something to say. */
+const roleNotes = (
+  roles: string[],
+  token: string,
+  who: string,
+  given: boolean
+): TokenOperation['notes'] => {
+  const notes: TokenOperation['notes'] = [];
+  for (const role of roles) {
+    if (role === 'ESDTTransferRole') {
+      notes.push(
+        given
+          ? {
+              tone: 'bad',
+              text: `While any address holds ESDTTransferRole, every ordinary transfer of ${token} stops for everyone unless the sender or the receiver holds the role, until the last one is removed.`
+            }
+          : {
+              tone: 'warn',
+              text: `Ordinary transfers of ${token} run again only once the last holder of ESDTTransferRole is removed.`
+            }
+      );
+    } else if (role === 'ESDTRoleLocalMint' && given) {
+      notes.push({
+        tone: 'bad',
+        text: `${who} can then mint any amount of ${token}.`
+      });
+    }
+  }
+  return notes;
+};
+
+/**
+ * A call on the system contract that manages tokens, in what it does, or null
+ * for anything else, whose arguments stay raw. Argument counts are the
+ * contract's own: what it would refuse is not described as if it ran (audits
+ * SGN-03 and SGN-04, 1 Nov 2026).
+ */
+export const readTokenOperation = (
+  to: string,
+  name: string,
+  args: Uint8Array[]
+): TokenOperation | null => {
+  if (to !== ESDT_SYSTEM_SC || args.length === 0) return null;
+  const token = decodeText(args[0]);
+  if (!TOKEN_ID.test(token)) return null;
+  const who = args[1]?.length === 32 ? new Address(args[1]).toBech32() : '';
+  const plain = (sentence: string, notes: TokenOperation['notes'] = []) => ({
+    token,
+    sentence,
+    notes
+  });
+  switch (name) {
+    case 'setSpecialRole':
+    case 'unSetSpecialRole': {
+      if (!who || args.length < 3) return null;
+      const roles = args.slice(2).map(decodeText);
+      const list = roles.map(visible).join(', ');
+      const plural = roles.length > 1 ? 's' : '';
+      const given = name === 'setSpecialRole';
+      return plain(
+        given
+          ? `Give ${who} the role${plural} ${list} on the token ${token}`
+          : `Take the role${plural} ${list} away from ${who} on the token ${token}`,
+        roleNotes(roles, token, who, given)
+      );
+    }
+    case 'controlChanges':
+      return describeControlChanges(token, args.slice(1));
+    case 'pause':
+      if (args.length !== 1) return null;
+      return plain(
+        `Pause the token ${token}: every transfer of it stops, for everyone, until it is unpaused`,
+        [
+          {
+            tone: 'bad',
+            text: `While ${token} is paused, nobody can move it, this safe and every contract holding it included.`
+          }
+        ]
+      );
+    case 'unPause':
+      if (args.length !== 1) return null;
+      return plain(`Unpause the token ${token}: its transfers can run again`);
+    case 'freeze':
+      if (!who || args.length !== 2) return null;
+      return plain(
+        `Freeze what ${who} holds of the token ${token}: that address cannot send or receive it until it is unfrozen`
+      );
+    case 'unFreeze':
+      if (!who || args.length !== 2) return null;
+      return plain(`Unfreeze what ${who} holds of the token ${token}`);
+    case 'wipe':
+      if (!who || args.length !== 2) return null;
+      return plain(
+        `Wipe what ${who} holds of the token ${token}: a frozen balance is destroyed`,
+        [
+          {
+            tone: 'bad',
+            text: `What ${who} holds of ${token} would be gone for good.`
+          }
+        ]
+      );
+    case 'transferOwnership':
+      if (!who || args.length !== 2) return null;
+      return plain(
+        `Hand the token ${token} over to ${who}, who becomes its owner, with all an owner's powers`,
+        [
+          {
+            tone: 'bad',
+            text: `The board cannot undo this: from then on only ${who} can act as the owner of ${token}.`
+          }
+        ]
+      );
+    default:
+      return null;
+  }
+};
+
+/** The token a call on that system contract names first, decoded or not. */
+export const tokenInCall = (to: string, args: Uint8Array[]): string | null => {
+  if (to !== ESDT_SYSTEM_SC || args.length === 0) return null;
+  const token = decodeText(args[0]);
+  return TOKEN_ID.test(token) ? token : null;
+};
+
+// --- calls on the safe itself ------------------------------------------------
+
 /** An action id as it travels: a u32, on its own. Null for anything else. */
 const actionIdOf = (args: Uint8Array[]): bigint | null =>
   args.length === 1 && args[0].length <= 4 ? bytesToBigInt(args[0]) : null;
@@ -481,6 +695,9 @@ const describeCall = async (
       ? `Hand THIS SAFE over to ${owner}, who could then replace its code alone, without the board${alsoEgld}. ${DO_NOT_SIGN}`
       : `Hand the contract ${to} over to ${owner}: the safe would no longer own it${alsoEgld}`;
   }
+
+  const operation = readTokenOperation(to, name, args);
+  if (operation) return `${operation.sentence}${alsoEgld}`;
 
   if (to === safe) {
     const builtIn = await describeOnItself(name, args);

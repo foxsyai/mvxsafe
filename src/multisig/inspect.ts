@@ -11,7 +11,9 @@ import {
   metadataChanges,
   MetadataFlags,
   metadataOf,
+  readTokenOperation,
   toBigInt,
+  tokenInCall,
   visible
 } from './describe';
 import {
@@ -612,8 +614,17 @@ export const inspectCall = async (
     callNeed = trial.need;
   }
 
+  if (to && isSystemContract(to)) {
+    checks.push(...(await tokenOperationChecks(to, called, args, safe)));
+  }
+
   // Who owns a contract it calls, which is what makes an owner's endpoint work.
-  if (to && Address.newFromBech32(to).isSmartContract() && to !== safe) {
+  if (
+    to &&
+    Address.newFromBech32(to).isSmartContract() &&
+    to !== safe &&
+    !isSystemContract(to)
+  ) {
     try {
       const facts = await readAccountFacts(to);
       if (facts.codeHash) {
@@ -632,6 +643,58 @@ export const inspectCall = async (
   }
 
   return { checks, perform: performPlan({ name, callNeed, hasFunction }) };
+};
+
+/**
+ * On a token's system contract, what counts is who owns the TOKEN. The contract
+ * itself reports as its own owner, so asking who owns it told a signer that a
+ * call that works would be refused (audit SGN-02, 1 Nov 2026).
+ */
+const tokenOwnerCheck = async (token: string, safe: string): Promise<Check> => {
+  let owner = '';
+  try {
+    owner = (await api<{ owner?: string }>(`/tokens/${token}`))?.owner ?? '';
+  } catch {
+    // Not a fungible token, or no answer: an NFT, SFT or MetaESDT is a collection.
+  }
+  if (!owner) {
+    try {
+      owner =
+        (await api<{ owner?: string }>(`/collections/${token}`))?.owner ?? '';
+    } catch {
+      // Said below.
+    }
+  }
+  if (!owner) {
+    return {
+      tone: 'warn',
+      text: `Whether the safe owns ${token} could not be read just now. Only the owner of a token can do this. Refresh to read it again.`
+    };
+  }
+  return owner === safe
+    ? {
+        tone: 'ok',
+        text: `The safe owns ${token}, and only the owner of a token can do this.`
+      }
+    : {
+        tone: 'warn',
+        text: `The safe does not own ${token}; its owner is ${owner}. Only the owner of a token can do this.`
+      };
+};
+
+/** What a call on the token system contract does, and who owns that token. */
+export const tokenOperationChecks = async (
+  to: string,
+  name: string,
+  args: Uint8Array[],
+  safe: string
+): Promise<Check[]> => {
+  const token = tokenInCall(to, args);
+  if (!token) return [];
+  return [
+    ...(readTokenOperation(to, name, args)?.notes ?? []),
+    await tokenOwnerCheck(token, safe)
+  ];
 };
 
 /** A seat for something that is not a person's wallet (redteam RED-06, 1 Nov 2026). */
