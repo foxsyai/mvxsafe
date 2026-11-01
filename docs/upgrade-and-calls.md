@@ -119,7 +119,7 @@ import the same file.
   | `setFee`, `pauseCreation`… | tried as the safe: ~3.9M | **19.2M** | ~16.4M |
   | Upgrade to mvxvest's 26,540 bytes | 300 × bytes + 1M = 9.0M | **25.3M** | ~20.5M |
   | A call that could not be tried | 10M by default, said as such | 26.5M | none |
-  | A call to a system contract that could not be tried | 50.5M by default, said as such | 75.1M | none; under 65M is refused |
+  | A call to the ESDT system contract, or creating a delegation contract, that could not be tried | 50.5M by default, said as such | 75.1M | none; under 65M is refused |
 
 - **Deploying a source**: simulated plus a fifth, 105.5M for mvxvest (it carries its 26.5 KB as
   data).

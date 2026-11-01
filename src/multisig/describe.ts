@@ -332,8 +332,12 @@ const describeOnItself = async (
 // --- token operations ---------------------------------------------------------
 
 /** The system contract that issues tokens and keeps their settings and roles. */
-const ESDT_SYSTEM_SC =
+export const ESDT_SYSTEM_SC =
   'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
+
+/** The system contract that creates delegation contracts. */
+export const DELEGATION_MANAGER_SC =
+  'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqylllslmq6y6';
 
 export interface TokenOperation {
   token: string;
@@ -583,9 +587,11 @@ const describeOwnEndpoint = (
         egld > 0n
           ? `send ${formatUnits(egld, 18)} EGLD out of this safe to ${target}, calling ${register} there`
           : `call ${register} on ${target} as this safe`;
-      return route === 'SendAsyncCall'
-        ? `Try to ${what}, through the safe's own dnsRegister. Proposed this way (proposeAsyncCall) it failed on devnet: the network refused the inner call, the EGLD stayed in the safe and the action was used up with its signatures`
-        : `${what.charAt(0).toUpperCase()}${what.slice(1)}, through the safe's own dnsRegister. Proposed this way (proposeTransferExecute) it really goes: on devnet the EGLD left the safe`;
+      // With no EGLD nothing can be said to move: the devnet runs carried some.
+      if (route === 'SendAsyncCall') {
+        return `Try to ${what}, through the safe's own dnsRegister. Proposed this way (proposeAsyncCall) it failed on devnet: the network refused the inner call, ${egld > 0n ? 'the EGLD stayed in the safe ' : ''}and the action was used up with its signatures`;
+      }
+      return `${what.charAt(0).toUpperCase()}${what.slice(1)}, through the safe's own dnsRegister. Proposed this way (proposeTransferExecute) ${egld > 0n ? 'it really goes: on devnet the EGLD left the safe' : 'such a call really goes: it ran on devnet'}`;
     }
     case 'sign':
       if (id === null) return null;

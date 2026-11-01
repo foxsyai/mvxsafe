@@ -2,7 +2,7 @@ import './styles/tailwind.css';
 import './styles/style.css';
 
 import { config as fontAwesomeConfig } from '@fortawesome/fontawesome-svg-core';
-import { environment, walletConnectV2ProjectId } from 'config';
+import { apiTimeout, environment, walletConnectV2ProjectId } from 'config';
 import { InitAppType } from './lib';
 
 fontAwesomeConfig.autoAddCss = false;
@@ -16,6 +16,8 @@ export const config: InitAppType = {
   dAppConfig: {
     nativeAuth: false,
     environment: environment,
+    // Without it sdk-dapp gives every POST 4 s, a 47 KB deploy included (TXB-03).
+    network: { apiTimeout: String(apiTimeout) },
     theme: 'mvx:dark-theme',
     providers: {
       walletConnect: {

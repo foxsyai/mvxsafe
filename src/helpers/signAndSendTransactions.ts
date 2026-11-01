@@ -3,9 +3,11 @@ import {
   getAccountProvider,
   getLatestNonce,
   Transaction,
+  TransactionComputer,
   TransactionManager,
   TransactionsDisplayInfoType
 } from 'lib';
+import { api } from 'multisig/network';
 
 type SignAndSendTransactionsProps = {
   transactions: Transaction[];
@@ -47,14 +49,144 @@ export const windNonceBack = (transactions: Transaction[]) => {
   setAccountNonce(Number(first));
 };
 
-export const signOnly = (transactions: Transaction[]) =>
-  getAccountProvider().signTransactions(transactions);
+/** What must come back from the wallet as it was built, before it is signed. */
+const builtFields = (transaction: Transaction) => ({
+  sender: transaction.sender.toBech32(),
+  receiver: transaction.receiver.toBech32(),
+  value: BigInt(transaction.value).toString(),
+  data: Array.from(transaction.data).join(),
+  chainID: transaction.chainID,
+  guardian: transaction.guardian.isEmpty()
+    ? ''
+    : transaction.guardian.toBech32()
+});
 
-/** Sends what was signed. If the send fails, the nonce is wound back to it. */
+const FIELD_NAMES: Record<string, string> = {
+  sender: 'its sender',
+  receiver: 'its receiver',
+  value: 'its value',
+  data: 'its data',
+  chainID: 'its network',
+  guardian: 'its guardian'
+};
+
+/**
+ * What differs between what was built and what the wallet returned, if anything.
+ * A transaction comes back through a browser extension, a wallet's window, the
+ * guardian's two-factor page or a relay, and was sent as it came (tx audit
+ * TXB-02, 1 Nov 2026). The nonce may differ, since sdk-dapp sets it itself, and
+ * so may the gas price, the version, the options and the signatures: a guardian
+ * added on the way is the wallet doing its work, one replaced is not. So may the
+ * gas limit go up, as a guardian's does. Down it may not: a perform with less than
+ * it was given runs out where it runs, and the action is used up.
+ */
+const differenceFrom = (
+  built: ReturnType<typeof builtFields>[],
+  gasLimits: bigint[],
+  signed: Transaction[]
+): string => {
+  if (signed.length !== built.length) return 'not the same number of them';
+  for (const [at, fields] of built.entries()) {
+    const back = builtFields(signed[at]) as Record<string, string>;
+    for (const [field, value] of Object.entries(fields)) {
+      if (field === 'guardian' && !value) continue;
+      if (back[field] !== value) return FIELD_NAMES[field];
+    }
+    if (BigInt(signed[at].gasLimit) < gasLimits[at]) return 'its gas limit';
+  }
+  return '';
+};
+
+/** Signs, and returns only what is what was built. Nothing is sent otherwise. */
+export const signOnly = async (transactions: Transaction[]) => {
+  const built = transactions.map(builtFields);
+  const gasLimits = transactions.map(({ gasLimit }) => BigInt(gasLimit));
+  const signed = await getAccountProvider().signTransactions(transactions);
+  const different = differenceFrom(built, gasLimits, signed);
+  if (different) {
+    // sdk-dapp sets the nonces on what it was given, so these say where it began.
+    windNonceBack(transactions);
+    throw new Error(
+      `your wallet returned something other than what was built here (${different} differs), so nothing was sent.`
+    );
+  }
+  return signed;
+};
+
+/** The request ended without the network's answer, which is no answer at all. */
+export const isLostAnswer = (failure: unknown) =>
+  /timeout|timed out|network ?error|failed to fetch|socket hang up|ECONN/i.test(
+    String((failure as any)?.message ?? failure ?? '')
+  );
+
+const hashOf = (transaction: Transaction) =>
+  new TransactionComputer().computeTransactionHash(transaction);
+
+/**
+ * Does the network hold these? Only the hash says so. An account's nonce moving
+ * past one proves nothing about it: another tab or a phone may have used that
+ * nonce (review of PR #20).
+ */
+const networkHolds = async (signed: Transaction[]) => {
+  const answered = await Promise.all(
+    signed.map((transaction) =>
+      api(`/transactions/${hashOf(transaction)}`).then(
+        () => true,
+        () => false
+      )
+    )
+  );
+  return answered.every(Boolean);
+};
+
+// A transaction takes a moment to show up, and a dead API must not hold the page.
+const LOOK_AFTER_MS = [0, 1500, 3000];
+const LOOK_AT_MOST_MS = 20000;
+
+const heldAfterAll = (signed: Transaction[]) =>
+  Promise.race([
+    (async () => {
+      for (const delay of LOOK_AFTER_MS) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        if (await networkHolds(signed)) return true;
+      }
+      return false;
+    })(),
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(false), LOOK_AT_MOST_MS)
+    )
+  ]);
+
+/** What was sent, as the network would have answered had the answer arrived. */
+const sentWithoutAnswer = (signed: Transaction[]) =>
+  signed.map((transaction) => ({
+    ...transaction.toPlainObject(),
+    hash: hashOf(transaction),
+    status: 'pending'
+  })) as unknown as Sent;
+
+/**
+ * For what sendSigned gave up on and something else then proved delivered: the
+ * transactions count as sent again, with the nonce past them.
+ */
+export const provenSent = (signed: Transaction[]) => {
+  setAccountNonce(Number(signed[signed.length - 1].nonce) + 1);
+  return sentWithoutAnswer(signed);
+};
+
+/**
+ * Sends what was signed. If the send fails, the nonce is wound back to it,
+ * unless only the answer was lost: a POST accepted and answered after the
+ * timeout read as never sent, and a new safe was forgotten at an address nobody
+ * wrote down (tx audit TXB-03, 1 Nov 2026). The network is asked first.
+ */
 export const sendSigned = async (signed: Transaction[]) => {
   try {
     return await TransactionManager.getInstance().send(signed);
   } catch (failure) {
+    if (isLostAnswer(failure) && (await heldAfterAll(signed))) {
+      return sentWithoutAnswer(signed);
+    }
     windNonceBack(signed);
     throw failure;
   }

@@ -80,7 +80,7 @@ export const TRANSFER_NEED = 50000n;
 export const UNKNOWN_CALL_NEED = 10000000n;
 
 /**
- * The same for a call to a system contract, which costs far more where it runs:
+ * The same for a call to the ESDT system contract, which costs far more there:
  * setSpecialRole measured 50,261,501 on devnet. The perform of one offered the
  * default above, 26.5M, failed in the metachain with "not enough gas" and the
  * action was gone with its signatures; 62M failed too and 65M worked (devnet,
@@ -115,9 +115,9 @@ export const performBudget = (need, callback = CALLBACK_GAS) =>
  *
  * - an upgrade from source: from the size of the source's code;
  * - a call (SendAsyncCall, which is also how tokens leave): from what the call
- *   needed when it was tried as the safe, or UNKNOWN_CALL_NEED, or for a system
- *   contract SYSTEM_CALL_NEED, and there the performer may not go under what the
- *   call needs: `floor`;
+ *   needed when it was tried as the safe, or UNKNOWN_CALL_NEED, or for the ESDT
+ *   system contract (systemCall) SYSTEM_CALL_NEED, and there the performer may not
+ *   go under what the call needs: `floor`;
  * - a transfer (SendTransferExecute): the same without the callback, and for
  *   plain EGLD the network's minimum.
  *

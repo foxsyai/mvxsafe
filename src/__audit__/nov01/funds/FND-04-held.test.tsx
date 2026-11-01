@@ -86,9 +86,11 @@ beforeEach(() => {
 
 const button = (name: string) =>
   screen.getByRole('button', { name }) as HTMLButtonElement;
-// The first Discard is #1's, which carries no signature.
-const firstDiscard = () =>
-  screen.getAllByRole('button', { name: 'Discard' })[0] as HTMLButtonElement;
+// Newest first, so the last Discard is #1's, which carries no signature.
+const firstDiscard = () => {
+  const discards = screen.getAllByRole('button', { name: 'Discard' });
+  return discards[discards.length - 1] as HTMLButtonElement;
+};
 
 test('control: a source with an upgrade function offers Sign and Carry it out', async () => {
   sourceRuns(WITH_UPGRADE);

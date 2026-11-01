@@ -7,7 +7,9 @@
 import { Address } from '@multiversx/sdk-core';
 import {
   bytesOf,
+  DELEGATION_MANAGER_SC,
   describeMetadata,
+  ESDT_SYSTEM_SC,
   metadataChanges,
   MetadataFlags,
   metadataOf,
@@ -41,6 +43,8 @@ export interface Check {
   text: string;
   /** Red but allowed: said loudly, and not a reason to refuse the proposal. */
   advisory?: boolean;
+  /** Worked out from the other pending actions, and worked out again as more are read. */
+  aboutSeats?: boolean;
 }
 
 export interface AccountFacts {
@@ -169,7 +173,21 @@ export interface Inspection {
   checks: Check[];
   upgrade?: UpgradeFacts;
   perform: PerformPlan;
+  /** The checks could not be run: the card says so and holds Sign. */
+  failed?: boolean;
 }
+
+/** What a card gets when its checks could not be run: never an empty list. */
+export const uncheckedAction = (): Inspection => ({
+  checks: [
+    {
+      tone: 'bad',
+      text: 'The checks of this action could not be run, so it cannot be signed or carried out until they have been.'
+    }
+  ],
+  perform: { simulate: true },
+  failed: true
+});
 
 // --- upgrades ----------------------------------------------------------------
 
@@ -568,7 +586,7 @@ export const selfCallChecks = (name: string, egld: bigint): Check[] => {
     return [
       {
         tone: 'bad',
-        text: `dnsRegister forwards the EGLD it is given to its first argument, and here the safe pays it${egld > 0n ? ': this is a payment out of the safe, whatever else it looks like' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+        text: `${egld > 0n ? 'dnsRegister forwards the EGLD it is given to its first argument, and here the safe pays it: this is a payment out of the safe, whatever else it looks like' : "dnsRegister calls its first argument in the safe's name. This one carries no EGLD"}. mvxsafe never proposes it. Check it with every board member before signing.`
       }
     ];
   }
@@ -581,7 +599,7 @@ export const selfCallChecks = (name: string, egld: bigint): Check[] => {
   return [
     {
       tone: 'bad',
-      text: `A call on the safe itself: the safe calls its own ${visible(name)}, with its own authority${egld > 0n ? ', paying with its own EGLD' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+      text: `${name ? `A call on the safe itself: the safe calls its own ${visible(name)}, with its own authority${egld > 0n ? ', paying with its own EGLD' : ''}` : `A call on the safe itself that names no function${egld > 0n ? ', sending the safe its own EGLD' : ''}`}. mvxsafe never proposes it. Check it with every board member before signing.`
     }
   ];
 };
@@ -694,12 +712,22 @@ export const inspectCall = async (
     }
   }
 
-  const systemCall = Boolean(to) && isSystemContract(to);
+  // Measured on the ESDT system contract (TXB-01). The network charges the
+  // delegation manager the same 50M to create a contract, and 500M to convert a
+  // validator. A delegation contract is charged 1M. So only the first two are told
+  // this need, and the rest are not stopped from going lower (review of PR #20).
+  const systemCall =
+    to === ESDT_SYSTEM_SC ||
+    (to === DELEGATION_MANAGER_SC && called === 'createNewDelegationContract');
   const perform = performPlan({ name, callNeed, hasFunction, systemCall });
   if (systemCall && !perform.simulate && !perform.known) {
+    const contract =
+      to === ESDT_SYSTEM_SC
+        ? 'the ESDT system contract'
+        : 'the delegation manager';
     checks.push({
       tone: 'warn',
-      text: `A call to a system contract needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given the system contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
+      text: `A call to ${contract} needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given that contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
     });
   }
   return { checks, perform };
@@ -821,7 +849,7 @@ export const inspectAction = async (
         return { checks: [], perform: performPlan({ name }) };
     }
   } catch {
-    return { checks: [], perform: performPlan({ name }) };
+    return uncheckedAction();
   }
 };
 
