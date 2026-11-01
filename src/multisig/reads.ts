@@ -14,7 +14,11 @@ import {
 import { describeAction, toBigInt } from './describe';
 import { PerformPlan } from './gas';
 import { Check, inspectAction, UpgradeFacts } from './inspect';
-import { legacyAbi } from './legacyCalls';
+import {
+  legacyAbi,
+  MULTISIG_CODE_HASH,
+  normalizeCodeHash
+} from './legacyCalls';
 import { api, cached, chainId, isTransient, networkProvider } from './network';
 
 const contracts = new SmartContractController({
@@ -85,6 +89,8 @@ export interface PendingAction {
    * carried out.
    */
   unreadable?: boolean;
+  /** For a membership action: the address it gives a role or takes one from. */
+  subject?: string;
   /** Signatures that count: only from addresses on the board today. */
   signerCount: number;
   /** Everyone who signed and still sits on the board. */
@@ -271,6 +277,8 @@ export interface SafeCard {
   needsViewer?: number | null;
   /** Pending actions with enough signatures, waiting only to be carried out. */
   readyCount?: number | null;
+  /** Whether the code behind this address is the multisig mvxsafe knows. */
+  identity?: SafeIdentity;
 }
 
 /**
@@ -283,9 +291,11 @@ export const readCard = async (
   address: string,
   viewer = ''
 ): Promise<SafeCard> => {
-  const [balances, egldPrice] = await Promise.all([
+  // The account's answer is shared with readBalances: no request more.
+  const [balances, egldPrice, info] = await Promise.all([
     readBalances(address, false),
-    readEgldPrice()
+    readEgldPrice(),
+    readContractInfo(address)
   ]);
   let quorum: number | null = null;
   try {
@@ -309,7 +319,8 @@ export const readCard = async (
     actionCount: null,
     viewer,
     needsViewer: null,
-    readyCount: null
+    readyCount: null,
+    identity: identityOf(info.codeHash)
   };
   if (quorum === null) return card;
 
@@ -394,6 +405,24 @@ export const readUserRole = async (
   return String(role?.name ?? role ?? 'None');
 };
 
+/** A board seat for something that is not a person's wallet (RED-06, 1 Nov 2026). */
+const seatNotes = (who: string, safe: string): string[] => {
+  if (who === safe) {
+    return [
+      'this is THIS SAFE itself: with a seat on its own board, a call on the safe can sign for the board'
+    ];
+  }
+  try {
+    return Address.newFromBech32(who).isSmartContract()
+      ? [
+          'this is a contract, not a wallet: it signs only through its own code, so whoever can change that code holds this seat'
+        ]
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 /**
  * What a membership action really does to that address today. One address
  * holds one role: adding a proposer to the board promotes them, adding a
@@ -403,7 +432,8 @@ export const readUserRole = async (
  */
 export const membershipNote = (
   action: any,
-  state: { quorum: number | null; boardMembers: string[]; proposers: string[] }
+  state: { quorum: number | null; boardMembers: string[]; proposers: string[] },
+  safe = ''
 ): string => {
   const name = String(action?.name ?? '');
   const board = state.boardMembers.length;
@@ -439,9 +469,13 @@ export const membershipNote = (
   switch (name) {
     case 'AddBoardMember':
       if (onBoard) return ' (already on the board: this changes nothing)';
-      if (proposer)
-        return ' (a proposer today: the board seat replaces that role)';
-      return '';
+      {
+        const notes = [
+          proposer ? 'a proposer today: the board seat replaces that role' : '',
+          ...seatNotes(who, safe)
+        ].filter(Boolean);
+        return notes.length > 0 ? ` (${notes.join('; ')})` : '';
+      }
     case 'AddProposer':
       if (proposer) return ' (already a proposer: this changes nothing)';
       if (onBoard) {
@@ -524,15 +558,99 @@ const pendingEntry = async (
   return {
     actionId,
     name: String(data?.name ?? data?.type ?? ''),
-    description: description + membershipNote(data, state as any),
+    description: description + membershipNote(data, state as any, address),
     checks: inspection.checks,
     upgrade: inspection.upgrade,
     perform: inspection.perform,
+    subject: MEMBERSHIP_ACTIONS.has(String(data?.name ?? data?.type ?? ''))
+      ? asAddress(data?.fields?.[0])
+      : undefined,
     signerCount: signers.length,
     signers,
     formerSigners: everyone.filter((signer) => !board.has(signer)),
     quorumReached: signers.length >= (state.quorum ?? Number.MAX_SAFE_INTEGER)
   };
+};
+
+const MEMBERSHIP_ACTIONS = new Set([
+  'AddBoardMember',
+  'AddProposer',
+  'RemoveUser'
+]);
+
+const listIds = (actions: PendingAction[]) => {
+  const ids = actions.map((action) => `#${action.actionId}`);
+  return ids.length > 1
+    ? `${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`
+    : ids[0];
+};
+
+/**
+ * A signature is kept against the signer's id, whatever role they hold later,
+ * and the contract counts the ids on the board today. So a former member's old
+ * signatures stop counting while they are off the board, and all come back the
+ * moment they are given a seat again, promotion from proposer included. That
+ * can be the last step to a quorum, and the card of the action giving the seat
+ * says so (audit FND-01, proven on devnet, 1 Nov 2026). It looks through the
+ * actions it was given.
+ */
+const withSeatChecks = (
+  entries: PendingAction[],
+  state: { quorum: number | null; boardMembers: string[] }
+): PendingAction[] => {
+  const quorum = state.quorum ?? Number.MAX_SAFE_INTEGER;
+  return entries.map((entry) => {
+    const who = entry.subject;
+    if (!who) return entry;
+    const others = entries.filter((other) => other.actionId !== entry.actionId);
+    const onBoard = state.boardMembers.includes(who);
+    let check: Check | null = null;
+    if (entry.name === 'AddBoardMember' && !onBoard) {
+      const revived = others.filter((other) =>
+        other.formerSigners.includes(who)
+      );
+      if (revived.length > 0) {
+        const tally = revived
+          .map(
+            (other) =>
+              `#${other.actionId} then has ${other.signerCount + 1} of ${quorum} signatures`
+          )
+          .join(', ');
+        const ready = revived.filter(
+          (other) => !other.quorumReached && other.signerCount + 1 >= quorum
+        );
+        check = {
+          tone: ready.length > 0 ? 'bad' : 'warn',
+          text:
+            `${who} signed ${listIds(revived)} before leaving the board. ` +
+            `${revived.length > 1 ? 'Those signatures count' : 'That signature counts'} again once this is carried out: ${tally}.` +
+            (ready.length > 0
+              ? ` ${listIds(ready)} could then be carried out at once.`
+              : '')
+        };
+      }
+    } else if (entry.name !== 'AddBoardMember' && onBoard) {
+      const signed = others.filter((other) => other.signers.includes(who));
+      if (signed.length > 0) {
+        const tally = signed
+          .map(
+            (other) =>
+              `#${other.actionId} then has ${other.signerCount - 1} of ${quorum} signatures`
+          )
+          .join(', ');
+        check = {
+          tone: 'warn',
+          text:
+            `${who} signed ${listIds(signed)}. ` +
+            `${signed.length > 1 ? 'Those signatures stop' : 'That signature stops'} counting once this is carried out: ${tally}. ` +
+            `They are not erased: if ${who} is given a board seat again, they count again on whatever is still pending.`
+        };
+      }
+    }
+    return check
+      ? { ...entry, checks: [...(entry.checks ?? []), check] }
+      : entry;
+  });
 };
 
 /**
@@ -639,7 +757,10 @@ export const readPendingActions = async (
     );
   } catch (bulkError) {
     try {
-      return await readPendingOneByOne(address, state as any);
+      return withSeatChecks(
+        await readPendingOneByOne(address, state as any),
+        state
+      );
     } catch {
       throw bulkError;
     }
@@ -648,16 +769,19 @@ export const readPendingActions = async (
     Array.isArray(pending) ? pending : pending ? [pending] : []
   ).filter(Boolean);
 
-  return Promise.all(
-    list.map((action: any) =>
-      pendingEntry(
-        address,
-        state as any,
-        asNumber(action.action_id ?? action.actionId),
-        action.action_data ?? action.actionData,
-        action.signers ?? []
+  return withSeatChecks(
+    await Promise.all(
+      list.map((action: any) =>
+        pendingEntry(
+          address,
+          state as any,
+          asNumber(action.action_id ?? action.actionId),
+          action.action_data ?? action.actionData,
+          action.signers ?? []
+        )
       )
-    )
+    ),
+    state
   );
 };
 
@@ -702,6 +826,8 @@ export interface ContractInfo {
   codeHash: string;
   /** False when the address holds no contract yet, for example mid-creation. */
   exists: boolean;
+  /** Null when the API did not say. */
+  upgradeable: boolean | null;
 }
 
 /**
@@ -712,12 +838,39 @@ export interface ContractInfo {
 export const readContractInfo = async (
   address: string
 ): Promise<ContractInfo> => {
-  const account = await api<{ ownerAddress?: string; codeHash?: string }>(
-    `/accounts/${address}`
-  );
+  const account = await api<{
+    ownerAddress?: string;
+    codeHash?: string;
+    isUpgradeable?: boolean;
+  }>(`/accounts/${address}`);
   return {
     ownerAddress: account?.ownerAddress ?? '',
     codeHash: account?.codeHash ?? '',
-    exists: Boolean(account?.codeHash)
+    exists: Boolean(account?.codeHash),
+    upgradeable:
+      typeof account?.isUpgradeable === 'boolean' ? account.isUpgradeable : null
   };
+};
+
+/**
+ * Is this the multisig mvxsafe was built for? Everything on a safe's page, the
+ * board, the quorum and every sentence, is decoded for that one code, and any
+ * other contract can answer the same views with anything it likes (audits
+ * SGN-01 and RED-01, 1 Nov 2026). No hash is not a verdict on the code: it
+ * could not be verified.
+ */
+export type SafeIdentity = 'known' | 'other' | 'unverified';
+
+export const identityOf = (codeHash?: string | null): SafeIdentity => {
+  const hash = normalizeCodeHash(codeHash ?? '');
+  if (!hash) return 'unverified';
+  return hash === normalizeCodeHash(MULTISIG_CODE_HASH) ? 'known' : 'other';
+};
+
+/** The same words on the safe's page and on its card in the list. */
+export const IDENTITY_LINE = {
+  other:
+    'This contract does not run the multisig code mvxsafe knows. mvxsafe does not know this code, so what is shown here comes from the contract itself and is only its own word.',
+  unverified:
+    "This contract could not be verified as the multisig mvxsafe knows: the network's API did not give its code hash just now. Until it does, what is shown here comes from the contract itself."
 };

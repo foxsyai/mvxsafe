@@ -270,13 +270,15 @@ export const ProposePanel = ({
     }
     const note = membershipNote(
       { name, fields: [subject] },
-      { quorum: currentQuorum, boardMembers, proposers }
+      { quorum: currentQuorum, boardMembers, proposers },
+      safe
     );
     return note.replace(/^ \(/, '').replace(/\)$/, '');
   })();
-  const noteIsWarning = /refuse|lock|every action|changes nothing/.test(
-    changeNote
-  );
+  const noteIsWarning =
+    /refuse|lock|every action|changes nothing|contract|THIS SAFE/.test(
+      changeNote
+    );
 
   const needsAddress = kind !== 'quorum';
   const needsAmount = kind === 'token' || kind === 'egld';

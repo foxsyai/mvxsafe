@@ -98,9 +98,11 @@ beforeEach(() => {
   (readPendingActions as jest.Mock).mockReset().mockResolvedValue(pending);
   (readHistory as jest.Mock).mockReset().mockResolvedValue([]);
   (readUserRole as jest.Mock).mockReset().mockResolvedValue('BoardMember');
-  (readContractInfo as jest.Mock)
-    .mockReset()
-    .mockResolvedValue({ ownerAddress: SAFE, codeHash: 'x', exists: true });
+  (readContractInfo as jest.Mock).mockReset().mockResolvedValue({
+    ownerAddress: SAFE,
+    codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=',
+    exists: true
+  });
   // Every Sign opens a wallet prompt the test answers by hand.
   (signAction as jest.Mock).mockReset().mockImplementation(
     () =>

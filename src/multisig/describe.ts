@@ -329,7 +329,313 @@ const describeOnItself = async (
   }
 };
 
-const describeCall = async (data: any, safe: string): Promise<string> => {
+// --- token operations ---------------------------------------------------------
+
+/** The system contract that issues tokens and keeps their settings and roles. */
+const ESDT_SYSTEM_SC =
+  'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
+
+export interface TokenOperation {
+  token: string;
+  sentence: string;
+  /** What the sentence alone would undersell, said in red or amber on the card. */
+  notes: { tone: 'warn' | 'bad'; text: string }[];
+}
+
+/** A flag of controlChanges and what each of its two values means. */
+const TOKEN_FLAGS: Record<string, [on: string, off: string]> = {
+  canFreeze: [
+    "its owner can freeze any address's balance",
+    'its owner can no longer freeze'
+  ],
+  canWipe: [
+    "its owner can wipe a frozen address's balance",
+    'its owner can no longer wipe'
+  ],
+  canPause: [
+    'its owner can pause every transfer',
+    'its owner can no longer pause'
+  ],
+  canMint: ['it can be minted', 'it can no longer be minted'],
+  canBurn: ['it can be burned', 'it can no longer be burned'],
+  canChangeOwner: [
+    'it can be handed to a new owner',
+    'it can no longer be handed to a new owner'
+  ],
+  canUpgrade: [
+    'its settings can still be changed',
+    'it can never be changed again, by anyone'
+  ],
+  canAddSpecialRoles: [
+    'its owner can give roles, the minting and the transfer role included',
+    'its owner can no longer give roles'
+  ],
+  canTransferNFTCreateRole: [
+    'the role that creates NFTs can be moved to another address',
+    'the role that creates NFTs can no longer be moved'
+  ],
+  canCreateMultiShard: [
+    'it can be created in several shards',
+    'it can no longer be created in several shards'
+  ]
+};
+
+const describeControlChanges = (
+  token: string,
+  rest: Uint8Array[]
+): TokenOperation | null => {
+  if (rest.length === 0 || rest.length % 2 !== 0) return null;
+  const pairs: [string, string][] = [];
+  for (let at = 0; at < rest.length; at += 2) {
+    pairs.push([decodeText(rest[at]), decodeText(rest[at + 1])]);
+  }
+  // The network runs them in order, so a flag named twice ends on its last value.
+  const last = new Map(pairs);
+  const words = pairs.map(([flag, value]) => {
+    const meaning =
+      TOKEN_FLAGS[flag] && value === last.get(flag)
+        ? value === 'true'
+          ? TOKEN_FLAGS[flag][0]
+          : value === 'false'
+            ? TOKEN_FLAGS[flag][1]
+            : ''
+        : '';
+    return `${visible(flag)} ${visible(value)}${meaning ? ` (${meaning})` : ''}`;
+  });
+  const locks = last.get('canUpgrade') === 'false';
+  return {
+    token,
+    sentence: `Change the settings of the token ${token}: ${words.join(', ')}${locks ? `. ${DO_NOT_SIGN}` : ''}`,
+    notes: locks
+      ? [
+          {
+            tone: 'bad',
+            text: `After this the settings of ${token} are locked for good: it can never be changed again, by anyone, this board included.`
+          }
+        ]
+      : []
+  };
+};
+
+/** The roles of a role call, each with what it means when there is something to say. */
+const roleNotes = (
+  roles: string[],
+  token: string,
+  who: string,
+  given: boolean
+): TokenOperation['notes'] => {
+  const notes: TokenOperation['notes'] = [];
+  for (const role of roles) {
+    if (role === 'ESDTTransferRole') {
+      notes.push(
+        given
+          ? {
+              tone: 'bad',
+              text: `While any address holds ESDTTransferRole, every ordinary transfer of ${token} stops for everyone unless the sender or the receiver holds the role, until the last one is removed.`
+            }
+          : {
+              tone: 'warn',
+              text: `Ordinary transfers of ${token} run again only once the last holder of ESDTTransferRole is removed.`
+            }
+      );
+    } else if (role === 'ESDTRoleLocalMint' && given) {
+      notes.push({
+        tone: 'bad',
+        text: `${who} can then mint any amount of ${token}.`
+      });
+    }
+  }
+  return notes;
+};
+
+/**
+ * A call on the system contract that manages tokens, in what it does, or null
+ * for anything else, whose arguments stay raw. Argument counts are the
+ * contract's own: what it would refuse is not described as if it ran (audits
+ * SGN-03 and SGN-04, 1 Nov 2026).
+ */
+export const readTokenOperation = (
+  to: string,
+  name: string,
+  args: Uint8Array[]
+): TokenOperation | null => {
+  if (to !== ESDT_SYSTEM_SC || args.length === 0) return null;
+  const token = decodeText(args[0]);
+  if (!TOKEN_ID.test(token)) return null;
+  const who = args[1]?.length === 32 ? new Address(args[1]).toBech32() : '';
+  const plain = (sentence: string, notes: TokenOperation['notes'] = []) => ({
+    token,
+    sentence,
+    notes
+  });
+  switch (name) {
+    case 'setSpecialRole':
+    case 'unSetSpecialRole': {
+      if (!who || args.length < 3) return null;
+      const roles = args.slice(2).map(decodeText);
+      const list = roles.map(visible).join(', ');
+      const plural = roles.length > 1 ? 's' : '';
+      const given = name === 'setSpecialRole';
+      return plain(
+        given
+          ? `Give ${who} the role${plural} ${list} on the token ${token}`
+          : `Take the role${plural} ${list} away from ${who} on the token ${token}`,
+        roleNotes(roles, token, who, given)
+      );
+    }
+    case 'controlChanges':
+      return describeControlChanges(token, args.slice(1));
+    case 'pause':
+      if (args.length !== 1) return null;
+      return plain(
+        `Pause the token ${token}: every transfer of it stops, for everyone, until it is unpaused`,
+        [
+          {
+            tone: 'bad',
+            text: `While ${token} is paused, nobody can move it, this safe and every contract holding it included.`
+          }
+        ]
+      );
+    case 'unPause':
+      if (args.length !== 1) return null;
+      return plain(`Unpause the token ${token}: its transfers can run again`);
+    case 'freeze':
+      if (!who || args.length !== 2) return null;
+      return plain(
+        `Freeze what ${who} holds of the token ${token}: that address cannot send or receive it until it is unfrozen`
+      );
+    case 'unFreeze':
+      if (!who || args.length !== 2) return null;
+      return plain(`Unfreeze what ${who} holds of the token ${token}`);
+    case 'wipe':
+      if (!who || args.length !== 2) return null;
+      return plain(
+        `Wipe what ${who} holds of the token ${token}: a frozen balance is destroyed`,
+        [
+          {
+            tone: 'bad',
+            text: `What ${who} holds of ${token} would be gone for good.`
+          }
+        ]
+      );
+    case 'transferOwnership':
+      if (!who || args.length !== 2) return null;
+      return plain(
+        `Hand the token ${token} over to ${who}, who becomes its owner, with all an owner's powers`,
+        [
+          {
+            tone: 'bad',
+            text: `The board cannot undo this: from then on only ${who} can act as the owner of ${token}.`
+          }
+        ]
+      );
+    default:
+      return null;
+  }
+};
+
+/** The token a call on that system contract names first, decoded or not. */
+export const tokenInCall = (to: string, args: Uint8Array[]): string | null => {
+  if (to !== ESDT_SYSTEM_SC || args.length === 0) return null;
+  const token = decodeText(args[0]);
+  return TOKEN_ID.test(token) ? token : null;
+};
+
+// --- calls on the safe itself ------------------------------------------------
+
+/** An action id as it travels: a u32, on its own. Null for anything else. */
+const actionIdOf = (args: Uint8Array[]): bigint | null =>
+  args.length === 1 && args[0].length <= 4 ? bytesToBigInt(args[0]) : null;
+
+const addressOf = (args: Uint8Array[]): string | null =>
+  args.length === 1 && args[0].length === 32
+    ? new Address(args[0]).toBech32()
+    : null;
+
+const IF_ON_ITS_BOARD =
+  'That can only work if this safe holds a seat on its own board; otherwise the contract refuses it';
+const IF_IT_HAS_A_ROLE =
+  'That can only work if this safe holds a role on its own board or among its proposers; otherwise the contract refuses it';
+
+/**
+ * A call the safe makes on one of its own endpoints, in what it does. The
+ * caller is then the safe itself, which owns itself and may hold a seat on its
+ * own board, so these act with the board's authority (audits RED-02 and RED-06,
+ * 1 Nov 2026). Null for anything not recognised, whose arguments stay raw.
+ */
+const describeOwnEndpoint = (
+  name: string,
+  args: Uint8Array[],
+  egld: bigint,
+  route: string
+): string | null => {
+  const id = actionIdOf(args);
+  const who = addressOf(args);
+  switch (name) {
+    case 'dnsRegister': {
+      // Owner only, which the safe is, and it forwards what it is paid: the one
+      // way the safe's own EGLD reaches this endpoint. Run for real on devnet,
+      // 1 Nov 2026, and the two ways of proposing it behave differently.
+      if (args.length !== 2 || args[0].length !== 32) return null;
+      const target = new Address(args[0]).toBech32();
+      const register = `register(${visible(decodeText(args[1]))})`;
+      const what =
+        egld > 0n
+          ? `send ${formatUnits(egld, 18)} EGLD out of this safe to ${target}, calling ${register} there`
+          : `call ${register} on ${target} as this safe`;
+      return route === 'SendAsyncCall'
+        ? `Try to ${what}, through the safe's own dnsRegister. Proposed this way (proposeAsyncCall) it failed on devnet: the network refused the inner call, the EGLD stayed in the safe and the action was used up with its signatures`
+        : `${what.charAt(0).toUpperCase()}${what.slice(1)}, through the safe's own dnsRegister. Proposed this way (proposeTransferExecute) it really goes: on devnet the EGLD left the safe`;
+    }
+    case 'sign':
+      if (id === null) return null;
+      return `Have this safe approve action #${id} on the board's behalf, a signature that counts toward its quorum. ${IF_ON_ITS_BOARD}`;
+    case 'unsign':
+      if (id === null) return null;
+      return `Have this safe take back its own approval of action #${id} on the board's behalf. ${IF_ON_ITS_BOARD}`;
+    case 'performAction':
+      if (id === null) return null;
+      return `Have this safe carry out action #${id} on the board's behalf, whatever that action does. ${IF_IT_HAS_A_ROLE}`;
+    case 'discardAction':
+      if (id === null) return null;
+      return `Have this safe throw away action #${id} on the board's behalf. ${IF_IT_HAS_A_ROLE}`;
+    case 'proposeAddBoardMember':
+      return who
+        ? `Have this safe propose adding ${who} to the board. ${IF_IT_HAS_A_ROLE}`
+        : null;
+    case 'proposeAddProposer':
+      return who
+        ? `Have this safe propose adding ${who} as a proposer. ${IF_IT_HAS_A_ROLE}`
+        : null;
+    case 'proposeRemoveUser':
+      return who
+        ? `Have this safe propose removing ${who} from the board or the proposers. ${IF_IT_HAS_A_ROLE}`
+        : null;
+    case 'proposeChangeQuorum':
+      if (id === null) return null;
+      return `Have this safe propose changing the number of signatures needed to ${id}. ${IF_IT_HAS_A_ROLE}`;
+    case 'proposeTransferExecute':
+    case 'proposeAsyncCall': {
+      if (args.length < 2 || args[0].length !== 32) return null;
+      const then =
+        args[2]?.length > 0
+          ? `, calling ${describeCallOf(args[2], args.slice(3))} there`
+          : '';
+      return `Have this safe propose sending ${formatUnits(bytesToBigInt(args[1]), 18)} EGLD to ${new Address(args[0]).toBech32()}${then}. ${IF_IT_HAS_A_ROLE}`;
+    }
+    case 'proposeSCUpgradeFromSource':
+    case 'proposeSCDeployFromSource':
+      return `Have this safe propose ${describeCallOf(new TextEncoder().encode(name), args)}, which can replace or create a contract's code. ${IF_IT_HAS_A_ROLE}`;
+    default:
+      return null;
+  }
+};
+
+const describeCall = async (
+  data: any,
+  safe: string,
+  route: string
+): Promise<string> => {
   const { to, egld, endpoint, args } = readCall(data);
   if (!to || egld === null) return `Unreadable action. ${DO_NOT_SIGN}`;
   const name = decodeText(endpoint);
@@ -390,9 +696,18 @@ const describeCall = async (data: any, safe: string): Promise<string> => {
       : `Hand the contract ${to} over to ${owner}: the safe would no longer own it${alsoEgld}`;
   }
 
+  const operation = readTokenOperation(to, name, args);
+  if (operation) return `${operation.sentence}${alsoEgld}`;
+
   if (to === safe) {
     const builtIn = await describeOnItself(name, args);
     if (builtIn) return `${builtIn}${alsoEgld}`;
+    const own = describeOwnEndpoint(name, args, egld, route);
+    if (own) {
+      // dnsRegister says its EGLD for itself, as where it goes.
+      const paid = name === 'dnsRegister' ? '' : alsoEgld;
+      return `${own}${paid}. ${DO_NOT_SIGN}`;
+    }
     return `Call ${describeCallOf(endpoint, args)} on this safe itself${alsoEgld}. ${DO_NOT_SIGN}`;
   }
 
@@ -426,7 +741,7 @@ export const describeAction = async (
       return `Change the number of signatures needed to ${Number(toBigInt(fields[0]) ?? 0n)}`;
     case 'SendTransferExecute':
     case 'SendAsyncCall':
-      return describeCall(fields[0], safe);
+      return describeCall(fields[0], safe, name);
     case 'SCDeployFromSource': {
       // The new contract's metadata is said too, as an upgrade's is (SEE-02).
       const [amount, source, metadata, args] = fields;

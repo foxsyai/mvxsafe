@@ -99,9 +99,11 @@ beforeEach(() => {
   (readHistory as jest.Mock).mockReset().mockResolvedValue([]);
   (readUserRole as jest.Mock).mockReset().mockResolvedValue('BoardMember');
   // The safe is still owned by the deployer, who is the connected wallet.
-  (readContractInfo as jest.Mock)
-    .mockReset()
-    .mockResolvedValue({ ownerAddress: ME, codeHash: 'x', exists: true });
+  (readContractInfo as jest.Mock).mockReset().mockResolvedValue({
+    ownerAddress: ME,
+    codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=',
+    exists: true
+  });
   (handOverSafe as jest.Mock).mockReset();
   (signAction as jest.Mock).mockReset();
 });

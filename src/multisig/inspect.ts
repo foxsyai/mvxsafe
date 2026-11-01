@@ -11,7 +11,10 @@ import {
   metadataChanges,
   MetadataFlags,
   metadataOf,
-  toBigInt
+  readTokenOperation,
+  toBigInt,
+  tokenInCall,
+  visible
 } from './describe';
 import {
   GasError,
@@ -28,6 +31,7 @@ import {
   shardOf
 } from './legacyCalls';
 import { api, cached, chainId, networkProvider } from './network';
+import { wasmFunctionExports } from './wasmExports';
 
 export type Tone = 'ok' | 'warn' | 'bad';
 
@@ -60,6 +64,11 @@ export interface AccountFacts {
   codeUnread: boolean;
   /** Size of the code in bytes, 0 when unknown. */
   codeBytes: number;
+  /**
+   * Whether the code has an `upgrade` function, which is what an upgrade from
+   * it runs. Null when the code was not read or is not well-formed wasm.
+   */
+  exportsUpgrade: boolean | null;
   /** Null for an account without code, or when the API did not say. */
   metadata: MetadataFlags | null;
   balance: bigint;
@@ -100,6 +109,7 @@ export const readAccountFacts = async (
       : null;
   const hashed = stated && code ? codeHashOf(code) : null;
   const codeHash = hashed ?? stated;
+  const exported = hashed && code ? wasmFunctionExports(code) : null;
   return {
     address,
     shard: shardOf(address),
@@ -110,6 +120,7 @@ export const readAccountFacts = async (
     // The size of the code that was hashed, or 0 (unknown): a code never read
     // gave a size, and with it a gas budget called measured (review of PR #17).
     codeBytes: hashed && code ? code.length : 0,
+    exportsUpgrade: exported ? exported.includes('upgrade') : null,
     metadata:
       codeHash && typeof account?.isUpgradeable === 'boolean'
         ? {
@@ -139,14 +150,17 @@ export interface UpgradeFacts {
   target: string;
   source: string;
   /**
-   * Null when the source holds no code or could not be read, and when the API
-   * stated a hash without returning the code (sourceUnread): only a hash of
-   * the code itself is shown or compared.
+   * Null when the source holds no code, and when its code was not seen: the
+   * read failed, the API stated a hash without returning the code, or what it
+   * returned is not wasm (sourceUnread). Only a hash of the code itself is shown
+   * or compared.
    */
   sourceHash: string | null;
   targetHash: string | null;
   sourceUnread?: boolean;
   targetUnread?: boolean;
+  /** The source's code was read and has no upgrade function: the upgrade cannot succeed. */
+  noUpgradeFunction?: boolean;
   sourceShard: number;
   safeShard: number;
 }
@@ -197,17 +211,26 @@ export const inspectUpgrade = async (
         }
   );
 
-  let sourceFacts: AccountFacts | null = null;
-  let targetFacts: AccountFacts | null = null;
-  try {
-    [sourceFacts, targetFacts] = await Promise.all([
-      readAccountFacts(source),
-      readAccountFacts(target)
-    ]);
-  } catch {
+  // Each on its own: one that fails does not blank the other, and a read that
+  // failed leaves the code as unseen as one the API did not return, so it holds
+  // the signature the same way (redteam RED-04, 1 Nov 2026).
+  const [sourceRead, targetRead] = await Promise.allSettled([
+    readAccountFacts(source),
+    readAccountFacts(target)
+  ]);
+  const sourceFacts =
+    sourceRead.status === 'fulfilled' ? sourceRead.value : null;
+  const targetFacts =
+    targetRead.status === 'fulfilled' ? targetRead.value : null;
+  if (!sourceFacts || !targetFacts) {
     checks.push({
-      tone: 'warn',
-      text: 'The source and the contract could not be read just now, so their code is not shown. Refresh before signing.'
+      tone: 'bad',
+      text:
+        !sourceFacts && !targetFacts
+          ? 'The source and the contract could not be read just now, so their code is not shown. Refresh before signing.'
+          : !sourceFacts
+            ? 'The source could not be read just now, so its code is not shown. Refresh before signing.'
+            : 'The contract to upgrade could not be read just now, so the code it runs today is not shown. Refresh before signing.'
     });
   }
 
@@ -234,6 +257,25 @@ export const inspectUpgrade = async (
     checks.push({
       tone: 'bad',
       text: "The network's API did not return the code of the contract to upgrade, so the code it runs today is unknown. Refresh and try again before signing."
+    });
+  }
+
+  // The code was returned and hashed, but its exports cannot be told: unread.
+  const sourceMalformed = Boolean(
+    sourceFacts?.codeHash &&
+    !sourceFacts.codeUnread &&
+    sourceFacts.exportsUpgrade === null
+  );
+  if (sourceMalformed) {
+    checks.push({
+      tone: 'bad',
+      text: "The source's code could not be read as a contract's code: it is not well-formed wasm, or the API returned it cut off. Refresh and try again before signing."
+    });
+  }
+  if (sourceFacts?.exportsUpgrade === false) {
+    checks.push({
+      tone: 'bad',
+      text: "The source's code has no upgrade function. The network runs the new code's upgrade function and fails without one, so carrying this out would fail after the signatures and use the action up. Do not sign it; propose it again with a source that has one."
     });
   }
 
@@ -322,11 +364,12 @@ export const inspectUpgrade = async (
     targetFacts?.codeHash &&
     !sourceFacts.codeUnread &&
     !targetFacts.codeUnread &&
+    sourceFacts.exportsUpgrade === true &&
     sourceFacts.codeHash === targetFacts.codeHash
   ) {
     checks.push({
       tone: 'warn',
-      text: "The source runs the same code as the contract today: the upgrade changes no code, it only runs the contract's upgrade function."
+      text: "The source runs the same code as the contract today: the upgrade changes no code, it only runs that code's upgrade function."
     });
   }
 
@@ -335,14 +378,16 @@ export const inspectUpgrade = async (
     upgrade: {
       target,
       source,
-      sourceHash: sourceFacts?.codeUnread
-        ? null
-        : (sourceFacts?.codeHash ?? null),
+      sourceHash:
+        sourceFacts?.codeUnread || sourceMalformed
+          ? null
+          : (sourceFacts?.codeHash ?? null),
       targetHash: targetFacts?.codeUnread
         ? null
         : (targetFacts?.codeHash ?? null),
-      sourceUnread: Boolean(sourceFacts?.codeUnread),
-      targetUnread: Boolean(targetFacts?.codeUnread),
+      sourceUnread: !sourceFacts || sourceFacts.codeUnread || sourceMalformed,
+      targetUnread: !targetFacts || targetFacts.codeUnread,
+      noUpgradeFunction: sourceFacts?.exportsUpgrade === false,
       sourceShard,
       safeShard
     },
@@ -376,9 +421,19 @@ export const trialAsSafe = async (
   data: string
 ): Promise<Trial> => {
   try {
-    return await cached(`trial:${safe}:${to}:${egld}:${data}`, () =>
-      measureCall(networkProvider, { chainId, safe, to, egld, data })
-    );
+    return await cached(`trial:${safe}:${to}:${egld}:${data}`, async () => {
+      const trial = await measureCall(networkProvider, {
+        chainId,
+        safe,
+        to,
+        egld,
+        data
+      });
+      // No answer is not an answer to keep: it held the default on the card
+      // for two minutes after the API was back (audit TXB-01, 1 Nov 2026).
+      if (trial.how === 'offline') throw new GasError('no answer', false);
+      return trial;
+    });
   } catch (error) {
     if (error instanceof GasError && error.refused)
       return { need: null, how: 'refused', error };
@@ -386,8 +441,32 @@ export const trialAsSafe = async (
   }
 };
 
+/**
+ * The network answered with no real figure. For a contract in another shard
+ * that is what it always does; for one in the safe's own shard, or the safe
+ * itself, "it runs in another shard" would be false (redteam RED-02, 1 Nov
+ * 2026). A system contract lives in the metachain, whatever its address looks
+ * like to shardOf.
+ */
+const unmeasuredText = (where?: { to: string; safe: string }) => {
+  if (where && where.to === where.safe) {
+    return 'Tried as the safe would send it, on the safe itself, the network gave no real figure, only its maximum. That says nothing about whether it works. The gas below is a default.';
+  }
+  if (
+    where &&
+    !isSystemContract(where.to) &&
+    shardOf(where.to) === shardOf(where.safe)
+  ) {
+    return "The network gave no real figure for it, only its maximum, though the contract is in the safe's own shard. That says nothing about whether it works. The gas below is a default.";
+  }
+  return 'The network could not try it in advance: it runs in another shard. The gas below is a default.';
+};
+
 /** What a trial means for a signer, in one line. */
-export const trialCheck = (trial: Trial): Check => {
+export const trialCheck = (
+  trial: Trial,
+  where?: { to: string; safe: string }
+): Check => {
   switch (trial.how) {
     case 'tried':
       return {
@@ -402,7 +481,7 @@ export const trialCheck = (trial: Trial): Check => {
     case 'unmeasured':
       return {
         tone: 'warn',
-        text: 'The network could not try it in advance: it runs in another shard. The gas below is a default.'
+        text: unmeasuredText(where)
       };
     case 'fee':
       return {
@@ -477,6 +556,37 @@ export const builtInChecks = (
 };
 
 /**
+ * Any call on the safe itself is red: the caller is the safe, which owns itself
+ * and may hold a seat on its own board, so the call acts with the board's
+ * authority, and mvxsafe never proposes one. Only the token moves a safe uses
+ * every day stay out of it, with the real recipient in their sentence, and the
+ * built-ins that are red already (audits RED-02 and RED-06, 1 Nov 2026).
+ */
+export const selfCallChecks = (name: string, egld: bigint): Check[] => {
+  if (TOKEN_MOVES_ON_ITSELF.has(name)) return [];
+  if (name === 'dnsRegister') {
+    return [
+      {
+        tone: 'bad',
+        text: `dnsRegister forwards the EGLD it is given to its first argument, and here the safe pays it${egld > 0n ? ': this is a payment out of the safe, whatever else it looks like' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+      }
+    ];
+  }
+  if (
+    PROTOCOL_BUILTINS.has(name) &&
+    name !== 'ESDTTransfer' &&
+    name !== 'ClaimDeveloperRewards'
+  )
+    return [];
+  return [
+    {
+      tone: 'bad',
+      text: `A call on the safe itself: the safe calls its own ${visible(name)}, with its own authority${egld > 0n ? ', paying with its own EGLD' : ''}. mvxsafe never proposes it. Check it with every board member before signing.`
+    }
+  ];
+};
+
+/**
  * The function a token transfer calls after it, if any: ESDTTransfer's third
  * argument, ESDTNFTTransfer's fifth, MultiESDTNFTTransfer's after its tokens.
  */
@@ -544,18 +654,29 @@ export const inspectCall = async (
   // A code replacement dressed as a call (audit UPG-01, 14 Oct 2026). Its code
   // cannot be checked against a release here, and a large one cannot even be
   // carried out: the stored action is too big ("storage decode error").
-  checks.push(...builtInChecks(new TextDecoder().decode(endpoint), to, safe));
-  checks.push(...nestedBuiltInChecks(new TextDecoder().decode(endpoint), args));
+  const called = new TextDecoder().decode(endpoint);
+  checks.push(...builtInChecks(called, to, safe));
+  checks.push(...nestedBuiltInChecks(called, args));
+  if (to === safe) checks.push(...selfCallChecks(called, egld));
 
   let callNeed: bigint | null = null;
   if (to && hasFunction) {
     const trial = await trialAsSafe(safe, to, egld, callData(endpoint, args));
-    checks.push(trialCheck(trial));
+    checks.push(trialCheck(trial, { to, safe }));
     callNeed = trial.need;
   }
 
+  if (to && isSystemContract(to)) {
+    checks.push(...(await tokenOperationChecks(to, called, args, safe)));
+  }
+
   // Who owns a contract it calls, which is what makes an owner's endpoint work.
-  if (to && Address.newFromBech32(to).isSmartContract() && to !== safe) {
+  if (
+    to &&
+    Address.newFromBech32(to).isSmartContract() &&
+    to !== safe &&
+    !isSystemContract(to)
+  ) {
     try {
       const facts = await readAccountFacts(to);
       if (facts.codeHash) {
@@ -573,7 +694,88 @@ export const inspectCall = async (
     }
   }
 
-  return { checks, perform: performPlan({ name, callNeed, hasFunction }) };
+  const systemCall = Boolean(to) && isSystemContract(to);
+  const perform = performPlan({ name, callNeed, hasFunction, systemCall });
+  if (systemCall && !perform.simulate && !perform.known) {
+    checks.push({
+      tone: 'warn',
+      text: `A call to a system contract needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given the system contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
+    });
+  }
+  return { checks, perform };
+};
+
+/**
+ * On a token's system contract, what counts is who owns the TOKEN. The contract
+ * itself reports as its own owner, so asking who owns it told a signer that a
+ * call that works would be refused (audit SGN-02, 1 Nov 2026).
+ */
+const tokenOwnerCheck = async (token: string, safe: string): Promise<Check> => {
+  let owner = '';
+  try {
+    owner = (await api<{ owner?: string }>(`/tokens/${token}`))?.owner ?? '';
+  } catch {
+    // Not a fungible token, or no answer: an NFT, SFT or MetaESDT is a collection.
+  }
+  if (!owner) {
+    try {
+      owner =
+        (await api<{ owner?: string }>(`/collections/${token}`))?.owner ?? '';
+    } catch {
+      // Said below.
+    }
+  }
+  if (!owner) {
+    return {
+      tone: 'warn',
+      text: `Whether the safe owns ${token} could not be read just now. Only the owner of a token can do this. Refresh to read it again.`
+    };
+  }
+  return owner === safe
+    ? {
+        tone: 'ok',
+        text: `The safe owns ${token}, and only the owner of a token can do this.`
+      }
+    : {
+        tone: 'warn',
+        text: `The safe does not own ${token}; its owner is ${owner}. Only the owner of a token can do this.`
+      };
+};
+
+/** What a call on the token system contract does, and who owns that token. */
+export const tokenOperationChecks = async (
+  to: string,
+  name: string,
+  args: Uint8Array[],
+  safe: string
+): Promise<Check[]> => {
+  const token = tokenInCall(to, args);
+  if (!token) return [];
+  return [
+    ...(readTokenOperation(to, name, args)?.notes ?? []),
+    await tokenOwnerCheck(token, safe)
+  ];
+};
+
+/** A seat for something that is not a person's wallet (redteam RED-06, 1 Nov 2026). */
+const boardSeatChecks = (value: any, safe: string): Check[] => {
+  const who = asAddress(value);
+  if (who === safe) {
+    return [
+      {
+        tone: 'bad',
+        text: "This gives THIS SAFE a seat on its own board. From then on, a call on the safe itself can sign, carry out and propose in the board's name, and counts as one signature of the quorum. Do not sign it unless every board member has agreed."
+      }
+    ];
+  }
+  return who && Address.newFromBech32(who).isSmartContract()
+    ? [
+        {
+          tone: 'warn',
+          text: 'This gives a contract a seat on the board. It signs only through its own code, so whoever can change that code holds this seat.'
+        }
+      ]
+    : [];
 };
 
 /**
@@ -594,6 +796,11 @@ export const inspectAction = async (
       case 'SendAsyncCall':
       case 'SendTransferExecute':
         return await inspectCall(name, fields[0], safe);
+      case 'AddBoardMember':
+        return {
+          checks: boardSeatChecks(fields[0], safe),
+          perform: performPlan({ name })
+        };
       case 'ChangeQuorum': {
         // The contract accepts a quorum of 0 (audit SC-02, 21 Oct 2026).
         const next = toBigInt(fields[0]) ?? 0n;

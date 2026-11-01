@@ -318,6 +318,16 @@ export const networkMock = {
       }));
     }
     if (path.startsWith('/economics')) return { price: 0 };
+    // The safe owns itself and runs the multisig (MULTISIG_CODE_HASH): a page
+    // holds everything for any other answer since SGN-01.
+    if (path === `/accounts/${SAFE}`) {
+      return {
+        balance: '0',
+        username: undefined,
+        ownerAddress: SAFE,
+        codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE='
+      };
+    }
     if (/^\/accounts\/[^/?]+(\?|$)/.test(path))
       return { balance: '0', username: undefined };
     if (path.match(/\/nfts\/count/)) return 0;

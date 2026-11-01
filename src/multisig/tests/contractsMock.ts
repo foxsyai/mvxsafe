@@ -11,10 +11,35 @@ import { networkMock } from '../../__audit__/display/fixtures';
 // gets code that does not match it, which is how a lying API looks.
 const codes = new Map<string, string>();
 
+// A wasm of exactly `bytes` bytes exporting init and upgrade, as a real source
+// does (the app reads its exports since FND-04), its seed and padding in a
+// custom section.
+const WASM_HEAD = '0061736d01000000';
+const WASM_EXPORTS = '071202' + '04696e69740000' + '0775706772616465' + '0001';
+const leb = (value: number) => {
+  let hex = '';
+  let rest = value;
+  do {
+    const low = rest & 0x7f;
+    rest >>>= 7;
+    hex += (rest ? low | 0x80 : low).toString(16).padStart(2, '0');
+  } while (rest);
+  return hex;
+};
+const wasmOf = (seed: string, bytes: number) => {
+  const head = Buffer.from(seed).toString('hex');
+  const fixed = (WASM_HEAD.length + WASM_EXPORTS.length) / 2 + 1;
+  // The section's length grows with the padding: its own size counts too.
+  let size = bytes - fixed - 3;
+  if (leb(size).length / 2 < 3) size = bytes - fixed - leb(size).length / 2;
+  // An empty name, the seed, then padding.
+  const content = '00' + head + 'ab'.repeat(size - 1 - head.length / 2);
+  return WASM_HEAD + WASM_EXPORTS + '00' + leb(size) + content;
+};
+
 /** The code hash of a made-up contract code, whose code contract() then carries. */
 export const mockCode = (seed: string, bytes = 26540): string => {
-  const head = Buffer.from(seed).toString('hex');
-  const code = head + 'ab'.repeat(bytes - head.length / 2);
+  const code = wasmOf(seed, bytes);
   const hash = Buffer.from(
     blake2b(Uint8Array.from(Buffer.from(code, 'hex')), { dkLen: 32 })
   ).toString('hex');
@@ -53,7 +78,7 @@ export const contract = ({
   balance: '0',
   ownerAddress: owner,
   codeHash: Buffer.from(hash, 'hex').toString('base64'),
-  code: codes.get(hash) ?? 'ab'.repeat(bytes),
+  code: codes.get(hash) ?? wasmOf('', bytes),
   isUpgradeable: upgradeable,
   isReadable: readable,
   isPayable: payable,

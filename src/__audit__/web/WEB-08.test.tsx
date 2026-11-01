@@ -53,6 +53,11 @@ jest.mock('components/Address', () => ({
 
 jest.mock('multisig/reads', () => ({
   ...jest.requireActual('multisig/reads'),
+  readContractInfo: jest.fn(async (address: string) => ({
+    ownerAddress: address,
+    codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=',
+    exists: true
+  })),
   readOverview: jest.fn(),
   readPendingActions: jest.fn(),
   readHistory: jest.fn(),

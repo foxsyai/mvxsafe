@@ -50,6 +50,8 @@ one that drops "upgradeable" (red) and setFee 0.02 EGLD tried as the safe.*
 | A source whose code hash is not the release's | form; a red/green field on the card | The board would sign for code nobody checked. |
 | A source that is still upgradeable, owned by anyone but the safe | form; red on the card | Its owner could swap the code between the signatures and the perform. |
 | A contract the safe does not own or that is not upgradeable today | form; red on the card | The network refuses the upgrade. |
+| A source whose code has no `upgrade` function | form; Sign and Carry it out held on the card, Discard stays | The network runs the new code's `upgrade` and fails without one, after every signature, and the action is used up. Code built before mx-sdk-rs 0.45 has none, this multisig included. |
+| A source or a contract that could not be read, or a source that is not well-formed wasm | form; Sign and Carry it out held on the card, until Refresh reads it | Nobody has seen the code that would run. |
 | The safe itself as the contract to upgrade | form and builder | Out of scope for now; lift it deliberately if ever needed. |
 | A call that fails when tried as the safe | call form; red on the card | It would use the action up. On the card it stays a warning, since the contract's state can change before the perform. |
 
@@ -117,6 +119,7 @@ import the same file.
   | `setFee`, `pauseCreation`… | tried as the safe: ~3.9M | **19.2M** | ~16.4M |
   | Upgrade to mvxvest's 26,540 bytes | 300 × bytes + 1M = 9.0M | **25.3M** | ~20.5M |
   | A call that could not be tried | 10M by default, said as such | 26.5M | none |
+  | A call to a system contract that could not be tried | 50.5M by default, said as such | 75.1M | none; under 65M is refused |
 
 - **Deploying a source**: simulated plus a fifth, 105.5M for mvxvest (it carries its 26.5 KB as
   data).

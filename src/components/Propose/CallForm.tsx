@@ -8,6 +8,7 @@ import {
   callData,
   Check,
   readAccountFacts,
+  tokenOperationChecks,
   trialAsSafe,
   trialCheck
 } from 'multisig/inspect';
@@ -78,6 +79,7 @@ export const CallForm = ({
   const [facts, setFacts] = useState<AccountFacts | null>(null);
   const [sentence, setSentence] = useState('');
   const [trial, setTrial] = useState<Check | null>(null);
+  const [tokenLines, setTokenLines] = useState<Check[]>([]);
   const [trying, setTrying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -85,6 +87,10 @@ export const CallForm = ({
 
   const target = to.trim();
   const targetOk = isContract(target);
+  // A call on the safe itself acts with the board's authority: it can send the
+  // safe's EGLD out or sign for the board, under a sentence that reads like a
+  // call (audits RED-02 and RED-06, 1 Nov 2026). Refused, whatever the function.
+  const itself = target === safe;
   const chosen = abi?.endpoints.find(
     (endpoint) => endpoint.name === functionName
   );
@@ -104,6 +110,7 @@ export const CallForm = ({
 
   const ready =
     targetOk &&
+    !itself &&
     ENDPOINT.test(functionName) &&
     Object.keys(encoded.errors).length === 0 &&
     egldRaw !== null &&
@@ -130,6 +137,7 @@ export const CallForm = ({
   useEffect(() => {
     setTrial(null);
     setSentence('');
+    setTokenLines([]);
     if (!ready || egldRaw === null) return;
     let live = true;
     const timer = setTimeout(async () => {
@@ -145,11 +153,14 @@ export const CallForm = ({
         ]
       };
       describeAction(action, safe).then((text) => live && setSentence(text));
+      tokenOperationChecks(target, functionName, encoded.bytes, safe).then(
+        (lines) => live && setTokenLines(lines)
+      );
       setTrying(true);
       const result = await trialAsSafe(safe, target, egldRaw as bigint, data);
       if (!live) return;
       setTrying(false);
-      setTrial(trialCheck(result));
+      setTrial(trialCheck(result, { to: target, safe }));
     }, 700);
     return () => {
       live = false;
@@ -184,6 +195,9 @@ export const CallForm = ({
 
   const noCode = facts !== null && !facts.codeHash;
   const notOwner = facts?.codeHash && facts.ownerAddress !== safe;
+  // A system contract answers for itself: what counts there is who owns the
+  // token, said under the sentence (audit SGN-02, 1 Nov 2026).
+  const system = targetOk && isSystemContract(target);
   // Nothing is proposed before it has been tried: not during the wait after
   // typing, not while the network answers (audit UPG-04, 14 Oct 2026).
   // A built-in of the network is not a contract's function: refused, with the
@@ -258,7 +272,15 @@ export const CallForm = ({
             }}
           />
         )}
-        {facts?.codeHash && (
+        {itself && (
+          <CheckLine
+            check={{
+              tone: 'bad',
+              text: 'This is the safe itself. mvxsafe does not propose a call on the safe itself: the caller would be the safe, with the board\'s authority, and such a call can send its EGLD out or sign for the board. To send, use "Send EGLD" or "Send tokens".'
+            }}
+          />
+        )}
+        {facts?.codeHash && !itself && !system && (
           <CheckLine
             check={
               notOwner
@@ -367,6 +389,9 @@ export const CallForm = ({
           </p>
         </div>
       )}
+      {tokenLines.map((line) => (
+        <CheckLine key={line.text} check={line} />
+      ))}
       {trying && <p className={hint}>Trying it as the safe would send it...</p>}
       {trial && <CheckLine check={trial} />}
 

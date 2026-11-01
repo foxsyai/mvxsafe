@@ -22,7 +22,13 @@ import { UpgradeForm } from 'components/Propose/UpgradeForm';
 import { deploySource, proposeCall, proposeUpgrade } from 'multisig/actions';
 import { codeHashOf, predictSafeAddress } from 'multisig/legacyCalls';
 import { ALICE, CAROL, SAFE } from '../../__audit__/display/fixtures';
-import { contract, mockAccounts, mockCode, mockTrial } from './contractsMock';
+import {
+  contract,
+  contractsNetworkMock,
+  mockAccounts,
+  mockCode,
+  mockTrial
+} from './contractsMock';
 
 const TARGET = predictSafeAddress(CAROL, 40); // shard 0
 const SOURCE = predictSafeAddress(ALICE, 60); // shard 1, the safe's
@@ -68,6 +74,47 @@ describe('proposing an upgrade', () => {
       { timeout: 3000 }
     );
   };
+
+  test('a source whose code has no upgrade function is refused, even with the right hash', async () => {
+    const wasm = new Uint8Array(
+      readFileSync(join(__dirname, '../../../public/contracts/multisig.wasm'))
+    );
+    const hash = codeHashOf(wasm);
+    mockAccounts[SOURCE] = {
+      ...contract({ owner: ALICE, hash, upgradeable: false }),
+      code: Buffer.from(wasm).toString('hex')
+    };
+    await fill(SOURCE, hash);
+    expect(
+      screen.getByText('Matches the code hash of the source.')
+    ).toBeInTheDocument();
+    expect(screen.getByText(/has no upgrade function/)).toHaveAttribute(
+      'data-tone',
+      'bad'
+    );
+    expect(propose()).toBeDisabled();
+  });
+
+  test('a source that could not be read is refused, and the contract still shown', async () => {
+    delete mockAccounts[SOURCE];
+    const api = contractsNetworkMock.api;
+    (contractsNetworkMock as any).api = async (path: string) => {
+      if (path === `/accounts/${SOURCE}`) throw new Error('answered 500');
+      return api(path);
+    };
+    try {
+      await fill(SOURCE, NEW_CODE);
+      expect(
+        screen.getByText(/The source could not be read just now/)
+      ).toHaveAttribute('data-tone', 'bad');
+      expect(
+        screen.getByText('The safe owns the contract, so it may upgrade it.')
+      ).toBeInTheDocument();
+      expect(propose()).toBeDisabled();
+    } finally {
+      (contractsNetworkMock as any).api = api;
+    }
+  });
 
   test("control: the release hash, a source in the safe's shard, unchanged metadata: proposed as typed", async () => {
     await fill(SOURCE, NEW_CODE);
