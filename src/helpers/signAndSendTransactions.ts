@@ -7,7 +7,7 @@ import {
   TransactionManager,
   TransactionsDisplayInfoType
 } from 'lib';
-import { api, networkProvider } from 'multisig/network';
+import { api } from 'multisig/network';
 
 type SignAndSendTransactionsProps = {
   transactions: Transaction[];
@@ -117,7 +117,11 @@ export const isLostAnswer = (failure: unknown) =>
 const hashOf = (transaction: Transaction) =>
   new TransactionComputer().computeTransactionHash(transaction);
 
-/** Does the network hold these, by their hash, or by a nonce it has moved past? */
+/**
+ * Does the network hold these? Only the hash says so. An account's nonce moving
+ * past one proves nothing about it: another tab or a phone may have used that
+ * nonce (review of PR #20).
+ */
 const networkHolds = async (signed: Transaction[]) => {
   const answered = await Promise.all(
     signed.map((transaction) =>
@@ -127,13 +131,7 @@ const networkHolds = async (signed: Transaction[]) => {
       )
     )
   );
-  if (answered.every(Boolean)) return true;
-  try {
-    const account = await networkProvider.getAccount(signed[0].sender);
-    return signed.every((transaction) => transaction.nonce < account.nonce);
-  } catch {
-    return false;
-  }
+  return answered.every(Boolean);
 };
 
 // A transaction takes a moment to show up, and a dead API must not hold the page.
@@ -154,6 +152,23 @@ const heldAfterAll = (signed: Transaction[]) =>
     )
   ]);
 
+/** What was sent, as the network would have answered had the answer arrived. */
+const sentWithoutAnswer = (signed: Transaction[]) =>
+  signed.map((transaction) => ({
+    ...transaction.toPlainObject(),
+    hash: hashOf(transaction),
+    status: 'pending'
+  })) as unknown as Sent;
+
+/**
+ * For what sendSigned gave up on and something else then proved delivered: the
+ * transactions count as sent again, with the nonce past them.
+ */
+export const provenSent = (signed: Transaction[]) => {
+  setAccountNonce(Number(signed[signed.length - 1].nonce) + 1);
+  return sentWithoutAnswer(signed);
+};
+
 /**
  * Sends what was signed. If the send fails, the nonce is wound back to it,
  * unless only the answer was lost: a POST accepted and answered after the
@@ -165,11 +180,7 @@ export const sendSigned = async (signed: Transaction[]) => {
     return await TransactionManager.getInstance().send(signed);
   } catch (failure) {
     if (isLostAnswer(failure) && (await heldAfterAll(signed))) {
-      return signed.map((transaction) => ({
-        ...transaction.toPlainObject(),
-        hash: hashOf(transaction),
-        status: 'pending'
-      })) as unknown as Sent;
+      return sentWithoutAnswer(signed);
     }
     windNonceBack(signed);
     throw failure;

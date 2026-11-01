@@ -35,7 +35,8 @@ import { loginAction } from '@multiversx/sdk-dapp/out/store/actions/sharedAction
 import {
   createSafe,
   SafeNotHandedOver,
-  SafeUnconfirmed
+  SafeUnconfirmed,
+  signAction
 } from 'multisig/actions';
 import { predictSafeAddress } from 'multisig/legacyCalls';
 
@@ -56,7 +57,9 @@ jest.mock('@multiversx/sdk-dapp/out/utils/account/fetchAccount', () => ({
 /** What the network holds: the hashes it accepted, and the account's nonce. */
 const chain = {
   accepted: new Set<string>(),
-  nonce: 10
+  nonce: 10,
+  /** The contracts that hold code. */
+  code: new Set<string>()
 };
 const hashOf = (transaction: Transaction) =>
   new TransactionComputer().computeTransactionHash(transaction);
@@ -71,7 +74,13 @@ jest.mock('multisig/network', () => ({
       return { txHash: hash[1], status: 'pending' };
     }
     if (/^\/accounts\//.test(path))
-      return { isGuarded: false, nonce: chain.nonce };
+      return {
+        isGuarded: false,
+        nonce: chain.nonce,
+        codeHash: chain.code.has(path.split('/')[2].split('?')[0])
+          ? 'aGFzaA=='
+          : undefined
+      };
     throw new Error(`${path} answered 404`);
   },
   networkProvider: {
@@ -90,6 +99,10 @@ jest.mock('multisig/network', () => ({
 
 /** How the POST ends: 'late' means accepted, but the answer came after the timeout. */
 const post = {
+  /** Every receiver a POST was attempted for. */
+  to: [] as string[],
+  /** A signature's POST loses its answer while another transaction takes its nonce. */
+  otherTakesNonce: false,
   deploy: 'ok' as 'ok' | 'late' | 'refused' | 'lost' | 'late-unindexed'
 };
 jest.mock('@multiversx/sdk-dapp/out/managers/TransactionManager', () => ({
@@ -97,6 +110,11 @@ jest.mock('@multiversx/sdk-dapp/out/managers/TransactionManager', () => ({
     getInstance: () => ({
       send: async (transactions: Transaction[]) => {
         for (const transaction of transactions) {
+          post.to.push(transaction.receiver.toBech32());
+          if (post.otherTakesNonce) {
+            chain.nonce = Number(transaction.nonce) + 1;
+            throw 'timeout of 4000ms exceeded';
+          }
           const isDeploy =
             transaction.receiver.toBech32() ===
             'erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu';
@@ -167,6 +185,9 @@ beforeEach(() => {
   chain.accepted.clear();
   chain.nonce = CHAIN_NONCE;
   post.deploy = 'ok';
+  post.to = [];
+  post.otherTakesNonce = false;
+  chain.code.clear();
   setAccountNonce(CHAIN_NONCE);
 });
 
@@ -205,8 +226,9 @@ test('the deploy was accepted but its answer came late: the safe is reported, no
   expect(getAccount().nonce).toBeGreaterThanOrEqual(CHAIN_NONCE + 1);
 });
 
-test('the same when the chain has already moved past the deploy by the time it is looked at', async () => {
+test('the API does not show its hash yet, but the predicted address holds code: the safe is reported', async () => {
   post.deploy = 'late-unindexed';
+  chain.code.add(PREDICTED);
   const outcome = await createSafe(alice, { quorum: 1, board: [ALICE] }).then(
     (safe) => ({ safe }),
     (failure) => ({ failure })
@@ -219,6 +241,26 @@ test('the same when the chain has already moved past the deploy by the time it i
         : null;
   expect(reported).toBe(PREDICTED);
   expect(getAccount().nonce).toBeGreaterThanOrEqual(CHAIN_NONCE + 1);
+});
+
+test('the nonce moved past it, with no hash and no code: another transaction took it, so no handover and no success', async () => {
+  post.deploy = 'late-unindexed';
+  const failure = await createSafe(alice, { quorum: 1, board: [ALICE] }).catch(
+    (reason) => reason
+  );
+  expect(failure).toBeInstanceOf(SafeUnconfirmed);
+  expect(failure.safe).toBe(PREDICTED);
+  expect(post.to).not.toContain(PREDICTED);
+}, 15000);
+
+test('an ordinary transaction whose nonce another one took is not reported as sent', async () => {
+  post.otherTakesNonce = true;
+  await expect(signAction(alice, PREDICTED, 7)).rejects.toMatch(/timeout/);
+}, 15000);
+
+test('control: an ordinary transaction whose hash answers is sent, its answer lost or not', async () => {
+  post.deploy = 'ok';
+  await expect(signAction(alice, PREDICTED, 7)).resolves.toBe('session');
 });
 
 test('the answer was lost and the network does not show it: the nonce goes back, and the address is still given', async () => {

@@ -6,6 +6,7 @@ import { Address } from '@multiversx/sdk-core';
 import {
   isLostAnswer,
   nonceToSign,
+  provenSent,
   sendSigned,
   signAndSendTransactions,
   signOnly,
@@ -391,6 +392,16 @@ export class SafeUnconfirmed extends Error {
   }
 }
 
+const holdsCode = async (address: string) => {
+  forget(address);
+  try {
+    const account = await api<{ codeHash?: string }>(`/accounts/${address}`);
+    return Boolean(account?.codeHash);
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Creates a safe and hands it to itself, as one pair of transactions to sign.
  * Returns the new safe's address, which is known before anything is sent: it
@@ -433,7 +444,13 @@ export const createSafe = async (
   try {
     deploySent = (await sendSigned([signed[0]])) as any[];
   } catch (failure) {
-    throw isLostAnswer(failure) ? new SafeUnconfirmed(safe) : failure;
+    if (!isLostAnswer(failure)) throw failure;
+    // The network does not show the deploy. Only code at its address proves it
+    // ran: no handover to an address where no contract will exist, and no word
+    // of success (review of PR #20). After an accepted deploy there is no such
+    // check: its code is not there yet, and the network runs the two in order.
+    if (!(await holdsCode(safe))) throw new SafeUnconfirmed(safe);
+    deploySent = provenSent([signed[0]]) as any[];
   }
   let handOverSent: any[];
   try {
