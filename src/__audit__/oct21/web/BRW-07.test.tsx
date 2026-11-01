@@ -95,9 +95,11 @@ beforeEach(() => {
   (readPendingActions as jest.Mock).mockReset().mockResolvedValue([]);
   (readHistory as jest.Mock).mockReset().mockResolvedValue([]);
   (readUserRole as jest.Mock).mockReset().mockResolvedValue('BoardMember');
-  (readContractInfo as jest.Mock)
-    .mockReset()
-    .mockResolvedValue({ ownerAddress: SAFE, codeHash: 'x', exists: true });
+  (readContractInfo as jest.Mock).mockReset().mockResolvedValue({
+    ownerAddress: SAFE,
+    codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=',
+    exists: true
+  });
   (proposeSendEgld as jest.Mock).mockReset();
 });
 afterEach(() => quiet.mockRestore());

@@ -14,7 +14,11 @@ import {
 import { describeAction, toBigInt } from './describe';
 import { PerformPlan } from './gas';
 import { Check, inspectAction, UpgradeFacts } from './inspect';
-import { legacyAbi } from './legacyCalls';
+import {
+  legacyAbi,
+  MULTISIG_CODE_HASH,
+  normalizeCodeHash
+} from './legacyCalls';
 import { api, cached, chainId, isTransient, networkProvider } from './network';
 
 const contracts = new SmartContractController({
@@ -271,6 +275,8 @@ export interface SafeCard {
   needsViewer?: number | null;
   /** Pending actions with enough signatures, waiting only to be carried out. */
   readyCount?: number | null;
+  /** Whether the code behind this address is the multisig mvxsafe knows. */
+  identity?: SafeIdentity;
 }
 
 /**
@@ -283,9 +289,11 @@ export const readCard = async (
   address: string,
   viewer = ''
 ): Promise<SafeCard> => {
-  const [balances, egldPrice] = await Promise.all([
+  // The account's answer is shared with readBalances: no request more.
+  const [balances, egldPrice, info] = await Promise.all([
     readBalances(address, false),
-    readEgldPrice()
+    readEgldPrice(),
+    readContractInfo(address)
   ]);
   let quorum: number | null = null;
   try {
@@ -309,7 +317,8 @@ export const readCard = async (
     actionCount: null,
     viewer,
     needsViewer: null,
-    readyCount: null
+    readyCount: null,
+    identity: identityOf(info.codeHash)
   };
   if (quorum === null) return card;
 
@@ -702,6 +711,8 @@ export interface ContractInfo {
   codeHash: string;
   /** False when the address holds no contract yet, for example mid-creation. */
   exists: boolean;
+  /** Null when the API did not say. */
+  upgradeable: boolean | null;
 }
 
 /**
@@ -712,12 +723,39 @@ export interface ContractInfo {
 export const readContractInfo = async (
   address: string
 ): Promise<ContractInfo> => {
-  const account = await api<{ ownerAddress?: string; codeHash?: string }>(
-    `/accounts/${address}`
-  );
+  const account = await api<{
+    ownerAddress?: string;
+    codeHash?: string;
+    isUpgradeable?: boolean;
+  }>(`/accounts/${address}`);
   return {
     ownerAddress: account?.ownerAddress ?? '',
     codeHash: account?.codeHash ?? '',
-    exists: Boolean(account?.codeHash)
+    exists: Boolean(account?.codeHash),
+    upgradeable:
+      typeof account?.isUpgradeable === 'boolean' ? account.isUpgradeable : null
   };
+};
+
+/**
+ * Is this the multisig mvxsafe was built for? Everything on a safe's page, the
+ * board, the quorum and every sentence, is decoded for that one code, and any
+ * other contract can answer the same views with anything it likes (audits
+ * SGN-01 and RED-01, 1 Nov 2026). No hash is not a verdict on the code: it
+ * could not be verified.
+ */
+export type SafeIdentity = 'known' | 'other' | 'unverified';
+
+export const identityOf = (codeHash?: string | null): SafeIdentity => {
+  const hash = normalizeCodeHash(codeHash ?? '');
+  if (!hash) return 'unverified';
+  return hash === normalizeCodeHash(MULTISIG_CODE_HASH) ? 'known' : 'other';
+};
+
+/** The same words on the safe's page and on its card in the list. */
+export const IDENTITY_LINE = {
+  other:
+    'This contract does not run the multisig code mvxsafe knows. mvxsafe does not know this code, so what is shown here comes from the contract itself and is only its own word.',
+  unverified:
+    "This contract could not be verified as the multisig mvxsafe knows: the network's API did not give its code hash just now. Until it does, what is shown here comes from the contract itself."
 };

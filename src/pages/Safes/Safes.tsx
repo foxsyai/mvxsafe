@@ -9,6 +9,7 @@ import { clearCache, forget } from 'multisig/network';
 import {
   featuredToken,
   formatUsd,
+  IDENTITY_LINE,
   readCard,
   readUserRole,
   SafeCard
@@ -329,7 +330,8 @@ export const Safes = () => {
           <h1 className='mt-2 text-3xl font-semibold text-white'>Safes</h1>
           <p className='mt-1 text-sm text-[#9AA0A6]'>
             Add any MultiversX multisig to watch it. Connect your wallet and the
-            ones you sit on the board of become yours to act on.
+            ones you sit on the board of, running the multisig mvxsafe knows,
+            become yours to act on.
           </p>
         </div>
         <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:shrink-0 sm:items-center'>
@@ -492,6 +494,18 @@ export const Safes = () => {
                   </dd>
                 </div>
               </dl>
+
+              {/* The same line as the safe's own page, before anyone funds it. */}
+              {card?.identity === 'other' && (
+                <p className='mt-3 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-2 text-xs text-[#F87171]'>
+                  {IDENTITY_LINE.other}
+                </p>
+              )}
+              {card?.identity === 'unverified' && card.quorum !== null && (
+                <p className='mt-3 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-2 text-xs text-[#FBBF24]'>
+                  {IDENTITY_LINE.unverified}
+                </p>
+              )}
 
               {unread.has(safe.address) && (
                 <p className='mt-3 text-xs text-[#FBBF24]'>

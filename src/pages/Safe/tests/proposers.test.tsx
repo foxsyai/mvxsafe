@@ -47,7 +47,7 @@ jest.mock('multisig/reads', () => ({
   readUserRole: jest.fn(),
   readContractInfo: jest.fn(async () => ({
     ownerAddress: SAFE,
-    codeHash: 'x',
+    codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=',
     exists: true
   }))
 }));

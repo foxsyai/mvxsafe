@@ -148,9 +148,11 @@ beforeEach(() => {
   (readOverview as jest.Mock).mockReset().mockResolvedValue(overview);
   (readPendingActions as jest.Mock).mockReset().mockResolvedValue([action]);
   (readHistory as jest.Mock).mockReset().mockResolvedValue([]);
-  (readContractInfo as jest.Mock)
-    .mockReset()
-    .mockResolvedValue({ ownerAddress: SAFE, codeHash: 'x', exists: true });
+  (readContractInfo as jest.Mock).mockReset().mockResolvedValue({
+    ownerAddress: SAFE,
+    codeHash: '9WWFKcUczCmF6LKXc3TJCUF+0H77krHer4ABN/XCWGE=',
+    exists: true
+  });
   (readCard as jest.Mock).mockReset().mockResolvedValue(card);
   (readUserRole as jest.Mock).mockReset();
 });

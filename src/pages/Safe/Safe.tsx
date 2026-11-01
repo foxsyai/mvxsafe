@@ -12,19 +12,26 @@ import {
   signAction,
   unsignAction
 } from 'multisig/actions';
-import { normalizeBech32 } from 'multisig/legacyCalls';
+import {
+  MULTISIG_CODE_HASH,
+  normalizeBech32,
+  normalizeCodeHash
+} from 'multisig/legacyCalls';
 import { clearCache, explorerUrl, forget } from 'multisig/network';
 import {
   ContractInfo,
   featuredToken,
   formatUsd,
   HistoryEntry,
+  IDENTITY_LINE,
+  identityOf,
   PendingAction,
   readContractInfo,
   readHistory,
   readOverview,
   readPendingActions,
   readUserRole,
+  SafeIdentity,
   SafeOverview
 } from 'multisig/reads';
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
@@ -81,6 +88,9 @@ const SafeView = ({ address }: { address: string }) => {
   const [stuck, setStuck] = useState(false);
   const [problem, setProblem] = useState('');
   const [contract, setContract] = useState<ContractInfo | null>(null);
+  // True when the last read of the contract's own account failed.
+  const [codeFailed, setCodeFailed] = useState(false);
+  const [codeChecking, setCodeChecking] = useState(false);
   const [handingOver, setHandingOver] = useState(false);
   // True while the propose form waits for the wallet.
   const [proposing, setProposing] = useState(false);
@@ -144,15 +154,54 @@ const SafeView = ({ address }: { address: string }) => {
   // read, answering last, used to become the NEW wallet's role: a stranger was
   // told "a board member here" and shown Sign (web audit BRW-01, 21 Oct 2026).
   const generation = useRef(0);
+
+  // The code behind this address, read on its own, one request. Nothing can be
+  // signed until there is an answer, so a read that failed, or an answer with
+  // no hash, is asked again by itself: 5 s, 10 s, then every 30 s. A hash read
+  // once stays: a contract does not lose its code, and a moment of a flaky API
+  // must not take the buttons from a safe already known.
+  const codeRound = useRef(0);
+  const codeRetries = useRef(0);
+  const hashRead = useRef(false);
+  const checkCode = useCallback(
+    async function again(): Promise<void> {
+      const mine = ++codeRound.current;
+      const current = () => alive.current && codeRound.current === mine;
+      setCodeChecking(true);
+      try {
+        const info = await readContractInfo(address);
+        if (!current()) return;
+        setCodeFailed(false);
+        if (info.exists) hashRead.current = true;
+        if (info.exists || !hashRead.current) setContract(info);
+      } catch {
+        if (!current()) return;
+        setCodeFailed(true);
+      }
+      setCodeChecking(false);
+      if (hashRead.current) {
+        codeRetries.current = 0;
+        return;
+      }
+      const delay = Math.min(30000, 5000 * Math.pow(2, codeRetries.current++));
+      timers.current.push(
+        setTimeout(() => {
+          if (!current()) return;
+          forget(address);
+          again();
+        }, delay)
+      );
+    },
+    [address]
+  );
+
   const load = useCallback(async (): Promise<boolean> => {
     if (!alive.current) return false;
     const mine = ++generation.current;
     const current = () => alive.current && generation.current === mine;
     setLoading(true);
     let fresh = true;
-    readContractInfo(address)
-      .then((info) => current() && setContract(info))
-      .catch(() => undefined);
+    const codeChecked = checkCode();
     try {
       const next = await readOverview(address);
       if (current()) {
@@ -190,6 +239,7 @@ const SafeView = ({ address }: { address: string }) => {
     } catch {
       // Unknown stays unknown: never "not on this board" for a refused read.
     }
+    await codeChecked;
     // A newer load is under way and decides what the page shows. Not "fresh":
     // what this one read is not on the page, and the processed signal would
     // release the buttons over the state from before the transaction (third
@@ -213,7 +263,7 @@ const SafeView = ({ address }: { address: string }) => {
       staleRetries.current = 0;
     }
     return fresh;
-  }, [address, isLoggedIn, account.address]);
+  }, [address, isLoggedIn, account.address, checkCode]);
   loadRef.current = load;
 
   // A different safe or a different wallet: what was known about the role no
@@ -283,6 +333,14 @@ const SafeView = ({ address }: { address: string }) => {
 
   const ownsItself = !contract?.exists || contract.ownerAddress === address;
   const youOwnIt = isLoggedIn && contract?.ownerAddress === account.address;
+  // Every sentence on this page is decoded for one code. From any other it is
+  // the contract's own word, so there is no override (SGN-01, RED-01).
+  const identity: SafeIdentity | null = contract
+    ? identityOf(contract.codeHash)
+    : codeFailed
+      ? 'unverified'
+      : null;
+  const held = identity !== 'known';
 
   // The same rules as run: one prompt at a time, and "Sent" only when it was.
   const handOver = async () => {
@@ -364,14 +422,32 @@ const SafeView = ({ address }: { address: string }) => {
                 {role === null
                   ? 'being checked against this board'
                   : role === 'BoardMember'
-                    ? 'a board member here: you can propose, sign and carry out actions'
+                    ? identity === 'other' || identity === 'unverified'
+                      ? "a board member here by this contract's own word, and nothing can be signed"
+                      : 'a board member here: you can propose, sign and carry out actions'
                     : role === 'Proposer'
-                      ? 'a proposer here: you can propose, but not sign'
+                      ? identity === 'other' || identity === 'unverified'
+                        ? "a proposer here by this contract's own word, and nothing can be proposed"
+                        : 'a proposer here: you can propose, but not sign'
                       : 'not on this board, so you can only look'}
               </span>
               .
             </p>
           )}
+          {identity === 'known' &&
+            ownsItself &&
+            contract?.upgradeable === true && (
+              <p className='mt-2 text-xs text-[#6B7280]'>
+                Upgradeable: its board can replace it by a vote.
+              </p>
+            )}
+          {identity === 'known' &&
+            ownsItself &&
+            contract?.upgradeable === false && (
+              <p className='mt-2 text-xs text-[#6B7280]'>
+                Fixed for good: nobody can replace it, its board included.
+              </p>
+            )}
         </div>
         <Tip text='Reads everything from the chain again, ignoring what was remembered.'>
           <button
@@ -401,6 +477,41 @@ const SafeView = ({ address }: { address: string }) => {
           </p>
         ))}
 
+      {identity === 'other' && (
+        <div className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
+          <p className='font-semibold'>{IDENTITY_LINE.other}</p>
+          <p className='mt-2'>
+            Nothing can be signed, carried out, discarded or proposed from this
+            page, and do not send it funds on the strength of it.
+          </p>
+          <p className='mt-2 font-mono text-xs [overflow-wrap:anywhere]'>
+            Its code hash is {normalizeCodeHash(contract?.codeHash ?? '')}. The
+            multisig's is {normalizeCodeHash(MULTISIG_CODE_HASH)}.
+          </p>
+        </div>
+      )}
+
+      {identity === 'unverified' && overview && overview.quorum !== null && (
+        <div className='mt-6 rounded-lg border border-[#FBBF24]/30 bg-[#FBBF24]/5 p-4 text-sm text-[#FBBF24]'>
+          <p>{IDENTITY_LINE.unverified}</p>
+          <p className='mt-2'>
+            Nothing can be signed, carried out, discarded or proposed until
+            then. This page asks again by itself.{' '}
+            <button
+              type='button'
+              disabled={codeChecking}
+              onClick={() => {
+                forget(address);
+                checkCode();
+              }}
+              className='font-semibold underline disabled:opacity-50'
+            >
+              {codeChecking ? 'Checking...' : 'Check again'}
+            </button>
+          </p>
+        </div>
+      )}
+
       {!ownsItself && (
         <div className='mt-6 rounded-lg border border-[#F87171]/40 bg-[#F87171]/10 p-4 text-sm text-[#F87171]'>
           <p>
@@ -412,11 +523,11 @@ const SafeView = ({ address }: { address: string }) => {
             short={false}
             className='mt-2 text-xs'
           />
-          {youOwnIt ? (
+          {identity === 'other' ? null : youOwnIt ? (
             <div className='mt-3 flex flex-wrap items-center gap-3'>
               <button
                 type='button'
-                disabled={walletOpen || awaiting}
+                disabled={walletOpen || awaiting || held}
                 onClick={handOver}
                 className='rounded-lg bg-[#FF6E0A] px-4 py-2 text-xs font-semibold text-black hover:bg-[#ff8534] disabled:opacity-50'
               >
@@ -640,7 +751,7 @@ const SafeView = ({ address }: { address: string }) => {
                           <Tip text='Takes your approval back. Possible for as long as the action is still waiting.'>
                             <button
                               type='button'
-                              disabled={walletOpen || stale || awaiting}
+                              disabled={walletOpen || stale || awaiting || held}
                               onClick={() =>
                                 run(action.actionId, () =>
                                   unsignAction(signer, address, action.actionId)
@@ -657,7 +768,11 @@ const SafeView = ({ address }: { address: string }) => {
                             <button
                               type='button'
                               disabled={
-                                walletOpen || stale || awaiting || codeUnread
+                                walletOpen ||
+                                stale ||
+                                awaiting ||
+                                codeUnread ||
+                                held
                               }
                               onClick={() =>
                                 run(action.actionId, () =>
@@ -680,6 +795,7 @@ const SafeView = ({ address }: { address: string }) => {
                               stale ||
                               awaiting ||
                               codeUnread ||
+                              held ||
                               Boolean(gas.problem)
                             }
                             onClick={() =>
@@ -712,6 +828,7 @@ const SafeView = ({ address }: { address: string }) => {
                             walletOpen ||
                             stale ||
                             awaiting ||
+                            held ||
                             action.signerCount > 0
                           }
                           onClick={() =>
@@ -743,15 +860,17 @@ const SafeView = ({ address }: { address: string }) => {
           boardMembers={overview.boardMembers}
           proposers={overview.proposers ?? []}
           quorum={overview.quorum}
-          disabled={working !== 0 || handingOver || stale || awaiting}
+          disabled={working !== 0 || handingOver || stale || awaiting || held}
           disabledReason={
-            awaiting
-              ? 'Waiting for the network to confirm the last transaction; this unlocks by itself.'
-              : stale
-                ? 'The network did not answer the last read; this unlocks as soon as it does.'
-                : working !== 0 || handingOver
-                  ? 'Another transaction is waiting for your wallet.'
-                  : undefined
+            held
+              ? 'Held: read the line at the top of this page.'
+              : awaiting
+                ? 'Waiting for the network to confirm the last transaction; this unlocks by itself.'
+                : stale
+                  ? 'The network did not answer the last read; this unlocks as soon as it does.'
+                  : working !== 0 || handingOver
+                    ? 'Another transaction is waiting for your wallet.'
+                    : undefined
           }
           onBusyChange={setProposing}
           onProposed={(sent) => {
