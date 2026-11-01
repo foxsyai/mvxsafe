@@ -713,9 +713,12 @@ export const inspectCall = async (
   }
 
   // Measured on the ESDT system contract (TXB-01). The network charges the
-  // delegation manager the same 50M. A delegation contract is charged 1M, so it is
-  // not told it needs that much nor stopped from going lower (review of PR #20).
-  const systemCall = to === ESDT_SYSTEM_SC || to === DELEGATION_MANAGER_SC;
+  // delegation manager the same 50M to create a contract, and 500M to convert a
+  // validator. A delegation contract is charged 1M. So only the first two are told
+  // this need, and the rest are not stopped from going lower (review of PR #20).
+  const systemCall =
+    to === ESDT_SYSTEM_SC ||
+    (to === DELEGATION_MANAGER_SC && called === 'createNewDelegationContract');
   const perform = performPlan({ name, callNeed, hasFunction, systemCall });
   if (systemCall && !perform.simulate && !perform.known) {
     const contract =

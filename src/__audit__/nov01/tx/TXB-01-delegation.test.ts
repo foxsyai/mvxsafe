@@ -109,6 +109,28 @@ test('the delegation manager, not tried, gets the same need and floor', async ()
   expect(performGas(perform, '26500000').budget === undefined).toBe(true);
 });
 
+// The manager's validator conversions cost ValidatorToDelegation, 500M, so the
+// figure above would be a confident wrong one: nothing is claimed for them.
+test('the validator conversions of the delegation manager are told no 50.5M', async () => {
+  offline();
+  const manager = new Address(
+    Uint8Array.from(
+      Buffer.from(`00000000000000000001${'00'.repeat(18)}0004ffff`, 'hex')
+    )
+  ).toBech32();
+  for (const endpoint of [
+    'makeNewContractFromValidatorData',
+    'mergeValidatorToDelegationSameOwner'
+  ]) {
+    const { checks, perform } = await inspectAction(
+      call(manager, endpoint),
+      SAFE
+    );
+    expect(checks.some((check) => /needs about/.test(check.text))).toBe(false);
+    expect((perform as any).systemCall).toBeUndefined();
+  }
+});
+
 test('control: the ESDT system contract keeps the need and the floor TXB-01 proved', async () => {
   offline();
   const { checks, perform } = await inspectAction(
