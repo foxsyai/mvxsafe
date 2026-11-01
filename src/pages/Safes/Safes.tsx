@@ -20,6 +20,7 @@ import {
   getAllSafes,
   importSafes,
   isValidSafeAddress,
+  nameInUse,
   removeSafe
 } from 'multisig/savedSafes';
 
@@ -270,6 +271,12 @@ export const Safes = () => {
       setError('That does not look like a MultiversX address.');
       return;
     }
+    if (newName.trim() && nameInUse(newName)) {
+      setError(
+        'A safe in your list already goes by that name. Choose another, so the two cannot be mistaken.'
+      );
+      return;
+    }
     addSafe({ name: newName.trim() || 'Safe', address });
     setNewAddress('');
     setNewName('');
@@ -297,12 +304,12 @@ export const Safes = () => {
     setError('');
     setNotice('');
     try {
-      const { added, skipped } = importSafes(await file.text());
+      const { added, skipped, renamed } = importSafes(await file.text());
       setSafes(getAllSafes());
       setNotice(
         added === 0 && skipped === 0
           ? 'That file held nothing to add.'
-          : `Added ${added}${skipped ? `, skipped ${skipped} already here or invalid` : ''}.`
+          : `Added ${added}${skipped ? `, skipped ${skipped} already here or invalid` : ''}.${renamed ? ` ${renamed} had a name already in use, and ${renamed === 1 ? 'is' : 'are'} marked "(imported)".` : ''}`
       );
     } catch (failure: any) {
       setError(failure?.message ?? 'That file could not be read.');

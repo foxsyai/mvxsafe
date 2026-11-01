@@ -25,7 +25,8 @@ export const isValidSafeAddress = (address: string) => {
 // A safe's name follows the rule of every other name: it travels in the export
 // file too, and slipped past it with direction overrides, zero-width
 // characters and lookalikes (web audit BRW-06, 21 Oct 2026).
-const nameOf = (value: unknown) => safeLabel(value, 60) || 'Safe';
+const NAME_LENGTH = 60;
+const nameOf = (value: unknown) => safeLabel(value, NAME_LENGTH) || 'Safe';
 
 /**
  * Only what a list of safes can contain: a name and a valid address, each once.
@@ -44,6 +45,37 @@ const clean = (value: unknown): KnownSafe[] => {
     safes.push({ name: nameOf(entry.name), address });
   }
   return safes;
+};
+
+const nameKey = (name: string) => name.toLowerCase().replace(/\s+/g, ' ');
+
+/**
+ * A name no safe in the list has. Two cards called Treasury differ only in a few
+ * characters of an address, and the copy button on the wrong one copies a
+ * stranger's safe (redteam RED-05, 1 Nov 2026). The mark goes inside the length a
+ * name may have, or reading the list back would cut it off again.
+ */
+const freeName = (
+  name: string,
+  list: KnownSafe[],
+  mark: (attempt: number) => string
+): string => {
+  const taken = new Set(list.map((safe) => nameKey(safe.name)));
+  if (!taken.has(nameKey(name))) return name;
+  for (let attempt = 1; ; attempt++) {
+    const suffix = mark(attempt);
+    const candidate = `${Array.from(name)
+      .slice(0, NAME_LENGTH - suffix.length)
+      .join('')
+      .trimEnd()}${suffix}`;
+    if (!taken.has(nameKey(candidate))) return candidate;
+  }
+};
+
+/** True when a safe in the list already goes by this name. */
+export const nameInUse = (name: string) => {
+  const key = nameKey(nameOf(name));
+  return getAllSafes().some((safe) => nameKey(safe.name) === key);
 };
 
 const read = (): KnownSafe[] => {
@@ -74,7 +106,10 @@ export const addSafe = (safe: KnownSafe) => {
   const address = normalizeBech32(safe.address);
   if (!isValidSafeAddress(address)) return;
   if (saved.some((entry) => entry.address === address)) return;
-  write([...saved, { name: nameOf(safe.name), address }]);
+  const name = freeName(nameOf(safe.name), saved, (attempt) =>
+    attempt === 1 ? ' (2)' : ` (${attempt + 1})`
+  );
+  write([...saved, { name, address }]);
 };
 
 export const removeSafe = (address: string) => {
@@ -103,7 +138,7 @@ export const exportSafes = (): string =>
  */
 export const importSafes = (
   text: string
-): { added: number; skipped: number } => {
+): { added: number; skipped: number; renamed?: number } => {
   let parsed: any;
   try {
     parsed = JSON.parse(text);
@@ -121,6 +156,7 @@ export const importSafes = (
   const known = new Set(list.map((safe) => safe.address));
   let added = 0;
   let skipped = 0;
+  let renamed = 0;
   for (const entry of incoming) {
     const address =
       typeof entry?.address === 'string' ? normalizeBech32(entry.address) : '';
@@ -133,9 +169,14 @@ export const importSafes = (
       continue;
     }
     known.add(address);
-    list.push({ name: nameOf(entry?.name), address });
+    const wanted = nameOf(entry?.name);
+    const name = freeName(wanted, list, (attempt) =>
+      attempt === 1 ? ' (imported)' : ` (imported ${attempt})`
+    );
+    if (name !== wanted) renamed++;
+    list.push({ name, address });
     added++;
   }
   if (added > 0) write(list);
-  return { added, skipped };
+  return renamed > 0 ? { added, skipped, renamed } : { added, skipped };
 };
