@@ -4,6 +4,7 @@
 
 import { Address } from '@multiversx/sdk-core';
 import {
+  isLostAnswer,
   nonceToSign,
   sendSigned,
   signAndSendTransactions,
@@ -378,6 +379,19 @@ export class SafeNotHandedOver extends Error {
 }
 
 /**
+ * The deploy's answer was lost and the network did not show it when asked
+ * again. It may still be on its way, so its address is not dropped (TXB-03).
+ */
+export class SafeUnconfirmed extends Error {
+  constructor(public safe: string) {
+    super(
+      `Creating the safe may still have gone through: the network's answer was lost, and it did not show the transaction when asked again. If it went through, the safe is at ${safe}, in your wallet's hands until you hand it to itself. It is in your list: open it and check before creating another.`
+    );
+    this.name = 'SafeUnconfirmed';
+  }
+}
+
+/**
  * Creates a safe and hands it to itself, as one pair of transactions to sign.
  * Returns the new safe's address, which is known before anything is sent: it
  * follows from the sender and the nonce of the deploy.
@@ -415,7 +429,12 @@ export const createSafe = async (
   // already accepted. A refused handover then looked like nothing was sent,
   // while the safe was created and left in the deployer's hands, at an address
   // the person was never shown (tx audit TXN-02, 21 Oct 2026).
-  const deploySent = (await sendSigned([signed[0]])) as any[];
+  let deploySent: any[];
+  try {
+    deploySent = (await sendSigned([signed[0]])) as any[];
+  } catch (failure) {
+    throw isLostAnswer(failure) ? new SafeUnconfirmed(safe) : failure;
+  }
   let handOverSent: any[];
   try {
     handOverSent = (await sendSigned([signed[1]])) as any[];

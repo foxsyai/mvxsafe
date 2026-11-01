@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ConnectButton } from 'components/ConnectButton';
 import { Info, Tip } from 'components/Info';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
-import { createSafe, SafeNotHandedOver } from 'multisig/actions';
+import {
+  createSafe,
+  SafeNotHandedOver,
+  SafeUnconfirmed
+} from 'multisig/actions';
 import { checkBoard, majority, MAX_BOARD } from 'multisig/newSafe';
 import { addSafe } from 'multisig/savedSafes';
 import { explainWalletFailure } from 'multisig/walletFailure';
@@ -82,6 +86,13 @@ export const Create = () => {
         navigate(`/safe/${failure.safe}`, {
           state: { creating: true, handOverRefused: true }
         });
+        return;
+      }
+      // It may exist: its address stays, to be looked at (TXB-03).
+      if (failure instanceof SafeUnconfirmed) {
+        addSafe({ name: name.trim() || 'New safe', address: failure.safe });
+        setProblem(failure.message);
+        setBusy(false);
         return;
       }
       setProblem(explainWalletFailure(failure, 'Creating the safe'));

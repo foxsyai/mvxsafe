@@ -3,9 +3,11 @@ import {
   getAccountProvider,
   getLatestNonce,
   Transaction,
+  TransactionComputer,
   TransactionManager,
   TransactionsDisplayInfoType
 } from 'lib';
+import { api, networkProvider } from 'multisig/network';
 
 type SignAndSendTransactionsProps = {
   transactions: Transaction[];
@@ -106,11 +108,69 @@ export const signOnly = async (transactions: Transaction[]) => {
   return signed;
 };
 
-/** Sends what was signed. If the send fails, the nonce is wound back to it. */
+/** The request ended without the network's answer, which is no answer at all. */
+export const isLostAnswer = (failure: unknown) =>
+  /timeout|timed out|network ?error|failed to fetch|socket hang up|ECONN/i.test(
+    String((failure as any)?.message ?? failure ?? '')
+  );
+
+const hashOf = (transaction: Transaction) =>
+  new TransactionComputer().computeTransactionHash(transaction);
+
+/** Does the network hold these, by their hash, or by a nonce it has moved past? */
+const networkHolds = async (signed: Transaction[]) => {
+  const answered = await Promise.all(
+    signed.map((transaction) =>
+      api(`/transactions/${hashOf(transaction)}`).then(
+        () => true,
+        () => false
+      )
+    )
+  );
+  if (answered.every(Boolean)) return true;
+  try {
+    const account = await networkProvider.getAccount(signed[0].sender);
+    return signed.every((transaction) => transaction.nonce < account.nonce);
+  } catch {
+    return false;
+  }
+};
+
+// A transaction takes a moment to show up, and a dead API must not hold the page.
+const LOOK_AFTER_MS = [0, 1500, 3000];
+const LOOK_AT_MOST_MS = 20000;
+
+const heldAfterAll = (signed: Transaction[]) =>
+  Promise.race([
+    (async () => {
+      for (const delay of LOOK_AFTER_MS) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        if (await networkHolds(signed)) return true;
+      }
+      return false;
+    })(),
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(false), LOOK_AT_MOST_MS)
+    )
+  ]);
+
+/**
+ * Sends what was signed. If the send fails, the nonce is wound back to it,
+ * unless only the answer was lost: a POST accepted and answered after the
+ * timeout read as never sent, and a new safe was forgotten at an address nobody
+ * wrote down (tx audit TXB-03, 1 Nov 2026). The network is asked first.
+ */
 export const sendSigned = async (signed: Transaction[]) => {
   try {
     return await TransactionManager.getInstance().send(signed);
   } catch (failure) {
+    if (isLostAnswer(failure) && (await heldAfterAll(signed))) {
+      return signed.map((transaction) => ({
+        ...transaction.toPlainObject(),
+        hash: hashOf(transaction),
+        status: 'pending'
+      })) as unknown as Sent;
+    }
     windNonceBack(signed);
     throw failure;
   }
