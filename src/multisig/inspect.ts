@@ -159,6 +159,8 @@ export interface UpgradeFacts {
   targetHash: string | null;
   sourceUnread?: boolean;
   targetUnread?: boolean;
+  /** The source's code was read and has no upgrade function: the upgrade cannot succeed. */
+  noUpgradeFunction?: boolean;
   sourceShard: number;
   safeShard: number;
 }
@@ -385,6 +387,7 @@ export const inspectUpgrade = async (
         : (targetFacts?.codeHash ?? null),
       sourceUnread: !sourceFacts || sourceFacts.codeUnread || sourceMalformed,
       targetUnread: !targetFacts || targetFacts.codeUnread,
+      noUpgradeFunction: sourceFacts?.exportsUpgrade === false,
       sourceShard,
       safeShard
     },

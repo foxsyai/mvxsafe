@@ -39,7 +39,9 @@ import { connectAs, renderSafe } from '../../display/renderSafe';
 const SOURCE = 'erd1qqqqqqqqqqqqqpgqsy2ept5xx2cprx3htj0l5lwkk52hh9amxezsygtpgl';
 const TARGET = 'erd1qqqqqqqqqqqqqpgqntmhxqa29ar4juhlprjjxaq790ykcj3uaujq2l9dzg';
 
-const CODE = '0061736d01000000';
+// A minimal wasm exporting init and upgrade.
+const CODE =
+  '0061736d01000000010401600000030302000007120204696e69740000077570677261646500010a070202000b02000b';
 const codeHash = Buffer.from(
   codeHashOf(Uint8Array.from(Buffer.from(CODE, 'hex'))),
   'hex'

@@ -676,6 +676,10 @@ const SafeView = ({ address }: { address: string }) => {
               const codeUnread = Boolean(
                 action.upgrade?.sourceUnread || action.upgrade?.targetUnread
               );
+              // Nor one whose source has no upgrade function: it fails after the
+              // signatures and uses the action up. Discard stays, to clear it
+              // (FND-04, 1 Nov 2026).
+              const cannotUpgrade = Boolean(action.upgrade?.noUpgradeFunction);
               return (
                 // Orange, unlike every other card: something is waiting here.
                 <div key={action.actionId} className={pendingCard}>
@@ -772,6 +776,7 @@ const SafeView = ({ address }: { address: string }) => {
                                 stale ||
                                 awaiting ||
                                 codeUnread ||
+                                cannotUpgrade ||
                                 held
                               }
                               onClick={() =>
@@ -795,6 +800,7 @@ const SafeView = ({ address }: { address: string }) => {
                               stale ||
                               awaiting ||
                               codeUnread ||
+                              cannotUpgrade ||
                               held ||
                               Boolean(gas.problem)
                             }
