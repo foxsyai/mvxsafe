@@ -89,6 +89,8 @@ export interface PendingAction {
    * carried out.
    */
   unreadable?: boolean;
+  /** For a membership action: the address it gives a role or takes one from. */
+  subject?: string;
   /** Signatures that count: only from addresses on the board today. */
   signerCount: number;
   /** Everyone who signed and still sits on the board. */
@@ -560,11 +562,95 @@ const pendingEntry = async (
     checks: inspection.checks,
     upgrade: inspection.upgrade,
     perform: inspection.perform,
+    subject: MEMBERSHIP_ACTIONS.has(String(data?.name ?? data?.type ?? ''))
+      ? asAddress(data?.fields?.[0])
+      : undefined,
     signerCount: signers.length,
     signers,
     formerSigners: everyone.filter((signer) => !board.has(signer)),
     quorumReached: signers.length >= (state.quorum ?? Number.MAX_SAFE_INTEGER)
   };
+};
+
+const MEMBERSHIP_ACTIONS = new Set([
+  'AddBoardMember',
+  'AddProposer',
+  'RemoveUser'
+]);
+
+const listIds = (actions: PendingAction[]) => {
+  const ids = actions.map((action) => `#${action.actionId}`);
+  return ids.length > 1
+    ? `${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`
+    : ids[0];
+};
+
+/**
+ * A signature is kept against the signer's id, whatever role they hold later,
+ * and the contract counts the ids on the board today. So a former member's old
+ * signatures stop counting while they are off the board, and all come back the
+ * moment they are given a seat again, promotion from proposer included. That
+ * can be the last step to a quorum, and the card of the action giving the seat
+ * says so (audit FND-01, proven on devnet, 1 Nov 2026). It looks through the
+ * actions it was given.
+ */
+const withSeatChecks = (
+  entries: PendingAction[],
+  state: { quorum: number | null; boardMembers: string[] }
+): PendingAction[] => {
+  const quorum = state.quorum ?? Number.MAX_SAFE_INTEGER;
+  return entries.map((entry) => {
+    const who = entry.subject;
+    if (!who) return entry;
+    const others = entries.filter((other) => other.actionId !== entry.actionId);
+    const onBoard = state.boardMembers.includes(who);
+    let check: Check | null = null;
+    if (entry.name === 'AddBoardMember' && !onBoard) {
+      const revived = others.filter((other) =>
+        other.formerSigners.includes(who)
+      );
+      if (revived.length > 0) {
+        const tally = revived
+          .map(
+            (other) =>
+              `#${other.actionId} then has ${other.signerCount + 1} of ${quorum} signatures`
+          )
+          .join(', ');
+        const ready = revived.filter(
+          (other) => !other.quorumReached && other.signerCount + 1 >= quorum
+        );
+        check = {
+          tone: ready.length > 0 ? 'bad' : 'warn',
+          text:
+            `${who} signed ${listIds(revived)} before leaving the board. ` +
+            `${revived.length > 1 ? 'Those signatures count' : 'That signature counts'} again once this is carried out: ${tally}.` +
+            (ready.length > 0
+              ? ` ${listIds(ready)} could then be carried out at once.`
+              : '')
+        };
+      }
+    } else if (entry.name !== 'AddBoardMember' && onBoard) {
+      const signed = others.filter((other) => other.signers.includes(who));
+      if (signed.length > 0) {
+        const tally = signed
+          .map(
+            (other) =>
+              `#${other.actionId} then has ${other.signerCount - 1} of ${quorum} signatures`
+          )
+          .join(', ');
+        check = {
+          tone: 'warn',
+          text:
+            `${who} signed ${listIds(signed)}. ` +
+            `${signed.length > 1 ? 'Those signatures stop' : 'That signature stops'} counting once this is carried out: ${tally}. ` +
+            `They are not erased: if ${who} is given a board seat again, they count again on whatever is still pending.`
+        };
+      }
+    }
+    return check
+      ? { ...entry, checks: [...(entry.checks ?? []), check] }
+      : entry;
+  });
 };
 
 /**
@@ -671,7 +757,10 @@ export const readPendingActions = async (
     );
   } catch (bulkError) {
     try {
-      return await readPendingOneByOne(address, state as any);
+      return withSeatChecks(
+        await readPendingOneByOne(address, state as any),
+        state
+      );
     } catch {
       throw bulkError;
     }
@@ -680,16 +769,19 @@ export const readPendingActions = async (
     Array.isArray(pending) ? pending : pending ? [pending] : []
   ).filter(Boolean);
 
-  return Promise.all(
-    list.map((action: any) =>
-      pendingEntry(
-        address,
-        state as any,
-        asNumber(action.action_id ?? action.actionId),
-        action.action_data ?? action.actionData,
-        action.signers ?? []
+  return withSeatChecks(
+    await Promise.all(
+      list.map((action: any) =>
+        pendingEntry(
+          address,
+          state as any,
+          asNumber(action.action_id ?? action.actionId),
+          action.action_data ?? action.actionData,
+          action.signers ?? []
+        )
       )
-    )
+    ),
+    state
   );
 };
 
