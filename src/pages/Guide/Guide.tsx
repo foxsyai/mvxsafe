@@ -255,9 +255,12 @@ export const Guide = () => (
         A safe can own other contracts. Only a vote of its board can change
         those. Call a contract has the safe call one of a contract's functions,
         to set a fee or pause it for example. The form shows the sentence the
-        signers will read and tries the call as the safe would send it, so a
-        call the contract refuses is not proposed. A call on the safe itself is
-        refused too: it would act with all of the board's authority.
+        signers will read and tries the call as the safe would send it. A call
+        that fails the try is not proposed. But a call cannot always be tried in
+        advance, for example on a contract in another shard. The action then
+        says so in amber and may still fail when it is carried out, so read that
+        line before signing. A call on the safe itself is refused: it would act
+        with all of the board's authority.
         <Shot
           src='/shots/19-call-form.jpg'
           caption='A call on a contract the safe owns: what the signers will read and the result of trying it.'

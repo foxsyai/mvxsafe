@@ -47,6 +47,12 @@ describe('The guide', () => {
     expect(text).toContain('Upgrade a contract');
   });
 
+  it('does not promise that every proposed call was proven to work', () => {
+    const text = guide().textContent;
+    expect(text).not.toContain('a call the contract refuses is not proposed');
+    expect(text).toContain('cannot always be tried in advance');
+  });
+
   it('explains how a long list of actions is read', () => {
     const text = guide().textContent;
     expect(text).toContain('Go to action #');
