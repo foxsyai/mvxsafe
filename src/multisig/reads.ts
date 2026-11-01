@@ -123,8 +123,10 @@ export interface PendingAction {
 export interface PendingCoverage {
   /** How many are waiting in all. Null until that is known. */
   pendingCount: number | null;
-  /** Known to be waiting, older than the cards in the list. */
+  /** Known to be waiting, and not among the cards in the list. */
   olderKnown: number;
+  /** How many of those carry a signature that counts. */
+  signedNotShown: number;
   /** Action numbers older than the cards in the list, not read at all. */
   olderUnread: number;
   /** True when the contract could not list them in one piece. */
@@ -811,8 +813,13 @@ const SCAN_PASS = 300;
 /** How many cards one read brings: the newest, and "load more" for the rest. */
 export const PENDING_PAGE = 20;
 
+/** The order of a list the contract returned whole: a signature first, then the newest. */
+export const signedFirst = (a: PendingAction, b: PendingAction) =>
+  Number(b.signerCount > 0) - Number(a.signerCount > 0) ||
+  b.actionId - a.actionId;
+
 export interface PendingReadOptions {
-  /** Read only the actions older than this number. */
+  /** One by one: read only the actions older than this number. */
   before?: number;
   /** How many cards to bring. */
   limit?: number;
@@ -894,6 +901,7 @@ const readPendingOneByOne = async (
       coverage: {
         pendingCount: olderUnread === 0 && !interrupted ? all.length : null,
         olderKnown: 0,
+        signedNotShown: 0,
         olderUnread,
         oneByOne: true,
         nextBefore: id + 1,
@@ -1006,20 +1014,28 @@ export const readPendingActions = async (
     }
   }
 
-  const { before, limit = PENDING_PAGE, known = [], onProgress } = options;
+  const { limit = PENDING_PAGE, known = [], onProgress } = options;
   // Everything but the sentences costs nothing, so signatures on actions that
   // are not on the page still count on the cards that are.
   const all = bulkFacts(pending, state as any);
-  const waiting = all.filter(
-    (action) => before === undefined || action.actionId < before
-  );
-  const page = waiting.slice(-limit);
+  // Those with a signature that counts come first, then the newest. A rogue
+  // proposer cannot sign, so a flood cannot bury a real vote; a rogue board
+  // member can sign his own junk, and the statement on the page still counts it.
+  const shown = new Set(known.map((card) => card.actionId));
+  const waiting = all
+    .filter((action) => !shown.has(action.actionId))
+    .sort(signedFirst);
+  const page = waiting.slice(0, limit);
+  const rest = waiting.slice(limit);
   const coverage: PendingCoverage = {
     pendingCount: all.length,
-    olderKnown: waiting.length - page.length,
+    olderKnown: rest.length,
+    signedNotShown: rest.filter((action) => action.signerCount > 0).length,
     olderUnread: 0,
     oneByOne: false,
-    nextBefore: page[0]?.actionId ?? before ?? 0,
+    // Should the view fail later, one by one goes on from the newest not shown.
+    nextBefore:
+      rest.reduce((top, action) => Math.max(top, action.actionId), 0) + 1,
     interrupted: false
   };
   const cards: PendingAction[] = [];

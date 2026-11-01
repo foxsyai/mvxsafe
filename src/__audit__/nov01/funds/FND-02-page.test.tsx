@@ -122,11 +122,7 @@ test('a poison on a small safe: every number read, so the list says it is whole'
 test('the bulk view works: the count is the whole list, the page the newest', async () => {
   configure({ count: 150, bulkFails: false });
   renderPage();
-  await screen.findByText(
-    /Showing the newest 20 of 150/,
-    {},
-    { timeout: 20000 }
-  );
+  await screen.findByText(/Showing 20 of 150/, {}, { timeout: 20000 });
   expect(cardIds()[0]).toBe(150);
   expect(screen.getByText('150')).toBeTruthy();
   expect(statementOf()).toBeNull();
@@ -136,11 +132,7 @@ test('the bulk view works: the count is the whole list, the page the newest', as
   await act(async () => {
     button('Load more').click();
   });
-  await screen.findByText(
-    /Showing the newest 40 of 150/,
-    {},
-    { timeout: 20000 }
-  );
+  await screen.findByText(/Showing 40 of 150/, {}, { timeout: 20000 });
   expect(cardIds()).toHaveLength(40);
 });
 

@@ -154,10 +154,11 @@ test('the network fails part way: what was read stays, and the list says it stop
   });
 });
 
-test('the network fails on the first number: a failed read, never an empty list', async () => {
-  scene().last = 40;
-  scene().poison = 41;
-  scene().failFrom = 40;
+test('guard: the network fails on the first number: a failed read, never an empty list', async () => {
+  // Above the numbers an earlier test remembered as finished.
+  scene().last = 4000;
+  scene().poison = 4001;
+  scene().failFrom = 4000;
   await expect(readPendingActions(SAFE)).rejects.toThrow();
 });
 
@@ -169,11 +170,12 @@ test('the overview counts from the view, and does not say a number it does not k
 });
 
 test('a re-added member: a signature on an action not on the page still counts, when the view answers', async () => {
+  // Carol's own signature no longer counts, so #1 earns no place on the page.
   useChain({
-    quorum: 2,
+    quorum: 1,
     board: [ALICE, BOB],
     pending: [
-      { id: 1, action: toAlice as any, signers: [ALICE, CAROL] },
+      { id: 1, action: toAlice as any, signers: [CAROL] },
       ...Array.from({ length: 30 }, (_, at) => ({
         id: at + 2,
         action: toAlice as any,

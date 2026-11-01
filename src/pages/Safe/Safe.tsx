@@ -38,7 +38,8 @@ import {
   readPendingActions,
   readUserRole,
   SafeIdentity,
-  SafeOverview
+  SafeOverview,
+  signedFirst
 } from 'multisig/reads';
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
 import { explainWalletFailure } from 'multisig/walletFailure';
@@ -588,8 +589,13 @@ const SafeView = ({ address }: { address: string }) => {
   const holdings = [primary, ...others].filter(Boolean) as typeof tokens;
   const holdingsShown = allTokens ? holdings : holdings.slice(0, HOLDINGS_ROWS);
   // Newest first: what a flood buries is the old, and the board's answer to it,
-  // removing the rogue, is always the newest.
-  const cards = [...(pending ?? [])].sort((a, b) => b.actionId - a.actionId);
+  // removing the rogue, is always the newest. And when the contract returns the
+  // whole list, what carries a signature leads, which a proposer's junk cannot.
+  const cards = [...(pending ?? [])].sort(
+    coverage && !coverage.oneByOne
+      ? signedFirst
+      : (a, b) => b.actionId - a.actionId
+  );
   const olderUnread = coverage?.olderUnread ?? 0;
   const olderKnown = coverage?.olderKnown ?? 0;
   const pendingCount =
@@ -1148,10 +1154,13 @@ const SafeView = ({ address }: { address: string }) => {
             )}
             {olderKnown > 0 && (
               <p className='mt-3 text-sm text-[#9AA0A6]'>
-                Showing the newest {grouped(cards.length)} of{' '}
+                Showing {grouped(cards.length)} of{' '}
                 {grouped(coverage?.pendingCount ?? cards.length + olderKnown)}{' '}
-                pending actions. The other {grouped(olderKnown)} are older and
-                are not shown yet.
+                pending actions: those with a signature first, then the newest.
+                The other {grouped(olderKnown)} are not shown yet;{' '}
+                {coverage?.signedNotShown
+                  ? `${grouped(coverage.signedNotShown)} of them with a signature.`
+                  : 'none of them carries a signature that counts.'}
               </p>
             )}
             <div className='mt-3 space-y-3'>
@@ -1172,7 +1181,7 @@ const SafeView = ({ address }: { address: string }) => {
                 <span className='text-xs text-[#6B7280]'>
                   {olderUnread > 0
                     ? `${grouped(olderUnread)} older not read`
-                    : `${grouped(olderKnown)} older not shown`}
+                    : `${grouped(olderKnown)} more not shown`}
                 </span>
                 {moreFailed && (
                   <span className='text-xs text-[#FBBF24]'>
