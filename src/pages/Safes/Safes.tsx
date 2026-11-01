@@ -484,13 +484,27 @@ export const Safes = () => {
                 <div className='text-right'>
                   <dt className='text-xs text-[#6B7280]'>Signatures needed</dt>
                   <dd className='mt-1 text-white'>
-                    {card
-                      ? card.quorum
-                        ? card.boardSize
-                          ? `${card.quorum} of ${card.boardSize}`
-                          : card.quorum
-                        : 'not a multisig'
-                      : '...'}
+                    {/* Null is not a multisig. 0 is one nothing protects: any
+                        member or proposer can carry out anything (WBX-01). */}
+                    {!card ? (
+                      '...'
+                    ) : card.quorum === null ? (
+                      'not a multisig'
+                    ) : card.quorum === 0 ? (
+                      <>
+                        <span
+                          title='Its quorum is 0: no action needs a signature.'
+                          className='font-semibold text-[#F87171]'
+                        >
+                          0
+                        </span>
+                        {card.boardSize ? ` of ${card.boardSize}` : ''}
+                      </>
+                    ) : card.boardSize ? (
+                      `${card.quorum} of ${card.boardSize}`
+                    ) : (
+                      card.quorum
+                    )}
                   </dd>
                 </div>
               </dl>
@@ -514,7 +528,7 @@ export const Safes = () => {
               )}
 
               {/* What is waiting, and for whom: at a glance, without opening the safe. */}
-              {card?.quorum ? (
+              {card && card.quorum !== null ? (
                 <dl className='mt-3 flex items-start justify-between gap-6 border-t border-[#2A2A32] pt-3 text-sm'>
                   <div>
                     <dt className='text-xs text-[#6B7280]'>Pending actions</dt>
