@@ -77,6 +77,9 @@ const input =
 const field = 'mt-3';
 const hint = 'mt-1 text-xs text-[#6B7280]';
 
+/** From how many tokens the Send form offers a search box. */
+const SEARCH_FROM = 10;
+
 interface ProposePanelProps {
   safe: string;
   signer: Signer;
@@ -117,6 +120,7 @@ export const ProposePanel = ({
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
   const [tokenId, setTokenId] = useState(tokens[0]?.identifier ?? '');
+  const [tokenSearch, setTokenSearch] = useState('');
   const [quorum, setQuorum] = useState('');
   const [busy, setBusy] = useState(false);
   const [stuck, setStuck] = useState(false);
@@ -136,6 +140,16 @@ export const ProposePanel = ({
   }, [busy]);
 
   const token = tokens.find((candidate) => candidate.identifier === tokenId);
+  // Anyone can send a safe tokens, so the list can be long. What is chosen stays
+  // among the options: without it the select would show one token and hold another.
+  const search = tokenSearch.trim().toLowerCase();
+  const offeredTokens = search
+    ? tokens.filter(
+        (candidate) =>
+          candidate === token ||
+          candidate.identifier.toLowerCase().includes(search)
+      )
+    : tokens;
 
   const submit = async () => {
     setError('');
@@ -343,6 +357,15 @@ export const ProposePanel = ({
           {kind === 'token' && (
             <div className={field}>
               <label className='text-xs text-[#6B7280]'>Token</label>
+              {tokens.length > SEARCH_FROM && (
+                <input
+                  value={tokenSearch}
+                  onChange={(event) => setTokenSearch(event.target.value)}
+                  placeholder={`Search the ${tokens.length} tokens, by identifier`}
+                  aria-label='Search the tokens'
+                  className={`${input} mb-2`}
+                />
+              )}
               <select
                 value={tokenId}
                 onChange={(event) => setTokenId(event.target.value)}
@@ -357,7 +380,7 @@ export const ProposePanel = ({
                 {tokens.length > 0 && !token && (
                   <option value=''>Choose a token</option>
                 )}
-                {tokens.map((candidate) => (
+                {offeredTokens.map((candidate) => (
                   <option
                     key={candidate.identifier}
                     value={candidate.identifier}

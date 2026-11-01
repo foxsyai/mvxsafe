@@ -65,6 +65,8 @@ export interface SafeOverview {
   egldPrice: number;
   worthUsd: number;
   tokens: TokenBalance[];
+  /** How many tokens lie past where the read stops. Null when the API would not say. */
+  tokensNotRead: number | null;
   nftCount: number;
   /** Null when the address is not a multisig we can read. */
   quorum: number | null;
@@ -187,11 +189,42 @@ export const readEgldPrice = async (): Promise<number> => {
   }
 };
 
-/** What the safe holds. */
+const TOKEN_PAGE = 100;
+/** Where reading a safe's tokens stops, and says so: 50 EGLD of a stranger's junk. */
+export const MAX_TOKENS = 1000;
+
+/**
+ * Every token the safe holds, up to the limit. Anyone can send a safe a token,
+ * and the API orders them by identifier, so fifty of a stranger's sorting first
+ * used to hide the real one from the page and the Send form (audit FND-03, 1 Nov
+ * 2026). tokensNotRead is how many lie past the limit, null when the API would
+ * not say.
+ */
+const readAllTokens = async (address: string) => {
+  const tokens: TokenResponse[] = [];
+  for (let from = 0; from < MAX_TOKENS; from += TOKEN_PAGE) {
+    const page = await api<TokenResponse[]>(
+      `/accounts/${address}/tokens?from=${from}&size=${TOKEN_PAGE}`
+    );
+    tokens.push(...page);
+    if (page.length < TOKEN_PAGE) return { tokens, tokensNotRead: 0 };
+  }
+  try {
+    const count = await api<number>(`/accounts/${address}/tokens/count`);
+    return {
+      tokens,
+      tokensNotRead: Math.max(0, Number(count) - tokens.length)
+    };
+  } catch {
+    return { tokens, tokensNotRead: null };
+  }
+};
+
+/** What the safe holds, those with a value first. */
 export const readBalances = async (address: string, withNfts = true) => {
-  const [account, tokens, nftCount] = await Promise.all([
+  const [account, { tokens, tokensNotRead }, nftCount] = await Promise.all([
     api<AccountResponse>(`/accounts/${address}`),
-    api<TokenResponse[]>(`/accounts/${address}/tokens?size=50`),
+    readAllTokens(address),
     withNfts
       ? api<number>(`/accounts/${address}/nfts/count`).catch(() => 0)
       : Promise.resolve(0)
@@ -202,28 +235,39 @@ export const readBalances = async (address: string, withNfts = true) => {
     /** The exact balance in base units, for checks that must not round. */
     egldRaw: account.balance ?? '0',
     nftCount: Number(nftCount) || 0,
-    tokens: tokens.map((token) => ({
-      identifier: token.identifier,
-      ticker: token.ticker ?? token.identifier.split('-')[0],
-      name: token.name ?? token.identifier,
-      balance: token.balance,
-      decimals: token.decimals ?? 18,
-      amount: toNumber(token.balance, token.decimals ?? 18),
-      valueUsd: typeof token.valueUsd === 'number' ? token.valueUsd : undefined
-    }))
+    tokensNotRead,
+    tokens: tokens
+      .map((token) => ({
+        identifier: token.identifier,
+        ticker: token.ticker ?? token.identifier.split('-')[0],
+        name: token.name ?? token.identifier,
+        balance: token.balance,
+        decimals: token.decimals ?? 18,
+        amount: toNumber(token.balance, token.decimals ?? 18),
+        valueUsd:
+          typeof token.valueUsd === 'number' ? token.valueUsd : undefined
+      }))
+      .sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0))
   };
 };
 
 /** Everything a safe holds, in dollars, as far as the API knows prices. */
 /**
- * The token a safe's tile and card lead with: the most valuable one it holds,
- * or the first when no price is known. It used to be FOXSY whatever the safe,
- * which made sense for one organisation and not for a public tool.
+ * The token a safe's tile and card lead with: the most valuable one it holds.
+ * It used to be FOXSY whatever the safe, which made sense for one organisation
+ * and not for a public tool. With no price known, a lone token leads and among
+ * several none does: the first is only whoever chose the identifier that sorts
+ * first, and anyone can send a safe a token (FND-03).
  */
 export const featuredToken = (
   tokens: TokenBalance[]
-): TokenBalance | undefined =>
-  [...tokens].sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0))[0];
+): TokenBalance | undefined => {
+  const best = [...tokens].sort(
+    (a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0)
+  )[0];
+  if (best?.valueUsd) return best;
+  return tokens.length === 1 ? tokens[0] : undefined;
+};
 
 export const worthOf = (
   egld: number,

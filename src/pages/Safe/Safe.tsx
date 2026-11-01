@@ -47,6 +47,7 @@ const pendingCard =
   'rounded-xl border-2 border-[#FF6E0A] bg-[#FF6E0A]/[0.06] p-5';
 const label = 'text-xs text-[#6B7280]';
 const grouped = (count: number) => count.toLocaleString('en-US');
+const HOLDINGS_ROWS = 20;
 
 /**
  * The route. It refuses anything that is not an address before touching the
@@ -88,6 +89,7 @@ const SafeView = ({ address }: { address: string }) => {
   const [cardChecks, setCardChecks] = useState<Record<number, Inspection>>({});
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreFailed, setMoreFailed] = useState(false);
+  const [allTokens, setAllTokens] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   // False until the history was read once: before that, "none" would be a guess.
   const [historyRead, setHistoryRead] = useState(false);
@@ -501,6 +503,9 @@ const SafeView = ({ address }: { address: string }) => {
   const tokens = overview?.tokens ?? [];
   const primary = featuredToken(tokens);
   const others = tokens.filter((token) => token !== primary);
+  // Junk can run to hundreds of rows: the most valuable lead, the rest on request.
+  const holdings = [primary, ...others].filter(Boolean) as typeof tokens;
+  const holdingsShown = allTokens ? holdings : holdings.slice(0, HOLDINGS_ROWS);
   // Newest first: what a flood buries is the old, and the board's answer to it,
   // removing the rogue, is always the newest.
   const cards = [...(pending ?? [])].sort((a, b) => b.actionId - a.actionId);
@@ -1189,7 +1194,7 @@ const SafeView = ({ address }: { address: string }) => {
                 ) : null}
               </span>
             </li>
-            {[primary, ...others].filter(Boolean).map((token: any) => (
+            {holdingsShown.map((token) => (
               <li key={token.identifier} className='flex justify-between'>
                 {/* Always the identifier: anyone can send the safe a token
                     with any ticker, and a contract the safe owns pays its
@@ -1209,6 +1214,29 @@ const SafeView = ({ address }: { address: string }) => {
                 </span>
               </li>
             ))}
+            {holdings.length > holdingsShown.length && (
+              <li>
+                <button
+                  type='button'
+                  onClick={() => setAllTokens(true)}
+                  className='text-xs text-[#FF6E0A] hover:underline'
+                >
+                  Show all {grouped(holdings.length)} tokens
+                </button>
+              </li>
+            )}
+            {overview &&
+              overview.tokensNotRead !== 0 &&
+              overview.tokensNotRead !== undefined && (
+                <li className='text-xs text-[#FBBF24]'>
+                  Only the first {grouped(tokens.length)} tokens were read
+                  {overview.tokensNotRead === null
+                    ? ', and the API did not say how many more there are. '
+                    : `; ${grouped(overview.tokensNotRead)} more tokens were not read. `}
+                  A token among them is not listed here and cannot be chosen in
+                  the Send form.
+                </li>
+              )}
             {overview && overview.worthUsd > 0 && (
               <li className='flex justify-between border-t border-[#2A2A32] pt-2'>
                 <span className='text-[#9AA0A6]'>Total</span>
