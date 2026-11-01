@@ -37,9 +37,13 @@ git merge-base --is-ancestor HEAD origin/main ||
   { echo "REFUSING: $(git rev-parse --short HEAD) is behind origin/main ($(git rev-parse --short origin/main)). Pull first, or OLD_COMMIT=1 to ship an older commit on purpose."; exit 1; }
 # git status does not list what .gitignore hides, and Vite copies all of
 # public/ as it is: a *.pem or a screenshot there shipped under a clean
-# commit's name (OPX-01). Nothing may sit there that is not in the commit.
-stray="$(git ls-files --others --ignored --exclude-standard -- public index.html)"
-[ -z "$stray" ] || { echo "REFUSING: files git ignores would ship from public/:"; echo "$stray" | sed 's/^/  /'; exit 1; }
+# commit's name (OPX-01). An ignored .env.production.local at the root turned
+# the whole build into a development one (OPZ-07). So no ignored file anywhere
+# but the generated ones: the installed tree, the old build, and the config
+# that the build below overwrites.
+ignored="$(git ls-files --others --ignored --exclude-standard)"
+stray="$(printf '%s\n' "$ignored" | grep -vE '^(node_modules(/|$)|build/|src/config/index\.ts$)' || true)"
+[ -z "$stray" ] || { echo "REFUSING: files git ignores could change or join the build:"; echo "$stray" | sed 's/^/  /'; exit 1; }
 # Nor is git status told about a tracked file flagged skip-worktree or
 # assume-unchanged, which then ships changed (OPX-07).
 flagged="$(git ls-files -v | grep -E '^[a-zS] ' || true)"
@@ -73,6 +77,10 @@ case "$compiled" in
   *".$NETWORK") echo "build/ is ${COMMIT:0:7}, compiled for $NETWORK." ;;
   *) echo "REFUSING: the code in build/ was compiled for '${compiled:-nothing recognisable}', not $NETWORK."; exit 1 ;;
 esac
+# A production React carries its error decoder, a development one does not; a
+# NODE_ENV set in the shell does what the .env file did above (OPZ-07).
+grep -q 'Minified React error' build/assets/index-*.js ||
+  { echo "REFUSING: the code in build/ is a development build."; exit 1; }
 
 # devnet goes to its own host, which exists so the whole cycle can be tried with
 # play money; testnet is built but not published anywhere.

@@ -90,8 +90,16 @@ export function makeRepo({ deployScript, aheadOfOrigin = 0 } = {}) {
   };
 }
 
-/** Runs `bash deploy.sh <network>` in `work` with the shims on PATH. */
-export function runDeploy(work, { network = 'mainnet' } = {}) {
+/**
+ * Runs `bash deploy.sh <network>` in `work` with the shims on PATH.
+ *
+ * `env`: extra variables for the script. `skipAudit`: `pnpm audit` is a no-op,
+ * for a proof whose outcome should not hang on the registry's advisories.
+ */
+export function runDeploy(
+  work,
+  { network = 'mainnet', env = {}, skipAudit = false } = {}
+) {
   const shim = join(work, '..', 'shim');
   const log = join(work, '..', 'calls.log');
   mkdirSync(shim, { recursive: true });
@@ -109,6 +117,9 @@ export function runDeploy(work, { network = 'mainnet' } = {}) {
   shimOf(
     'pnpm',
     `case "$1" in install) echo "(shim) pnpm install skipped: node_modules is the linked, locked tree"; exit 0;; esac\n` +
+      (skipAudit
+        ? `case "$1" in audit) echo "(shim) pnpm audit skipped: not under test here"; exit 0;; esac\n`
+        : '') +
       `exec "${realPnpm}" "$@"`
   );
   shimOf('rsync', 'exit 0');
@@ -122,7 +133,7 @@ export function runDeploy(work, { network = 'mainnet' } = {}) {
   }
   const run = spawnSync('bash', ['deploy.sh', network], {
     cwd: work,
-    env: { ...process.env, PATH: `${shim}:${process.env.PATH}` },
+    env: { ...process.env, ...env, PATH: `${shim}:${process.env.PATH}` },
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024
   });
