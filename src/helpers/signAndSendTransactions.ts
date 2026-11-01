@@ -76,10 +76,13 @@ const FIELD_NAMES: Record<string, string> = {
  * guardian's two-factor page or a relay, and was sent as it came (tx audit
  * TXB-02, 1 Nov 2026). The nonce may differ, since sdk-dapp sets it itself, and
  * so may the gas price, the version, the options and the signatures: a guardian
- * added on the way is the wallet doing its work, one replaced is not.
+ * added on the way is the wallet doing its work, one replaced is not. So may the
+ * gas limit go up, as a guardian's does. Down it may not: a perform with less than
+ * it was given runs out where it runs, and the action is used up.
  */
 const differenceFrom = (
   built: ReturnType<typeof builtFields>[],
+  gasLimits: bigint[],
   signed: Transaction[]
 ): string => {
   if (signed.length !== built.length) return 'not the same number of them';
@@ -89,6 +92,7 @@ const differenceFrom = (
       if (field === 'guardian' && !value) continue;
       if (back[field] !== value) return FIELD_NAMES[field];
     }
+    if (BigInt(signed[at].gasLimit) < gasLimits[at]) return 'its gas limit';
   }
   return '';
 };
@@ -96,8 +100,9 @@ const differenceFrom = (
 /** Signs, and returns only what is what was built. Nothing is sent otherwise. */
 export const signOnly = async (transactions: Transaction[]) => {
   const built = transactions.map(builtFields);
+  const gasLimits = transactions.map(({ gasLimit }) => BigInt(gasLimit));
   const signed = await getAccountProvider().signTransactions(transactions);
-  const different = differenceFrom(built, signed);
+  const different = differenceFrom(built, gasLimits, signed);
   if (different) {
     // sdk-dapp sets the nonces on what it was given, so these say where it began.
     windNonceBack(transactions);

@@ -154,6 +154,24 @@ test.each(swaps)(
   }
 );
 
+test('the wallet returns less gas than was built: nothing is sent, and the nonce goes back', async () => {
+  // Less gas than a perform was given runs out where it runs and uses the action up.
+  wallet.rewrite = ([given]) => [
+    altered(given, { gasLimit: Number(given.gasLimit) - 1 })
+  ];
+  await expect(signAction(alice, SAFE, 7)).rejects.toThrow(/gas/);
+  expect(network.sent).toEqual([]);
+  expect(getAccount().nonce).toBe(CHAIN_NONCE);
+});
+
+test('control: more gas than was built, as a guardian adds, is sent', async () => {
+  wallet.rewrite = ([given]) => [
+    altered(given, { gasLimit: Number(given.gasLimit) + 50000 })
+  ];
+  await signAction(alice, SAFE, 7);
+  expect(network.sent).toHaveLength(1);
+});
+
 test('the wallet returns nothing: nothing is sent, and the reason is the real one', async () => {
   wallet.rewrite = () => [];
   await expect(signAction(alice, SAFE, 7)).rejects.toThrow(/number of them/);
