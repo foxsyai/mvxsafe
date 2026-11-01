@@ -31,6 +31,7 @@ import {
   shardOf
 } from './legacyCalls';
 import { api, cached, chainId, networkProvider } from './network';
+import { wasmFunctionExports } from './wasmExports';
 
 export type Tone = 'ok' | 'warn' | 'bad';
 
@@ -63,6 +64,11 @@ export interface AccountFacts {
   codeUnread: boolean;
   /** Size of the code in bytes, 0 when unknown. */
   codeBytes: number;
+  /**
+   * Whether the code has an `upgrade` function, which is what an upgrade from
+   * it runs. Null when the code was not read or is not well-formed wasm.
+   */
+  exportsUpgrade: boolean | null;
   /** Null for an account without code, or when the API did not say. */
   metadata: MetadataFlags | null;
   balance: bigint;
@@ -103,6 +109,7 @@ export const readAccountFacts = async (
       : null;
   const hashed = stated && code ? codeHashOf(code) : null;
   const codeHash = hashed ?? stated;
+  const exported = hashed && code ? wasmFunctionExports(code) : null;
   return {
     address,
     shard: shardOf(address),
@@ -113,6 +120,7 @@ export const readAccountFacts = async (
     // The size of the code that was hashed, or 0 (unknown): a code never read
     // gave a size, and with it a gas budget called measured (review of PR #17).
     codeBytes: hashed && code ? code.length : 0,
+    exportsUpgrade: exported ? exported.includes('upgrade') : null,
     metadata:
       codeHash && typeof account?.isUpgradeable === 'boolean'
         ? {
@@ -142,9 +150,10 @@ export interface UpgradeFacts {
   target: string;
   source: string;
   /**
-   * Null when the source holds no code or could not be read, and when the API
-   * stated a hash without returning the code (sourceUnread): only a hash of
-   * the code itself is shown or compared.
+   * Null when the source holds no code, and when its code was not seen: the
+   * read failed, the API stated a hash without returning the code, or what it
+   * returned is not wasm (sourceUnread). Only a hash of the code itself is shown
+   * or compared.
    */
   sourceHash: string | null;
   targetHash: string | null;
@@ -200,17 +209,26 @@ export const inspectUpgrade = async (
         }
   );
 
-  let sourceFacts: AccountFacts | null = null;
-  let targetFacts: AccountFacts | null = null;
-  try {
-    [sourceFacts, targetFacts] = await Promise.all([
-      readAccountFacts(source),
-      readAccountFacts(target)
-    ]);
-  } catch {
+  // Each on its own: one that fails does not blank the other, and a read that
+  // failed leaves the code as unseen as one the API did not return, so it holds
+  // the signature the same way (redteam RED-04, 1 Nov 2026).
+  const [sourceRead, targetRead] = await Promise.allSettled([
+    readAccountFacts(source),
+    readAccountFacts(target)
+  ]);
+  const sourceFacts =
+    sourceRead.status === 'fulfilled' ? sourceRead.value : null;
+  const targetFacts =
+    targetRead.status === 'fulfilled' ? targetRead.value : null;
+  if (!sourceFacts || !targetFacts) {
     checks.push({
-      tone: 'warn',
-      text: 'The source and the contract could not be read just now, so their code is not shown. Refresh before signing.'
+      tone: 'bad',
+      text:
+        !sourceFacts && !targetFacts
+          ? 'The source and the contract could not be read just now, so their code is not shown. Refresh before signing.'
+          : !sourceFacts
+            ? 'The source could not be read just now, so its code is not shown. Refresh before signing.'
+            : 'The contract to upgrade could not be read just now, so the code it runs today is not shown. Refresh before signing.'
     });
   }
 
@@ -237,6 +255,25 @@ export const inspectUpgrade = async (
     checks.push({
       tone: 'bad',
       text: "The network's API did not return the code of the contract to upgrade, so the code it runs today is unknown. Refresh and try again before signing."
+    });
+  }
+
+  // The code was returned and hashed, but its exports cannot be told: unread.
+  const sourceMalformed = Boolean(
+    sourceFacts?.codeHash &&
+    !sourceFacts.codeUnread &&
+    sourceFacts.exportsUpgrade === null
+  );
+  if (sourceMalformed) {
+    checks.push({
+      tone: 'bad',
+      text: "The source's code could not be read as a contract's code: it is not well-formed wasm, or the API returned it cut off. Refresh and try again before signing."
+    });
+  }
+  if (sourceFacts?.exportsUpgrade === false) {
+    checks.push({
+      tone: 'bad',
+      text: "The source's code has no upgrade function. The network runs the new code's upgrade function and fails without one, so carrying this out would fail after the signatures and use the action up. Do not sign it; propose it again with a source that has one."
     });
   }
 
@@ -325,11 +362,12 @@ export const inspectUpgrade = async (
     targetFacts?.codeHash &&
     !sourceFacts.codeUnread &&
     !targetFacts.codeUnread &&
+    sourceFacts.exportsUpgrade === true &&
     sourceFacts.codeHash === targetFacts.codeHash
   ) {
     checks.push({
       tone: 'warn',
-      text: "The source runs the same code as the contract today: the upgrade changes no code, it only runs the contract's upgrade function."
+      text: "The source runs the same code as the contract today: the upgrade changes no code, it only runs that code's upgrade function."
     });
   }
 
@@ -338,14 +376,15 @@ export const inspectUpgrade = async (
     upgrade: {
       target,
       source,
-      sourceHash: sourceFacts?.codeUnread
-        ? null
-        : (sourceFacts?.codeHash ?? null),
+      sourceHash:
+        sourceFacts?.codeUnread || sourceMalformed
+          ? null
+          : (sourceFacts?.codeHash ?? null),
       targetHash: targetFacts?.codeUnread
         ? null
         : (targetFacts?.codeHash ?? null),
-      sourceUnread: Boolean(sourceFacts?.codeUnread),
-      targetUnread: Boolean(targetFacts?.codeUnread),
+      sourceUnread: !sourceFacts || sourceFacts.codeUnread || sourceMalformed,
+      targetUnread: !targetFacts || targetFacts.codeUnread,
       sourceShard,
       safeShard
     },
