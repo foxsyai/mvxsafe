@@ -47,8 +47,64 @@ export const windNonceBack = (transactions: Transaction[]) => {
   setAccountNonce(Number(first));
 };
 
-export const signOnly = (transactions: Transaction[]) =>
-  getAccountProvider().signTransactions(transactions);
+/** What must come back from the wallet as it was built, before it is signed. */
+const builtFields = (transaction: Transaction) => ({
+  sender: transaction.sender.toBech32(),
+  receiver: transaction.receiver.toBech32(),
+  value: BigInt(transaction.value).toString(),
+  data: Array.from(transaction.data).join(),
+  chainID: transaction.chainID,
+  guardian: transaction.guardian.isEmpty()
+    ? ''
+    : transaction.guardian.toBech32()
+});
+
+const FIELD_NAMES: Record<string, string> = {
+  sender: 'its sender',
+  receiver: 'its receiver',
+  value: 'its value',
+  data: 'its data',
+  chainID: 'its network',
+  guardian: 'its guardian'
+};
+
+/**
+ * What differs between what was built and what the wallet returned, if anything.
+ * A transaction comes back through a browser extension, a wallet's window, the
+ * guardian's two-factor page or a relay, and was sent as it came (tx audit
+ * TXB-02, 1 Nov 2026). The nonce may differ, since sdk-dapp sets it itself, and
+ * so may the gas price, the version, the options and the signatures: a guardian
+ * added on the way is the wallet doing its work, one replaced is not.
+ */
+const differenceFrom = (
+  built: ReturnType<typeof builtFields>[],
+  signed: Transaction[]
+): string => {
+  if (signed.length !== built.length) return 'not the same number of them';
+  for (const [at, fields] of built.entries()) {
+    const back = builtFields(signed[at]) as Record<string, string>;
+    for (const [field, value] of Object.entries(fields)) {
+      if (field === 'guardian' && !value) continue;
+      if (back[field] !== value) return FIELD_NAMES[field];
+    }
+  }
+  return '';
+};
+
+/** Signs, and returns only what is what was built. Nothing is sent otherwise. */
+export const signOnly = async (transactions: Transaction[]) => {
+  const built = transactions.map(builtFields);
+  const signed = await getAccountProvider().signTransactions(transactions);
+  const different = differenceFrom(built, signed);
+  if (different) {
+    // sdk-dapp sets the nonces on what it was given, so these say where it began.
+    windNonceBack(transactions);
+    throw new Error(
+      `your wallet returned something other than what was built here (${different} differs), so nothing was sent.`
+    );
+  }
+  return signed;
+};
 
 /** Sends what was signed. If the send fails, the nonce is wound back to it. */
 export const sendSigned = async (signed: Transaction[]) => {
