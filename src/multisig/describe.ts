@@ -332,7 +332,7 @@ const describeOnItself = async (
 // --- token operations ---------------------------------------------------------
 
 /** The system contract that issues tokens and keeps their settings and roles. */
-const ESDT_SYSTEM_SC =
+export const ESDT_SYSTEM_SC =
   'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
 
 export interface TokenOperation {

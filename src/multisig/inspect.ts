@@ -8,6 +8,7 @@ import { Address } from '@multiversx/sdk-core';
 import {
   bytesOf,
   describeMetadata,
+  ESDT_SYSTEM_SC,
   metadataChanges,
   MetadataFlags,
   metadataOf,
@@ -710,12 +711,15 @@ export const inspectCall = async (
     }
   }
 
-  const systemCall = Boolean(to) && isSystemContract(to);
+  // Measured on the ESDT system contract only (TXB-01). A delegation contract is
+  // a system contract too, and nothing says it needs that much, so it is not told
+  // so nor stopped from going lower (review of PR #20).
+  const systemCall = to === ESDT_SYSTEM_SC;
   const perform = performPlan({ name, callNeed, hasFunction, systemCall });
   if (systemCall && !perform.simulate && !perform.known) {
     checks.push({
       tone: 'warn',
-      text: `A call to a system contract needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given the system contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
+      text: `A call to the ESDT system contract needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given that contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
     });
   }
   return { checks, perform };
