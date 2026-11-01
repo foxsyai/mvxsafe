@@ -79,6 +79,16 @@ export const TRANSFER_NEED = 50000n;
  */
 export const UNKNOWN_CALL_NEED = 10000000n;
 
+/**
+ * The same for a call to a system contract, which costs far more where it runs:
+ * setSpecialRole measured 50,261,501 on devnet. The perform of one offered the
+ * default above, 26.5M, failed in the metachain with "not enough gas" and the
+ * action was gone with its signatures; 62M failed too and 65M worked (devnet,
+ * 30 Oct 2026, af776c4960514e2a776a77ce2b5219cc5249fe712665ae4c1da0212f8831e4bf;
+ * audit TXB-01, 1 Nov 2026). That is the safe's part, the callback and the call.
+ */
+export const SYSTEM_CALL_NEED = 50500000n;
+
 const ceilDiv = (a, b) => (a + b - 1n) / b;
 const roundUp = (gas, step = 100000n) => ceilDiv(gas, step) * step;
 
@@ -105,7 +115,9 @@ export const performBudget = (need, callback = CALLBACK_GAS) =>
  *
  * - an upgrade from source: from the size of the source's code;
  * - a call (SendAsyncCall, which is also how tokens leave): from what the call
- *   needed when it was tried as the safe, or UNKNOWN_CALL_NEED;
+ *   needed when it was tried as the safe, or UNKNOWN_CALL_NEED, or for a system
+ *   contract SYSTEM_CALL_NEED, and there the performer may not go under what the
+ *   call needs: `floor`;
  * - a transfer (SendTransferExecute): the same without the callback, and for
  *   plain EGLD the network's minimum.
  *
@@ -117,7 +129,8 @@ export const performPlan = ({
   name,
   codeBytes,
   callNeed,
-  hasFunction = true
+  hasFunction = true,
+  systemCall = false
 }) => {
   let need;
   let known = true;
@@ -136,7 +149,7 @@ export const performPlan = ({
     } else if (name === 'SendTransferExecute' && !hasFunction) {
       need = TRANSFER_NEED;
     } else {
-      need = UNKNOWN_CALL_NEED;
+      need = systemCall ? SYSTEM_CALL_NEED : UNKNOWN_CALL_NEED;
       known = false;
     }
   } else {
@@ -151,7 +164,10 @@ export const performPlan = ({
     known,
     need,
     gasLimit: performBudget(need, callback),
-    parts: { safe: SAFE_OWN_GAS, call: withMargin(need), callback }
+    parts: { safe: SAFE_OWN_GAS, call: withMargin(need), callback },
+    ...(systemCall
+      ? { systemCall: true, floor: SAFE_OWN_GAS + need + callback }
+      : {})
   };
 };
 

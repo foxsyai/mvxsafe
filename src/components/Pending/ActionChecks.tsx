@@ -24,11 +24,14 @@ const millions = (gas: bigint) =>
 
 /**
  * "23,300,000" or "23300000" as gas, or why not. Never less than the safe's
- * own part and the callback's, which `floor` is.
+ * own part and the callback's, which `floor` is, and for a call to a system
+ * contract never less than what that call needs too: under it the action is
+ * used up, so it is refused rather than left to the performer (TXB-01).
  */
 export const parseGas = (
   text: string,
-  floor: bigint = SAFE_OWN_GAS + CALLBACK_GAS
+  floor: bigint = SAFE_OWN_GAS + CALLBACK_GAS,
+  systemCall = false
 ): { gas: bigint } | { problem: string } => {
   const cleaned = text.replace(/[\s,_]/g, '');
   if (!/^\d+$/.test(cleaned))
@@ -36,7 +39,9 @@ export const parseGas = (
   const gas = BigInt(cleaned);
   if (gas < floor) {
     return {
-      problem: `Less than ${floor.toLocaleString('en-US')} cannot cover what the safe itself needs.`
+      problem: systemCall
+        ? `Less than ${floor.toLocaleString('en-US')} cannot cover a call to a system contract: it would run out and use the action up.`
+        : `Less than ${floor.toLocaleString('en-US')} cannot cover what the safe itself needs.`
     };
   }
   if (gas > MAX_GAS)
@@ -51,7 +56,11 @@ export const performGas = (
 ) => {
   if (!plan || plan.simulate) return { budget: undefined, problem: '' };
   if (typed === undefined) return { budget: plan.gasLimit, problem: '' };
-  const parsed = parseGas(typed, plan.parts.safe + plan.parts.callback);
+  const parsed = parseGas(
+    typed,
+    plan.floor ?? plan.parts.safe + plan.parts.callback,
+    plan.systemCall
+  );
   return 'gas' in parsed
     ? { budget: parsed.gas, problem: '' }
     : { budget: undefined, problem: parsed.problem };
@@ -147,7 +156,9 @@ export const ActionChecks = ({
             : {millions(performBudget(plan.need, plan.parts.callback))}
             {plan.known
               ? ''
-              : ', from a default because the need could not be measured'}
+              : plan.systemCall
+                ? ", from the system contract's default because the need could not be measured"
+                : ', from a default because the need could not be measured'}
             . About{' '}
             {(Number(feeOf(typed.budget ?? plan.gasLimit, 16)) / 1e18).toFixed(
               4

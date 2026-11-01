@@ -9,6 +9,7 @@ export declare const MAX_GAS: bigint;
 export declare const UPGRADE_GAS_PER_BYTE: bigint;
 export declare const UPGRADE_FIXED_GAS: bigint;
 export declare const UNKNOWN_CALL_NEED: bigint;
+export declare const SYSTEM_CALL_NEED: bigint;
 export declare const TRANSFER_NEED: bigint;
 export declare const withMargin: (gas: bigint | number) => bigint;
 export declare const upgradeNeed: (codeBytes: number | bigint) => bigint;
@@ -23,12 +24,17 @@ export type PerformPlan =
       need: bigint;
       gasLimit: bigint;
       parts: { safe: bigint; call: bigint; callback: bigint };
+      /** A call to a system contract, which costs far more than an ordinary one. */
+      systemCall?: boolean;
+      /** Under this the call runs out and the action is used up: refused. */
+      floor?: bigint;
     };
 export declare const performPlan: (options: {
   name: string;
   codeBytes?: number;
   callNeed?: bigint | null;
   hasFunction?: boolean;
+  systemCall?: boolean;
 }) => PerformPlan;
 
 export declare class GasError extends Error {

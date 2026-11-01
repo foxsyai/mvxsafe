@@ -379,9 +379,19 @@ export const trialAsSafe = async (
   data: string
 ): Promise<Trial> => {
   try {
-    return await cached(`trial:${safe}:${to}:${egld}:${data}`, () =>
-      measureCall(networkProvider, { chainId, safe, to, egld, data })
-    );
+    return await cached(`trial:${safe}:${to}:${egld}:${data}`, async () => {
+      const trial = await measureCall(networkProvider, {
+        chainId,
+        safe,
+        to,
+        egld,
+        data
+      });
+      // No answer is not an answer to keep: it held the default on the card
+      // for two minutes after the API was back (audit TXB-01, 1 Nov 2026).
+      if (trial.how === 'offline') throw new GasError('no answer', false);
+      return trial;
+    });
   } catch (error) {
     if (error instanceof GasError && error.refused)
       return { need: null, how: 'refused', error };
@@ -642,7 +652,15 @@ export const inspectCall = async (
     }
   }
 
-  return { checks, perform: performPlan({ name, callNeed, hasFunction }) };
+  const systemCall = Boolean(to) && isSystemContract(to);
+  const perform = performPlan({ name, callNeed, hasFunction, systemCall });
+  if (systemCall && !perform.simulate && !perform.known) {
+    checks.push({
+      tone: 'warn',
+      text: `A call to a system contract needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given the system contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
+    });
+  }
+  return { checks, perform };
 };
 
 /**
