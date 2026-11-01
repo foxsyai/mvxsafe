@@ -222,6 +222,14 @@ const readAllTokens = async (address: string) => {
   }
 };
 
+/** The same words on the page and in the Send form, when the read stopped short. */
+export const tokensNotReadLine = (read: number, notRead: number | null) =>
+  `Only the first ${read.toLocaleString('en-US')} tokens were read${
+    notRead === null
+      ? ', and the API did not say how many more there are. '
+      : `; ${notRead.toLocaleString('en-US')} more tokens were not read. `
+  }A token among them is not listed here and cannot be chosen in the Send form.`;
+
 /** What the safe holds, those with a value first. */
 export const readBalances = async (address: string, withNfts = true) => {
   const [account, { tokens, tokensNotRead }, nftCount] = await Promise.all([

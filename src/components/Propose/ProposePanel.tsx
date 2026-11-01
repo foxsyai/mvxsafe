@@ -19,7 +19,8 @@ import { isAccountAddress } from 'multisig/newSafe';
 import {
   membershipNote,
   membershipProblem,
-  TokenBalance
+  TokenBalance,
+  tokensNotReadLine
 } from 'multisig/reads';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import { CallForm } from './CallForm';
@@ -84,6 +85,8 @@ interface ProposePanelProps {
   safe: string;
   signer: Signer;
   tokens: TokenBalance[];
+  /** How many tokens lie past where the read stopped, null when the API would not say. */
+  tokensNotRead?: number | null;
   boardSize: number;
   /** After every attempt that reached the wallet, success or not. */
   /** After any attempt the wallet saw; `sent` when it reached the network. */
@@ -106,6 +109,7 @@ export const ProposePanel = ({
   safe,
   signer,
   tokens,
+  tokensNotRead = 0,
   boardSize,
   onProposed,
   egldBalance,
@@ -391,6 +395,11 @@ export const ProposePanel = ({
                   </option>
                 ))}
               </select>
+              {tokensNotRead !== 0 && (
+                <p className='mt-1 text-xs text-[#FBBF24]'>
+                  {tokensNotReadLine(tokens.length, tokensNotRead)}
+                </p>
+              )}
             </div>
           )}
 

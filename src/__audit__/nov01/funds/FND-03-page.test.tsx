@@ -166,6 +166,44 @@ test('the Send form offers every token read, with a search box when there are ma
   expect(offered.length).toBeLessThanOrEqual(2);
 });
 
+const sendForm = (tokensNotRead?: number | null) =>
+  render(
+    <ProposePanel
+      safe={SAFE}
+      signer={{ address: BOB, nonce: 1 }}
+      tokens={junk(MAX_TOKENS).map((token) => unpriced(token.identifier))}
+      tokensNotRead={tokensNotRead}
+      boardSize={3}
+      boardMembers={[ALICE, BOB, CAROL]}
+      proposers={[]}
+      quorum={2}
+      onProposed={jest.fn()}
+    />
+  );
+
+test('tokens capped: the Send form says so, with the count', () => {
+  sendForm(50);
+  expect(screen.getByText(/50 more tokens were not read/).textContent).toMatch(
+    /first 1,000/
+  );
+});
+
+test('tokens capped and no count: the Send form says that too', () => {
+  sendForm(null);
+  expect(screen.getByText(/did not say how many more/)).toBeTruthy();
+});
+
+test('control: nothing left unread, no such line', () => {
+  sendForm(0);
+  expect(screen.queryByText(/were read/)).toBeNull();
+});
+
+test('the line goes with the token choice: other forms do not carry it', () => {
+  sendForm(50);
+  fireEvent.click(screen.getByRole('button', { name: 'Send EGLD' }));
+  expect(screen.queryByText(/50 more tokens were not read/)).toBeNull();
+});
+
 test('control: a few tokens need no search box', () => {
   render(
     <ProposePanel

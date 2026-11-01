@@ -39,7 +39,8 @@ import {
   readUserRole,
   SafeIdentity,
   SafeOverview,
-  signedFirst
+  signedFirst,
+  tokensNotReadLine
 } from 'multisig/reads';
 import { isValidSafeAddress, nameFor } from 'multisig/savedSafes';
 import { explainWalletFailure } from 'multisig/walletFailure';
@@ -1200,6 +1201,7 @@ const SafeView = ({ address }: { address: string }) => {
           safe={address}
           signer={signer}
           tokens={overview.tokens}
+          tokensNotRead={overview.tokensNotRead}
           egldBalance={overview.egldRaw}
           boardSize={overview.boardMembers.length}
           boardMembers={overview.boardMembers}
@@ -1349,12 +1351,7 @@ const SafeView = ({ address }: { address: string }) => {
               overview.tokensNotRead !== 0 &&
               overview.tokensNotRead !== undefined && (
                 <li className='text-xs text-[#FBBF24]'>
-                  Only the first {grouped(tokens.length)} tokens were read
-                  {overview.tokensNotRead === null
-                    ? ', and the API did not say how many more there are. '
-                    : `; ${grouped(overview.tokensNotRead)} more tokens were not read. `}
-                  A token among them is not listed here and cannot be chosen in
-                  the Send form.
+                  {tokensNotReadLine(tokens.length, overview.tokensNotRead)}
                 </li>
               )}
             {overview && overview.worthUsd > 0 && (
