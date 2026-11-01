@@ -87,6 +87,28 @@ test('a delegation contract, tried: the figure measured, and no floor from it', 
   expect((perform as any).floor === undefined).toBe(true);
 });
 
+// The network charges the delegation manager what it charges the ESDT system
+// contract, DelegationMgrOps and ESDTOperations both 50M, against 1M for a
+// delegation contract (/network/gas-configs on devnet and mainnet, 1 Nov 2026).
+test('the delegation manager, not tried, gets the same need and floor', async () => {
+  offline();
+  const manager = new Address(
+    Uint8Array.from(
+      Buffer.from(`00000000000000000001${'00'.repeat(18)}0004ffff`, 'hex')
+    )
+  ).toBech32();
+  expect(isSystemContract(manager)).toBe(true);
+  const { checks, perform } = await inspectAction(
+    call(manager, 'createNewDelegationContract'),
+    SAFE
+  );
+  expect(Number((perform as any).gasLimit)).toBe(75_100_000);
+  expect(
+    checks.some((check) => /delegation manager needs about/.test(check.text))
+  ).toBe(true);
+  expect(performGas(perform, '26500000').budget === undefined).toBe(true);
+});
+
 test('control: the ESDT system contract keeps the need and the floor TXB-01 proved', async () => {
   offline();
   const { checks, perform } = await inspectAction(

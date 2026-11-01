@@ -335,6 +335,10 @@ const describeOnItself = async (
 export const ESDT_SYSTEM_SC =
   'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzllls8a5w6u';
 
+/** The system contract that creates delegation contracts. */
+export const DELEGATION_MANAGER_SC =
+  'erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqylllslmq6y6';
+
 export interface TokenOperation {
   token: string;
   sentence: string;

@@ -7,6 +7,7 @@
 import { Address } from '@multiversx/sdk-core';
 import {
   bytesOf,
+  DELEGATION_MANAGER_SC,
   describeMetadata,
   ESDT_SYSTEM_SC,
   metadataChanges,
@@ -711,15 +712,19 @@ export const inspectCall = async (
     }
   }
 
-  // Measured on the ESDT system contract only (TXB-01). A delegation contract is
-  // a system contract too, and nothing says it needs that much, so it is not told
-  // so nor stopped from going lower (review of PR #20).
-  const systemCall = to === ESDT_SYSTEM_SC;
+  // Measured on the ESDT system contract (TXB-01). The network charges the
+  // delegation manager the same 50M. A delegation contract is charged 1M, so it is
+  // not told it needs that much nor stopped from going lower (review of PR #20).
+  const systemCall = to === ESDT_SYSTEM_SC || to === DELEGATION_MANAGER_SC;
   const perform = performPlan({ name, callNeed, hasFunction, systemCall });
   if (systemCall && !perform.simulate && !perform.known) {
+    const contract =
+      to === ESDT_SYSTEM_SC
+        ? 'the ESDT system contract'
+        : 'the delegation manager';
     checks.push({
       tone: 'warn',
-      text: `A call to the ESDT system contract needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given that contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
+      text: `A call to ${contract} needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given that contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
     });
   }
   return { checks, perform };
