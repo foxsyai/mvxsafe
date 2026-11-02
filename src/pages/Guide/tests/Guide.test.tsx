@@ -66,6 +66,28 @@ describe('The guide', () => {
     expect(text).toMatch(/gas/i);
   });
 
+  it('says which cards show a gas line, and which do not', () => {
+    // Only a perform the network cannot simulate gets one (ActionChecks,
+    // `!plan.simulate`): a payment, a call or an upgrade. A change of members
+    // or quorum is simulated when it is carried out and shows none.
+    const text = guide().textContent;
+    expect(text).not.toContain('The card shows the gas the transaction');
+    expect(text).toContain('For a payment, a call or an upgrade');
+    expect(text).toContain('shows no gas line');
+  });
+
+  it('says why a safe with no EGLD cannot have its actions tried', () => {
+    // The network tries a call as the safe only if the safe could pay its fee
+    // (gas.js, simulateAsSafe). Seven real safes held none on 2 Nov 2026, so
+    // every token payment card on them was amber. A plain EGLD payment is
+    // never tried (inspectCall returns before any trial), so the guide must
+    // not say it is.
+    const text = guide().textContent;
+    expect(text).toContain('Keep a little EGLD in the safe too');
+    expect(text).toContain('tries a token payment or a call in advance');
+    expect(text).toContain('the safe never pays gas');
+  });
+
   it('does not claim the whole page comes from the contract', () => {
     expect(guide().textContent).not.toContain(
       'Everything on this page is read from the contract itself'
