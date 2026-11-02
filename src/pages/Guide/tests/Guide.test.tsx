@@ -175,6 +175,20 @@ describe("The creator's guide", () => {
   it('tells the rest of the board how to find the safe', () => {
     expect(text()).toContain('Add a safe');
   });
+
+  it('promises only what a quorum of two or more gives', () => {
+    // A 1 of 1 board gets no warning from the form (newSafe.ts), and with a
+    // quorum of 1 one member acts alone: the handover protects the code, the
+    // quorum the funds (review of PR #23).
+    expect(text()).not.toMatch(/\. The page warns you otherwise/);
+    expect(text()).toContain(
+      'For a board of two or more, the page warns you otherwise'
+    );
+    expect(text()).not.toMatch(/From then on nobody, you included/);
+    expect(text()).toContain(
+      'with two or more signatures needed, nobody, you included, can move its funds or change it alone'
+    );
+  });
 });
 
 describe("The proposer's guide", () => {
