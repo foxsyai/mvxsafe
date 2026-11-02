@@ -364,9 +364,9 @@ export const Guide = () => (
         </li>
         <li>
           Keep a little EGLD in the safe too, about 0.01. The network tries a
-          payment or a call in advance only for a safe that could pay its fee.
-          Without it, the action says in amber that it could not be tried. The
-          try spends nothing and the safe never pays gas: whoever sends a
+          token payment or a call in advance only for a safe that could pay its
+          fee. Without it, the action says in amber that it could not be tried.
+          The try spends nothing and the safe never pays gas: whoever sends a
           transaction pays for it.
         </li>
         <li>
