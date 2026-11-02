@@ -207,9 +207,11 @@ export const Guide = () => (
         Once the signatures reach the quorum, any board member or proposer can
         carry the action out. That is the moment the safe actually moves
         something. Usually the last person to sign does it, in the same visit.
-        The card shows the gas the transaction will be given and about what it
-        costs. The figure is worked out for that action, so leave it unless you
-        have a reason to change it.
+        For a payment, a call or an upgrade, the card shows the gas the
+        transaction will be given and about what it costs. The figure is worked
+        out for that action, so leave it unless you have a reason to change it.
+        A change of members or quorum shows no gas line: the network works its
+        gas out when you carry it out.
         <Shot
           src='/shots/17-ready.jpg'
           caption='Two signatures of the two needed, so Carry it out appears, with the gas it will be given.'
@@ -359,6 +361,13 @@ export const Guide = () => (
         <li>
           Keep a little EGLD in your wallet. Proposing, signing and carrying out
           are transactions. Each costs a small network fee.
+        </li>
+        <li>
+          Keep a little EGLD in the safe too, about 0.01. The network tries a
+          payment or a call in advance only for a safe that could pay its fee.
+          Without it, the action says in amber that it could not be tried. The
+          try spends nothing and the safe never pays gas: whoever sends a
+          transaction pays for it.
         </li>
         <li>
           A guarded wallet works here. If your account has a guardian switched
