@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>mvxsafe, a guide for proposing</title>
+<!-- Source for public/mvxsafe-propose.pdf. Rendered with:
+     PUPPETEER_PATH=<a puppeteer-core> node scripts/make-guide-pdfs.js
+     Printed on white on purpose: this is emailed and sometimes printed. -->
+<style>
+  @page { size: A4; margin: 13mm 14mm 11mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: #15151A; background: #fff;
+    font: 10.5pt/1.45 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  }
+  header { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 3px solid #FF6E0A; }
+  header h1 { margin: 0; font-size: 19pt; letter-spacing: -0.01em; }
+  header p { margin: 2px 0 0; color: #6B7280; font-size: 10pt; }
+  .intro { margin: 14px 0 4px; font-size: 11pt; }
+  .intro strong { color: #15151A; }
+  .step { display: flex; gap: 12px; margin-top: 14px; break-inside: avoid; }
+  .num {
+    flex: 0 0 34px; height: 34px; border-radius: 50%; background: #FF6E0A; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13pt;
+  }
+  .num.optional { background: #fff; color: #FF6E0A; border: 2px solid #FF6E0A; }
+  .step h2 { margin: 4px 0 4px; font-size: 13pt; }
+  .step p { margin: 0 0 6px; }
+  .step ul { margin: 6px 0 0; padding-left: 18px; }
+  .step li { margin-bottom: 3px; }
+  .muted { color: #6B7280; }
+  .callout {
+    margin-top: 16px; padding: 12px 14px; border-left: 4px solid #FF6E0A; background: #FFF6EF;
+    font-size: 10.5pt; break-inside: avoid;
+  }
+  footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 9.5pt; }
+  .fox { width: 40px; height: 40px; }
+</style>
+</head>
+<body>
+  <header>
+    <svg class="fox" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+      <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z"
+            fill="#FF6E0A" stroke="#FF6E0A" stroke-width="18" stroke-linejoin="round"/>
+      <path d="M 170 292 L 230 352 L 342 236" stroke="#09090D" stroke-width="52"
+            stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>Proposing an action at mvxsafe.io</h1>
+      <p>A one-page guide for whoever asks a safe to move funds</p>
+    </div>
+  </header>
+
+  <p class="intro">
+    Nothing leaves a safe until <strong>enough board members have signed</strong>. Proposing puts a
+    request in front of them. On its own it <strong>moves nothing</strong>.
+  </p>
+  <p class="muted">You need a wallet that sits on the safe's board or is one of its proposers. You also
+    need a little EGLD for fees: around 0.05 is plenty.</p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div>
+      <h2>Open the safe and connect your wallet</h2>
+      <p>Go to <strong>mvxsafe.io</strong>, open the safe and press <strong>Connect</strong>.</p>
+      <ul>
+        <li>Choose how you sign: <strong>xPortal</strong> (scan the code with your phone), the MultiversX <strong>browser extension</strong>, a <strong>Ledger</strong> or the <strong>web wallet</strong>.</li>
+        <li>If the safe is not in your list yet, paste its address under <strong>Add a safe</strong>.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div>
+      <h2>Fill in the proposal</h2>
+      <p>Under <strong>Propose an action</strong>, choose <strong>Send tokens</strong>. For EGLD, the network coin, choose <strong>Send EGLD</strong>.</p>
+      <ul>
+        <li><strong>Token:</strong> check its full code, not only its name. A token with another code is another token.</li>
+        <li><strong>Recipient:</strong> paste the address and check it twice, character by character, against where it came from.</li>
+        <li><strong>Amount:</strong> start with a small test amount when the address is new to you. Send the rest once the test has arrived.</li>
+      </ul>
+      <p>Press <strong>Propose</strong> and confirm in your wallet. A board member who proposes has signed by
+        doing so. A proposer has not, as proposers never sign.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div>
+      <h2>Tell the others</h2>
+      <p>Tell the board members who still have to sign what you proposed, by phone or message: the token,
+        the amount and the whole address. They read it on their own screen and sign. The signer's guide
+        shows them how.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">4</div>
+    <div>
+      <h2>Carry it out</h2>
+      <p>Once the signatures reach the quorum, a <strong>Carry it out</strong> button appears. Pressing it is
+        what actually moves the funds: <strong>nothing moves before it</strong>.</p>
+      <ul>
+        <li>Any board member or proposer can press it. Leave the gas figure as it is.</li>
+        <li>The action then joins the safe's history, linked to the explorer. Check that it arrived before you send more.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Changed your mind?</strong>
+    While the action waits, <strong>Remove my signature</strong> takes your approval back. Once no signature
+    is left on it, <strong>Discard</strong> throws it away. Changes to the board, the quorum and contract calls
+    follow the same steps: the full guide at mvxsafe.io/guide covers them.
+  </div>
+
+  <footer>
+    mvxsafe.io is open source: github.com/foxsyai/mvxsafe. It never holds keys. Any copy of it shows the same safe, as does any other interface for the same contract.
+  </footer>
+</body>
+</html>
