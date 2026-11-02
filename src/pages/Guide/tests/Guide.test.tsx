@@ -15,11 +15,24 @@ const guide = () =>
     </MemoryRouter>
   ).container;
 
-const signerGuide = () =>
-  readFileSync(resolve(process.cwd(), 'docs/signer-guide.html'), 'utf8')
+// The text of one of the one-page guides in docs/, as it is printed.
+const docText = (name: string) =>
+  readFileSync(resolve(process.cwd(), `docs/${name}`), 'utf8')
     .replace(/<style[\s\S]*?<\/style>/, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ');
+
+const signerGuide = () => docText('signer-guide.html');
+const creatorGuide = () => docText('creator-guide.html');
+const proposerGuide = () => docText('proposer-guide.html');
+
+/** How many pages a PDF has, counted from its page objects. */
+const pagesOf = (file: string) =>
+  readFileSync(resolve(process.cwd(), file))
+    .toString('latin1')
+    .match(/\/Type\s*\/Page[^s]/g)?.length ?? 0;
 
 describe('The guide', () => {
   it('shows only pictures that exist', () => {
@@ -94,6 +107,30 @@ describe('The guide', () => {
     );
   });
 
+  it('offers one single-page PDF per job, in the order create, propose, sign', () => {
+    // Someone with one job reads one page and stops there (2 Nov 2026).
+    const container = guide();
+    const headings = [...container.querySelectorAll('h2')]
+      .map((heading) => heading.textContent)
+      .filter((title) => title?.startsWith('If you only have to'));
+    expect(headings).toEqual([
+      'If you only have to create a safe',
+      'If you only have to propose',
+      'If you only have to sign'
+    ]);
+    const links = [...container.querySelectorAll('a[href$=".pdf"]')].map(
+      (link) => link.getAttribute('href')
+    );
+    expect(links).toEqual([
+      '/mvxsafe-create-a-safe.pdf',
+      '/mvxsafe-propose.pdf',
+      '/mvxsafe-for-signers.pdf'
+    ]);
+    links.forEach((link) => {
+      expect(pagesOf(`public${link}`)).toBe(1);
+    });
+  });
+
   it('keeps to the rule for visible copy', () => {
     const text = guide().textContent;
     expect(text).not.toMatch(/, (and|or) /);
@@ -108,5 +145,64 @@ describe("The signer's guide", () => {
 
   it('says who may carry an action out', () => {
     expect(signerGuide()).toContain('Any board member or proposer');
+  });
+});
+
+describe("The creator's guide", () => {
+  const text = () => creatorGuide();
+
+  it('names the buttons and fields as the create page does', () => {
+    expect(text()).toContain('Create a safe');
+    expect(text()).toContain('Add a member');
+    expect(text()).toContain('Signatures needed');
+  });
+
+  it('says what the two transactions do and how to check the safe owns itself', () => {
+    expect(text()).toContain('two transactions');
+    expect(text()).toContain('hands it to itself');
+    expect(text()).toContain('Owner');
+  });
+
+  it('gives the fee the create page gives', () => {
+    const createPage = readFileSync(
+      resolve(process.cwd(), 'src/pages/Create/Create.tsx'),
+      'utf8'
+    );
+    expect(createPage).toContain('0.073 EGLD');
+    expect(text()).toContain('0.073 EGLD');
+  });
+
+  it('tells the rest of the board how to find the safe', () => {
+    expect(text()).toContain('Add a safe');
+  });
+});
+
+describe("The proposer's guide", () => {
+  const text = () => proposerGuide();
+
+  it('walks from Propose an action to Carry it out', () => {
+    expect(text()).toContain('Propose an action');
+    expect(text()).toContain('Send tokens');
+    expect(text()).toContain('Carry it out');
+    expect(text()).toMatch(/nothing moves/i);
+  });
+
+  it('asks for a small test amount and a second look at the address', () => {
+    expect(text()).toMatch(/small test amount/i);
+    expect(text()).toContain('character by character');
+  });
+
+  it('says a proposal by a board member counts as a signature, and one by a proposer does not', () => {
+    expect(text()).toContain('A board member who proposes has signed');
+    expect(text()).toContain('A proposer has not');
+  });
+});
+
+describe('The three one-page guides', () => {
+  it('keep to the rule for visible copy', () => {
+    [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
+      expect(text).not.toMatch(/, (and|or) /);
+      expect(text).not.toMatch(/[–—!]| - /);
+    });
   });
 });

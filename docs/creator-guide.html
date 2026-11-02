@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>mvxsafe, a guide for creating a safe</title>
+<!-- Source for public/mvxsafe-create-a-safe.pdf. Rendered with:
+     PUPPETEER_PATH=<a puppeteer-core> node scripts/make-guide-pdfs.js
+     Printed on white on purpose: this is emailed and sometimes printed. -->
+<style>
+  @page { size: A4; margin: 13mm 14mm 11mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: #15151A; background: #fff;
+    font: 10.5pt/1.45 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  }
+  header { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 3px solid #FF6E0A; }
+  header h1 { margin: 0; font-size: 19pt; letter-spacing: -0.01em; }
+  header p { margin: 2px 0 0; color: #6B7280; font-size: 10pt; }
+  .intro { margin: 14px 0 4px; font-size: 11pt; }
+  .intro strong { color: #15151A; }
+  .step { display: flex; gap: 12px; margin-top: 14px; break-inside: avoid; }
+  .num {
+    flex: 0 0 34px; height: 34px; border-radius: 50%; background: #FF6E0A; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13pt;
+  }
+  .num.optional { background: #fff; color: #FF6E0A; border: 2px solid #FF6E0A; }
+  .step h2 { margin: 4px 0 4px; font-size: 13pt; }
+  .step p { margin: 0 0 6px; }
+  .step ul { margin: 6px 0 0; padding-left: 18px; }
+  .step li { margin-bottom: 3px; }
+  .muted { color: #6B7280; }
+  .callout {
+    margin-top: 16px; padding: 12px 14px; border-left: 4px solid #FF6E0A; background: #FFF6EF;
+    font-size: 10.5pt; break-inside: avoid;
+  }
+  footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 9.5pt; }
+  .fox { width: 40px; height: 40px; }
+</style>
+</head>
+<body>
+  <header>
+    <svg class="fox" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+      <path d="M 84 24 L 180 160 L 332 160 L 428 24 L 472 300 L 256 492 L 40 300 Z"
+            fill="#FF6E0A" stroke="#FF6E0A" stroke-width="18" stroke-linejoin="round"/>
+      <path d="M 170 292 L 230 352 L 342 236" stroke="#09090D" stroke-width="52"
+            stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <h1>Creating a safe at mvxsafe.io</h1>
+      <p>A one-page guide for whoever sets up a multisig safe</p>
+    </div>
+  </header>
+
+  <p class="intro">
+    A safe holds funds that <strong>no single person can move</strong>. You choose its board and how
+    many members have to sign before anything moves: the quorum, for example two of three. You do this once.
+  </p>
+  <p class="muted">You need every board member's address, each starting with erd1. You also need about
+    0.1 EGLD in your own wallet.</p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div>
+      <h2>Connect your wallet</h2>
+      <p>Go to <strong>mvxsafe.io</strong>, press <strong>Connect</strong> and choose how you sign: <strong>xPortal</strong>,
+        the MultiversX <strong>browser extension</strong>, a <strong>Ledger</strong> or the <strong>web wallet</strong>.
+        Connecting only proves who you are, it cannot move anything.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div>
+      <h2>Fill in the create page</h2>
+      <p>Press <strong>Create a safe</strong> on the main page and give the safe a name, kept in your browser only.</p>
+      <ul>
+        <li>Under <strong>Board</strong>, your address fills the first row. Paste the others below; <strong>Add a member</strong>
+          adds a row. Compare every address with its source: a wrong one is a seat nobody can ever use.</li>
+        <li>Under <strong>Signatures needed</strong>, choose more than one and fewer than the whole board, for example
+          two of three. The page warns you otherwise.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div>
+      <h2>Sign the two transactions</h2>
+      <p>Press the button, which names your choice: <em>Create a 2 of 3 safe</em>, for example. Your wallet shows
+        <strong>two transactions</strong>. The first creates the safe, the second hands it to itself. From then on
+        <strong>nobody, you included, can move its funds or change it alone</strong>. The fee is about 0.073 EGLD.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">4</div>
+    <div>
+      <h2>Check it</h2>
+      <p>The page opens the new safe. Check the quorum and every address under <strong>Board and proposers</strong>.</p>
+      <ul>
+        <li>In the <strong>MultiversX Explorer</strong>, the safe's <strong>Owner</strong> line must show the same address as
+          its <strong>Address</strong> line: the safe owns itself.</li>
+        <li>If a <strong>red warning</strong> sits at the top of the safe's page, stop and send it no funds.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">5</div>
+    <div>
+      <h2>Share it</h2>
+      <p>Copy the address with the small icon next to it and send it to the board. Each member adds it once
+        under <strong>Add a safe</strong> on mvxsafe.io. Funds can be sent to it from any wallet. Keep about 0.01 EGLD
+        in it as well, so the network can try a token payment before anyone signs. The safe never pays fees.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Worth knowing.</strong>
+    This site keeps no special access to the safe and never sees your keys.
+    Everything the safe does needs the quorum, a change to its own board included. If the board loses more
+    wallets than it can spare, nothing can move again: replace a lost wallet early.
+  </div>
+
+  <footer>
+    mvxsafe.io is open source: github.com/foxsyai/mvxsafe. It never holds keys. Any copy of it shows the same safe, as does any other interface for the same contract.
+  </footer>
+</body>
+</html>

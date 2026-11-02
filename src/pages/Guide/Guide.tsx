@@ -51,6 +51,28 @@ const Step = ({
   </div>
 );
 
+// The one-page guides, made from docs/*-guide.html by scripts/make-guide-pdfs.js.
+const ONE_PAGERS = [
+  {
+    title: 'If you only have to create a safe',
+    text: 'You choose the board and the quorum, then sign two transactions. On a single page:',
+    href: '/mvxsafe-create-a-safe.pdf',
+    link: "download the creator's guide (PDF)"
+  },
+  {
+    title: 'If you only have to propose',
+    text: 'You ask the board to send funds and carry it out once enough have signed. On a single page:',
+    href: '/mvxsafe-propose.pdf',
+    link: "download the proposer's guide (PDF)"
+  },
+  {
+    title: 'If you only have to sign',
+    text: 'Someone else proposes and you approve. That is four steps, on a single page:',
+    href: '/mvxsafe-for-signers.pdf',
+    link: "download the signer's guide (PDF)"
+  }
+];
+
 export const Guide = () => (
   <div className='mx-auto w-full max-w-3xl px-4 py-10'>
     <p className='text-xs font-semibold tracking-[0.25em] text-[#FF6E0A]'>
@@ -59,24 +81,29 @@ export const Guide = () => (
     <h1 className='mt-2 text-3xl font-semibold text-white'>
       A safe that needs more than one person
     </h1>
-    {/* First, for someone who only signs what others propose. */}
-    <div className='mt-6 rounded-xl border border-[#2A2A32] bg-[#121218] p-5'>
-      <h2 className='text-base font-semibold text-white'>
-        If you only have to sign
-      </h2>
-      <p className='mt-2 text-sm text-[#9AA0A6]'>
-        Someone else proposes and you approve. That is four steps, on a single
-        page:{' '}
-        <a
-          href='/mvxsafe-for-signers.pdf'
-          target='_blank'
-          rel='noreferrer'
-          className='text-[#FF6E0A] hover:underline'
+    {/* First, for someone with one job: one page each, in the order the jobs
+        come. Whoever wants the whole picture reads on (2 Nov 2026). */}
+    <div className='mt-6 grid gap-3 sm:grid-cols-3'>
+      {ONE_PAGERS.map(({ title, text, href, link }) => (
+        <div
+          key={href}
+          className='rounded-xl border border-[#2A2A32] bg-[#121218] p-5'
         >
-          download the signer's guide (PDF)
-        </a>
-        .
-      </p>
+          <h2 className='text-base font-semibold text-white'>{title}</h2>
+          <p className='mt-2 text-sm text-[#9AA0A6]'>
+            {text}{' '}
+            <a
+              href={href}
+              target='_blank'
+              rel='noreferrer'
+              className='text-[#FF6E0A] hover:underline'
+            >
+              {link}
+            </a>
+            .
+          </p>
+        </div>
+      ))}
     </div>
     <p className={body}>
       A multisig safe is an account on MultiversX that nobody controls alone. A
