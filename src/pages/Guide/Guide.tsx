@@ -233,9 +233,9 @@ export const Guide = () => (
         />
         Until the action is carried out, Remove my signature takes your approval
         back if you change your mind. MetaMask shows the safe address cut short,
-        the name of the call and its raw data, such as sign@02 for action #2. It
-        does not say what the action does: read the card here first and check
-        that the number matches.
+        the name of the call and its raw data, such as sign@0a for action #10:
+        the number in hex. The card shows the same @0a next to #10, so match the
+        two. It does not say what the action does: read the card here first.
       </Step>
 
       <Step number={8} title='Carry it out'>

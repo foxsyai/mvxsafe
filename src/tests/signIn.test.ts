@@ -23,9 +23,10 @@ describe('Signing in', () => {
   });
 
   it('never hands that token to the network', () => {
-    // The template's AxiosInterceptors put it on every request to the public
-    // API as a bearer token. It proves the login to whoever holds it, and the
-    // MultiversX API has no use for it.
+    // The template's AxiosInterceptors was set to put it, as a bearer token, on
+    // requests to the template's demo API (template-api.multiversx.com), which
+    // this app never calls. It proves the login to whoever holds it, so no code
+    // may be set to hand it on.
     const handing = sources(SRC).filter((file) =>
       /setAxiosInterceptors|nativeAuthToken|bearerToken/.test(
         readFileSync(file, 'utf8')

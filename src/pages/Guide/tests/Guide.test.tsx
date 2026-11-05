@@ -127,8 +127,11 @@ describe('The guide', () => {
     expect(text).toContain(
       'MetaMask shows the safe address cut short, the name of the call and its raw data'
     );
-    expect(text).toContain('such as sign@02 for action #2');
+    expect(text).toContain('such as sign@0a for action #10');
+    expect(text).toContain('the number in hex');
+    expect(text).toContain('The card shows the same @0a next to #10');
     expect(text).toContain('It does not say what the action does');
+    expect(text).not.toContain('check that the number matches');
   });
 
   it('does not claim the whole page comes from the contract', () => {
@@ -169,10 +172,11 @@ describe('The guide', () => {
 });
 
 describe("The signer's guide", () => {
-  it('tells a MetaMask signer to match the action number', () => {
+  it('tells a MetaMask signer to match the action number as the card shows it in hex', () => {
     expect(signerGuide()).toContain(
-      'MetaMask shows only the call, such as sign@02 for action #2'
+      'MetaMask shows only the call, such as sign@0a for action #10'
     );
+    expect(signerGuide()).toContain('match it with the @0a on the card');
   });
 
   it('tells a signer to stop at a red warning', () => {
