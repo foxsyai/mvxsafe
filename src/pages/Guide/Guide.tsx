@@ -159,8 +159,9 @@ export const Guide = () => (
       <Step number={3} title='Connect your wallet'>
         Connecting proves which address you are. It cannot move anything by
         itself: every action is a separate transaction that your wallet has to
-        sign. xPortal, the browser extension, a Ledger and the web wallet all
-        work.
+        sign. xPortal, the browser extension, a Ledger, the web wallet and
+        MetaMask all work. MetaMask signs through the MultiversX Snap and only
+        on a computer: the chooser shows no MetaMask on a phone.
         <Shot
           src='/shots/05-connect.jpg'
           caption='The wallet chooser. xPortal shows a code to scan with your phone; the others ask for whatever they need.'
@@ -362,8 +363,8 @@ export const Guide = () => (
       <ul className='mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#9AA0A6]'>
         <li>
           Your keys never reach this site. Every transaction is signed in your
-          own wallet, whether that is xPortal, the browser extension, a Ledger
-          or the web wallet.
+          own wallet, whether that is xPortal, the browser extension, a Ledger,
+          the web wallet or MetaMask.
         </li>
         <li>
           Read what you are signing. The description of an action is built from

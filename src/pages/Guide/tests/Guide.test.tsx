@@ -101,6 +101,15 @@ describe('The guide', () => {
     expect(text).toContain('the safe never pays gas');
   });
 
+  it('names MetaMask among the wallets and says a phone does not offer it', () => {
+    const text = guide().textContent;
+    expect(text).toContain('a Ledger, the web wallet and MetaMask all work');
+    expect(text).toContain('the chooser shows no MetaMask on a phone');
+    expect(text).toContain(
+      'whether that is xPortal, the browser extension, a Ledger, the web wallet or MetaMask'
+    );
+  });
+
   it('does not claim the whole page comes from the contract', () => {
     expect(guide().textContent).not.toContain(
       'Everything on this page is read from the contract itself'
@@ -213,6 +222,12 @@ describe("The proposer's guide", () => {
 });
 
 describe('The three one-page guides', () => {
+  it('name MetaMask among the wallets, on a computer only', () => {
+    [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
+      expect(text).toContain('web wallet or MetaMask on a computer');
+    });
+  });
+
   it('keep to the rule for visible copy', () => {
     [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
       expect(text).not.toMatch(/, (and|or) /);
