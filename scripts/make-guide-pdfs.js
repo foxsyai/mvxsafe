@@ -1,9 +1,10 @@
 // Renders the one-page guides in docs/ into the PDFs the How it works page offers,
 // one per job: creating a safe, proposing, signing. Run after editing any of them:
-//   PUPPETEER_PATH=<a puppeteer-core> node scripts/make-guide-pdfs.js
-// puppeteer-core is not a dependency of the app: it is only needed to print these
-// PDFs, so the script resolves it from wherever it is installed.
-const puppeteer = require(process.env.PUPPETEER_PATH || 'puppeteer-core');
+//   node scripts/make-guide-pdfs.js
+// It prints through Playwright, already a dev dependency, with the installed
+// Chrome (CHROME_PATH for another). It used puppeteer-core from another project
+// until 5 Nov 2026; the same page printed both ways gives the same text and look.
+const { chromium } = require('@playwright/test');
 const { resolve } = require('node:path');
 
 const CHROME = process.env.CHROME_PATH || '/usr/bin/google-chrome';
@@ -16,11 +17,11 @@ const GUIDES = [
 ];
 
 (async () => {
-  const browser = await puppeteer.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({ executablePath: CHROME });
   const page = await browser.newPage();
   for (const [source, pdf] of GUIDES) {
     await page.goto(`file://${resolve(__dirname, '../docs', source)}`, {
-      waitUntil: 'networkidle0'
+      waitUntil: 'networkidle'
     });
     await page.pdf({
       path: resolve(__dirname, '../public', pdf),

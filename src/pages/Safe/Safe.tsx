@@ -14,6 +14,7 @@ import {
 } from 'multisig/actions';
 import type { Inspection } from 'multisig/inspect';
 import {
+  actionIdInData,
   MULTISIG_CODE_HASH,
   normalizeBech32,
   normalizeCodeHash
@@ -644,6 +645,15 @@ const SafeView = ({ address }: { address: string }) => {
             <span className='mr-2 font-mono text-xs text-[#6B7280]'>
               #{action.actionId}
             </span>
+            {/* The number as a wallet shows it in the data, in hex: #10 is
+                sign@0a. MetaMask's Snap shows nothing else to match. */}
+            <Tip
+              text={`Your wallet shows this action as @${actionIdInData(action.actionId)} at the end of its data, for example sign@${actionIdInData(action.actionId)}: the number in hex.`}
+            >
+              <span className='mr-2 font-mono text-xs text-[#6B7280]'>
+                @{actionIdInData(action.actionId)}
+              </span>
+            </Tip>
             {action.description}
           </p>
           <span

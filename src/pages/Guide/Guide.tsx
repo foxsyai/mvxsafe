@@ -157,10 +157,15 @@ export const Guide = () => (
       </Step>
 
       <Step number={3} title='Connect your wallet'>
-        Connecting proves which address you are. It cannot move anything by
-        itself: every action is a separate transaction that your wallet has to
-        sign. xPortal, the browser extension, a Ledger and the web wallet all
-        work.
+        Connecting proves which address you are: your wallet asks you to sign a
+        short sign-in message for mvxsafe.io. It is a message and not a
+        transaction: it cannot move anything. Every action is a separate
+        transaction that your wallet has to sign. A sign-in lasts a day, then
+        you connect again. xPortal, the browser extension, a Ledger, the web
+        wallet and MetaMask all work. MetaMask signs through the MultiversX Snap
+        and only on a computer: the chooser shows no MetaMask on a phone. The
+        first time, MetaMask asks you to connect to snap.multiversx.com, the
+        Snap's own page that mvxsafe opens for it.
         <Shot
           src='/shots/05-connect.jpg'
           caption='The wallet chooser. xPortal shows a code to scan with your phone; the others ask for whatever they need.'
@@ -227,7 +232,12 @@ export const Guide = () => (
           caption='What Bob sees: the whole action, who has signed it so far and the Sign button.'
         />
         Until the action is carried out, Remove my signature takes your approval
-        back if you change your mind.
+        back if you change your mind. MetaMask shows the safe address cut short,
+        the name of the call and its raw data, such as sign@0a for action #10:
+        the number in hex. The card shows the same @0a next to #10, so match the
+        two. Numbers start again in every safe: check too that the address it
+        shows begins and ends like the safe address at the top of its page. It
+        does not say what the action does: read the card first.
       </Step>
 
       <Step number={8} title='Carry it out'>
@@ -362,8 +372,8 @@ export const Guide = () => (
       <ul className='mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#9AA0A6]'>
         <li>
           Your keys never reach this site. Every transaction is signed in your
-          own wallet, whether that is xPortal, the browser extension, a Ledger
-          or the web wallet.
+          own wallet, whether that is xPortal, the browser extension, a Ledger,
+          the web wallet or MetaMask.
         </li>
         <li>
           Read what you are signing. The description of an action is built from

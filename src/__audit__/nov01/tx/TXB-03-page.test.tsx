@@ -7,14 +7,13 @@ jest.mock('multisig/actions', () => {
 });
 
 import '../../display/restoreSetImmediate';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { initializeNetwork } from '@multiversx/sdk-dapp/out/store/actions/network/initializeNetwork';
 import { networkSelector } from '@multiversx/sdk-dapp/out/store/selectors/networkSelectors';
 import { getState } from '@multiversx/sdk-dapp/out/store/store';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { apiTimeout } from 'config';
+import { dAppConfig } from 'dAppConfig';
 import { createSafe, SafeUnconfirmed } from 'multisig/actions';
 import { getAllSafes } from 'multisig/savedSafes';
 import { Create } from 'pages/Create/Create';
@@ -40,12 +39,11 @@ test('a deploy whose answer was lost keeps its address, and says what is known',
 });
 
 test('the timeout set here is the one sdk-dapp uses', () => {
-  // initConfig imports the stylesheets, so it is read rather than loaded here.
-  expect(
-    readFileSync(join(__dirname, '../../../initConfig.ts'), 'utf8')
-  ).toMatch(/network: \{ apiTimeout: String\(apiTimeout\) \}/);
+  // The settings live in dAppConfig since 5 Nov 2026, apart from initConfig's
+  // stylesheets, so the very object initApp is given is loaded here.
+  expect(dAppConfig.network?.apiTimeout).toBe(String(apiTimeout));
   initializeNetwork({
-    customNetworkConfig: { apiTimeout: String(apiTimeout) },
+    customNetworkConfig: dAppConfig.network,
     environment: 'devnet'
   } as any);
   expect(Number(networkSelector(getState()).apiTimeout)).toBe(apiTimeout);

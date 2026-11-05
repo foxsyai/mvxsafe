@@ -35,6 +35,7 @@ export declare const buildDiscard: (
   c: CallContext,
   actionId: number
 ) => Promise<Transaction>;
+export declare const actionIdInData: (actionId: number) => string;
 export declare const buildProposeEgld: (
   c: CallContext,
   options: {

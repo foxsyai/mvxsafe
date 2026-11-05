@@ -101,6 +101,42 @@ describe('The guide', () => {
     expect(text).toContain('the safe never pays gas');
   });
 
+  it('names MetaMask among the wallets and says a phone does not offer it', () => {
+    const text = guide().textContent;
+    expect(text).toContain('a Ledger, the web wallet and MetaMask all work');
+    expect(text).toContain('the chooser shows no MetaMask on a phone');
+    expect(text).toContain(
+      'whether that is xPortal, the browser extension, a Ledger, the web wallet or MetaMask'
+    );
+  });
+
+  it('says that connecting asks for a sign-in message, which moves nothing', () => {
+    const text = guide().textContent;
+    expect(text).toContain(
+      'your wallet asks you to sign a short sign-in message for mvxsafe.io'
+    );
+    expect(text).toContain('It is a message and not a transaction');
+    expect(text).toContain('A sign-in lasts a day');
+  });
+
+  it('tells a MetaMask signer what the Snap shows and what it does not', () => {
+    const text = guide().textContent;
+    expect(text).toContain(
+      'MetaMask asks you to connect to snap.multiversx.com'
+    );
+    expect(text).toContain(
+      'MetaMask shows the safe address cut short, the name of the call and its raw data'
+    );
+    expect(text).toContain('such as sign@0a for action #10');
+    expect(text).toContain('the number in hex');
+    expect(text).toContain('The card shows the same @0a next to #10');
+    expect(text).toContain(
+      'begins and ends like the safe address at the top of its page'
+    );
+    expect(text).toContain('It does not say what the action does');
+    expect(text).not.toContain('check that the number matches');
+  });
+
   it('does not claim the whole page comes from the contract', () => {
     expect(guide().textContent).not.toContain(
       'Everything on this page is read from the contract itself'
@@ -139,6 +175,15 @@ describe('The guide', () => {
 });
 
 describe("The signer's guide", () => {
+  it('tells a MetaMask signer to match the action number as the card shows it in hex', () => {
+    expect(signerGuide()).toContain(
+      'MetaMask shows only the call, such as sign@0a for action #10'
+    );
+    expect(signerGuide()).toContain(
+      'match the @0a with the card and the shortened address with the safe'
+    );
+  });
+
   it('tells a signer to stop at a red warning', () => {
     expect(signerGuide()).toMatch(/red warning/i);
   });
@@ -213,6 +258,21 @@ describe("The proposer's guide", () => {
 });
 
 describe('The three one-page guides', () => {
+  it('say that connecting asks for a sign-in message, not a transaction', () => {
+    [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
+      expect(text).toContain(
+        'You sign in with a message, not a transaction: it moves nothing.'
+      );
+      expect(text).not.toContain('Connecting only proves who you are');
+    });
+  });
+
+  it('name MetaMask among the wallets, on a computer only', () => {
+    [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
+      expect(text).toContain('web wallet or MetaMask on a computer');
+    });
+  });
+
   it('keep to the rule for visible copy', () => {
     [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
       expect(text).not.toMatch(/, (and|or) /);

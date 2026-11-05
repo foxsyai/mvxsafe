@@ -16,6 +16,7 @@ import {
   Address,
   AddressComputer,
   AddressValue,
+  ArgSerializer,
   BigUIntValue,
   BytesValue,
   CodeMetadata,
@@ -73,6 +74,14 @@ export const buildPerform = (context, actionId) =>
 
 export const buildDiscard = (context, actionId) =>
   call({ ...context, fn: 'discardAction', args: [new U32Value(actionId)] });
+
+/**
+ * The action's number as these calls write it in their data, after the
+ * function's name: hex, so #10 is "0a" and a wallet shows sign@0a. The card
+ * shows it, for a wallet that shows only the data (MetaMask's Snap).
+ */
+export const actionIdInData = (actionId) =>
+  new ArgSerializer().valuesToStrings([new U32Value(actionId)])[0];
 
 // --- proposing ---------------------------------------------------------------
 

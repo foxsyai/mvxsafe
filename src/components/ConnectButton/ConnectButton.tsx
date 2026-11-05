@@ -33,7 +33,7 @@ export const ConnectButton = () => {
 
   if (!isLoggedIn) {
     return (
-      <Tip text='Proves which address you are, with xPortal, the browser extension, a Ledger or the web wallet. It cannot move anything by itself.'>
+      <Tip text='Proves which address you are, with xPortal, the browser extension, a Ledger, the web wallet or MetaMask. It cannot move anything by itself.'>
         <button
           type='button'
           onClick={openPanel}
