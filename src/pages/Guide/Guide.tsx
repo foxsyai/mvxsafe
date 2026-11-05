@@ -235,7 +235,9 @@ export const Guide = () => (
         back if you change your mind. MetaMask shows the safe address cut short,
         the name of the call and its raw data, such as sign@0a for action #10:
         the number in hex. The card shows the same @0a next to #10, so match the
-        two. It does not say what the action does: read the card here first.
+        two. Numbers start again in every safe: check too that the address it
+        shows begins and ends like the safe address at the top of this page. It
+        does not say what the action does: read the card here first.
       </Step>
 
       <Step number={8} title='Carry it out'>
