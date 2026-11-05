@@ -11,7 +11,6 @@ export { getLatestNonce } from '@multiversx/sdk-dapp/out/methods/account/getLate
 export { getInterpretedTransaction } from '@multiversx/sdk-dapp/out/utils/transactions/getInterpretedTransaction';
 export { getTransactions } from '@multiversx/sdk-dapp/out/apiCalls/transactions/getTransactions';
 export { initApp } from '@multiversx/sdk-dapp/out/methods/initApp/initApp';
-export { setAxiosInterceptors } from '@multiversx/sdk-dapp/out/utils/network/setAxiosInterceptors';
 export { signTransactions } from '@multiversx/sdk-dapp/out/providers/strategies/helpers/signTransactions/signTransactions';
 export { trimUsernameDomain } from '@multiversx/sdk-dapp/out/utils/account/trimUsernameDomain';
 export { getNetworkConfig } from '@multiversx/sdk-dapp/out/methods/network/getNetworkConfig';

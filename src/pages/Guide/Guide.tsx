@@ -157,11 +157,15 @@ export const Guide = () => (
       </Step>
 
       <Step number={3} title='Connect your wallet'>
-        Connecting proves which address you are. It cannot move anything by
-        itself: every action is a separate transaction that your wallet has to
-        sign. xPortal, the browser extension, a Ledger, the web wallet and
-        MetaMask all work. MetaMask signs through the MultiversX Snap and only
-        on a computer: the chooser shows no MetaMask on a phone.
+        Connecting proves which address you are: your wallet asks you to sign a
+        short sign-in message for mvxsafe.io. It is a message and not a
+        transaction: it cannot move anything. Every action is a separate
+        transaction that your wallet has to sign. A sign-in lasts a day, then
+        you connect again. xPortal, the browser extension, a Ledger, the web
+        wallet and MetaMask all work. MetaMask signs through the MultiversX Snap
+        and only on a computer: the chooser shows no MetaMask on a phone. The
+        first time, MetaMask asks you to connect to snap.multiversx.com, the
+        Snap's own page that mvxsafe opens for it.
         <Shot
           src='/shots/05-connect.jpg'
           caption='The wallet chooser. xPortal shows a code to scan with your phone; the others ask for whatever they need.'
@@ -228,7 +232,10 @@ export const Guide = () => (
           caption='What Bob sees: the whole action, who has signed it so far and the Sign button.'
         />
         Until the action is carried out, Remove my signature takes your approval
-        back if you change your mind.
+        back if you change your mind. MetaMask shows the safe address cut short,
+        the name of the call and its raw data, such as sign@02 for action #2. It
+        does not say what the action does: read the card here first and check
+        that the number matches.
       </Step>
 
       <Step number={8} title='Carry it out'>

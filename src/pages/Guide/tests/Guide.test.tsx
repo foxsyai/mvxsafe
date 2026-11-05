@@ -110,6 +110,27 @@ describe('The guide', () => {
     );
   });
 
+  it('says that connecting asks for a sign-in message, which moves nothing', () => {
+    const text = guide().textContent;
+    expect(text).toContain(
+      'your wallet asks you to sign a short sign-in message for mvxsafe.io'
+    );
+    expect(text).toContain('It is a message and not a transaction');
+    expect(text).toContain('A sign-in lasts a day');
+  });
+
+  it('tells a MetaMask signer what the Snap shows and what it does not', () => {
+    const text = guide().textContent;
+    expect(text).toContain(
+      'MetaMask asks you to connect to snap.multiversx.com'
+    );
+    expect(text).toContain(
+      'MetaMask shows the safe address cut short, the name of the call and its raw data'
+    );
+    expect(text).toContain('such as sign@02 for action #2');
+    expect(text).toContain('It does not say what the action does');
+  });
+
   it('does not claim the whole page comes from the contract', () => {
     expect(guide().textContent).not.toContain(
       'Everything on this page is read from the contract itself'
@@ -148,6 +169,12 @@ describe('The guide', () => {
 });
 
 describe("The signer's guide", () => {
+  it('tells a MetaMask signer to match the action number', () => {
+    expect(signerGuide()).toContain(
+      'MetaMask shows only the call, such as sign@02 for action #2'
+    );
+  });
+
   it('tells a signer to stop at a red warning', () => {
     expect(signerGuide()).toMatch(/red warning/i);
   });
@@ -222,6 +249,15 @@ describe("The proposer's guide", () => {
 });
 
 describe('The three one-page guides', () => {
+  it('say that connecting asks for a sign-in message, not a transaction', () => {
+    [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
+      expect(text).toContain(
+        'You sign in with a message, not a transaction: it moves nothing.'
+      );
+      expect(text).not.toContain('Connecting only proves who you are');
+    });
+  });
+
   it('name MetaMask among the wallets, on a computer only', () => {
     [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
       expect(text).toContain('web wallet or MetaMask on a computer');

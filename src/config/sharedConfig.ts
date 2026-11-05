@@ -26,7 +26,6 @@ export const GITHUB_REPO_URL = 'https://github.com/foxsyai/mvxsafe';
 export const apiTimeout = 15000;
 // No backend, so there is nothing to authenticate against: native auth only
 // exists to prove an address to a server we do not have.
-export const nativeAuth = false;
 export const transactionSize = 10;
 
 // Generate your own WalletConnect 2 ProjectId here: https://cloud.walletconnect.com/app

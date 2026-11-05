@@ -21,7 +21,10 @@ import { chromium } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 
-const SITE = 'https://devnet.mvxsafe.io';
+// SITE takes a local build of a branch, so its pictures can come before it is
+// deployed: a localhost certificate of its own is then accepted.
+const SITE = process.env.SITE || 'https://devnet.mvxsafe.io';
+const LOCAL = new URL(SITE).hostname === 'localhost';
 const API = 'https://devnet-api.multiversx.com';
 const OUT = process.env.OUT || 'public/shots/';
 const LONG = 180000;
@@ -64,7 +67,8 @@ let page;
 const newPage = async (account) => {
   const context = await browser.newContext({
     viewport: { width: 1366, height: 900 },
-    deviceScaleFactor: 2
+    deviceScaleFactor: 2,
+    ignoreHTTPSErrors: LOCAL
   });
   if (account) {
     const address = account.address.toBech32();

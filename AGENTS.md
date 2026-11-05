@@ -41,13 +41,13 @@ There is **no `.env`**. The active network is chosen at build/dev time by physic
 
 - `src/config/index.ts` is a **generated file** — edits to it are overwritten on the next `start-*`/`build-*`. Change the per-network `config.<env>.ts` files instead.
 - `src/config/sharedConfig.ts` holds values common to all networks (contract addresses for batch tx demos, `walletConnectV2ProjectId`, `transactionSize`, etc.).
-- App entry `src/index.tsx` calls `initApp(config)` (from `src/initConfig.ts`) **before** rendering `<App />`. `initConfig.ts` configures the dApp: nativeAuth, theme, providers (including the custom `InMemoryProvider`), and imports `environment` from the active `config` — so the copy mechanism is the single source of truth for the network.
+- App entry `src/index.tsx` calls `initApp(config)` (from `src/initConfig.ts`) **before** rendering `<App />`. The dApp settings (native auth on, theme, providers) are in `src/dAppConfig.ts`, which `initConfig.ts` passes on with the stylesheets; it imports `environment` from the active `config` — so the copy mechanism is the single source of truth for the network.
 
 ## Architecture
 
 - **`src/lib/`** — the key indirection. Rather than importing from `@multiversx/sdk-*` directly, app code imports everything through `lib` (`sdkCore`, `sdkDapp`, `sdkDappUI`, `sdkDappUtils`). Each re-export module (e.g. `sdkDapp.hooks.ts`, `sdkDapp.helpers.ts`, `sdkDapp.types.ts`) curates the SDK's deep `out/...` paths into a flat surface. **When you need an SDK hook/helper/type, add it to the relevant `lib/sdkDapp/*.ts` re-export and import from `lib`** — keep the deep `@multiversx/sdk-dapp/out/...` paths confined to `src/lib`.
 - **Routing** — `src/routes/routes.ts` is a declarative array (path, title, component, optional `authenticatedRoute`, nested `children`). `App.tsx` maps it into React Router. `wrappers/AuthRedirectWrapper` reads the same array via `matchPath` to redirect based on `useGetIsLoggedIn()`.
-- **`src/wrappers/`** — app-wide context providers composed in `App.tsx`: `AxiosInterceptors` (network auth), `BatchTransactionsContextProvider`, `AuthRedirectWrapper`.
+- **`src/wrappers/`** — app-wide context providers composed in `App.tsx`: `BatchTransactionsContextProvider`, `AuthRedirectWrapper`. The template's `AxiosInterceptors` is gone: with native auth on, it put the signed login token on every request to the public API.
 - **`src/provider/inMemoryProvider.ts`** — a custom login provider registered on `window.multiversx.providers` in `initConfig.ts`; used for testing/demo signing without an external wallet.
 - **`src/pages/`** — top-level screens (`Home`, `Dashboard`, `Unlock`, `Disclaimer`, `PageNotFound`). Dashboard hosts the feature `widgets/` (NativeAuth, BatchTransactions, Transactions) and demo `contracts/` interactions (ping-pong).
 - **Path aliases** — `baseUrl: src` (tsconfig), resolved at build by `vite-tsconfig-paths` and by Jest's `modulePaths`. Import as `lib`, `config`, `pages/...`, etc., not relative `../../`.
