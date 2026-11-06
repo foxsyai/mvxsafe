@@ -279,6 +279,20 @@ const run = async () => {
         .slice(0, 10);
     const first = firstOf(2);
     const tranche = (date, amount) => `${date} 00:00 UTC: ${amount}`;
+    // Each person with each date and amount, as the board agreed them, line
+    // by line as the list shows them (whole lines: "...: 2" is in "...: 2.5").
+    const expected = [
+      `1. ${erin}: 6 ${TOKEN}`,
+      tranche(firstOf(2), '2'),
+      tranche(firstOf(8), '2'),
+      tranche(firstOf(14), '2'),
+      `2. ${frank}: 2.5 ${TOKEN}`,
+      tranche(firstOf(3), '2.5')
+    ];
+    const missingLines = (text) => {
+      const lines = new Set(text.split('\n').map((line) => line.trim()));
+      return expected.filter((line) => !lines.has(line));
+    };
     const keysBefore = await keysOf();
     const tokensBefore = await tokenOf(SAFE);
     const egldBefore = await egldOf(SAFE);
@@ -301,7 +315,7 @@ const run = async () => {
       .getByRole('button', { name: 'Add these tranches to the rows' })
       .click();
     const rows = page.locator('#vest-rows');
-    await rows.fill(`${await rows.inputValue()}\n${frank}; ${first}; 2.5`);
+    await rows.fill(`${await rows.inputValue()}\n${frank}; ${firstOf(3)}; 2.5`);
     await page.getByText('2 vestings, 4 tranches').waitFor({ timeout: LONG });
     // The form reads mvxvest and the safe first; its fee line and preview follow.
     await page
@@ -316,9 +330,10 @@ const run = async () => {
       /mvxvest charges 0\.1 EGLD a vesting and 0\.1% of each/.test(form),
       "the form names mvxvest's fees"
     );
+    const formMissing = missingLines(form);
     check(
-      form.includes(erin) && form.includes(frank),
-      'the form shows both people the signers will see'
+      formMissing.length === 0,
+      `the form shows the signers each person with each date and amount${formMissing.length ? `; missing: ${formMissing.join(' | ')}` : ''}`
     );
     const formRed = await page
       .locator('#vest-rows')
@@ -359,16 +374,7 @@ const run = async () => {
         text.includes('pays exactly what mvxvest wants now'),
       "bob reads the fees and that they match mvxvest's now"
     );
-    // Each person with each date and amount, as the board agreed them.
-    const expected = [
-      `${erin}: 6 ${TOKEN}`,
-      tranche(firstOf(2), '2'),
-      tranche(firstOf(8), '2'),
-      tranche(firstOf(14), '2'),
-      `${frank}: 2.5 ${TOKEN}`,
-      tranche(firstOf(2), '2.5')
-    ];
-    const missing = expected.filter((line) => !text.includes(line));
+    const missing = missingLines(text);
     check(
       missing.length === 0,
       `bob sees each person with each date and amount${missing.length ? `; missing: ${missing.join(' | ')}` : ''}`
