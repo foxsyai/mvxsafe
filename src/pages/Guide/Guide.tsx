@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { environment } from 'config';
+import { fallbackNetworkConfigurations } from 'lib/sdkDapp/sdkDapp.constants';
 
 // The public walkthrough. Written for someone who has never used a multisig, so
 // it explains the idea before the buttons, and shows the real interface rather
@@ -15,6 +17,16 @@ const stepNumber =
   'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#FF6E0A] text-sm font-semibold text-[#FF6E0A]';
 const soon =
   'ml-3 rounded-full bg-[#2A2A32] px-2 py-0.5 align-middle text-[10px] tracking-widest text-[#9AA0A6] uppercase';
+
+// MetaMask names the Snap's page of this site's network, and the address bar
+// must name this site: each site says its own (audit of 6 Nov 2026, WRD-01).
+const SNAP_HOST = new URL(
+  fallbackNetworkConfigurations[environment]?.iframeWalletAddress ??
+    'https://snap.multiversx.com'
+).host;
+const NETWORK: string = environment;
+const SITE_HOST =
+  NETWORK === 'mainnet' ? 'mvxsafe.io' : `${NETWORK}.mvxsafe.io`;
 
 const Shot = ({ src, caption }: { src: string; caption: string }) => (
   <figure className='my-4'>
@@ -163,9 +175,12 @@ export const Guide = () => (
         transaction that your wallet has to sign. A sign-in lasts a day, then
         you connect again. xPortal, the browser extension, a Ledger, the web
         wallet and MetaMask all work. MetaMask signs through the MultiversX Snap
-        and only on a computer: the chooser shows no MetaMask on a phone. The
-        first time, MetaMask asks you to connect to snap.multiversx.com, the
-        Snap's own page that mvxsafe opens for it.
+        and only on a computer: the chooser shows no MetaMask on a phone. Each
+        time you sign in, MetaMask shows "Connect to: https://{SNAP_HOST}" and
+        asks you to check that your address bar reads that name. It cannot: that
+        is the Snap's own page, which mvxsafe opens inside its own. What must be
+        true is that your address bar reads {SITE_HOST}. If it reads anything
+        else, press Reject.
         <Shot
           src='/shots/05-connect.jpg'
           caption='The wallet chooser. xPortal shows a code to scan with your phone; the others ask for whatever they need.'
@@ -236,8 +251,10 @@ export const Guide = () => (
         the name of the call and its raw data, such as sign@0a for action #10:
         the number in hex. The card shows the same @0a next to #10, so match the
         two. Numbers start again in every safe: check too that the address it
-        shows begins and ends like the safe address at the top of its page. It
-        does not say what the action does: read the card first.
+        shows ends with the same five characters as the safe address at the top
+        of its page. It does not say what the action does: read the card first.
+        Send must read 0. The fee it shows is an upper limit, a few thousandths
+        of an EGLD for a signature: press Reject if it is far more.
       </Step>
 
       <Step number={8} title='Carry it out'>

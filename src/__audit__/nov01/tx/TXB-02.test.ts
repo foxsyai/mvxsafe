@@ -184,13 +184,16 @@ test('the nonce goes back after a refused result', async () => {
   expect(getAccount().nonce).toBe(CHAIN_NONCE);
 });
 
-test('control: a nonce, gas price and version the wallet changed are the wallet doing its work', async () => {
+// Since the audit of 6 Nov 2026 the nonce may not change (SNP-02) and the gas
+// price only up to ten times what was built (SNP-01): a doubled price and a new
+// version are still the wallet doing its work.
+test('control: a gas price within the ceiling and a version the wallet changed are the wallet doing its work', async () => {
   wallet.rewrite = ([given]) => [
-    altered(given, { nonce: CHAIN_NONCE + 5, gasPrice: 2000000000, version: 2 })
+    altered(given, { gasPrice: 2000000000, version: 2 })
   ];
   await signAction(alice, SAFE, 7);
   expect(network.sent).toHaveLength(1);
-  expect(Number(network.sent[0].nonce)).toBe(CHAIN_NONCE + 5);
+  expect(Number(network.sent[0].gasPrice)).toBe(2000000000);
 });
 
 test('control: a guardian and its co-signature added on the way are sent', async () => {

@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { Tip } from 'components/Info';
+import { afterSignIn } from 'helpers/provenSignIn';
 import {
   getAccountProvider,
   UnlockPanelManager,
@@ -22,7 +23,10 @@ export const ConnectButton = () => {
   const openPanel = useCallback(() => {
     UnlockPanelManager.init({
       allowedProviders: ALLOWED_WALLETS,
-      loginHandler: () => undefined,
+      // Every sign-in is checked before the app acts as its address (SIN-01).
+      loginHandler: async () => {
+        await afterSignIn();
+      },
       onClose: async () => undefined
     }).openUnlockPanel();
   }, []);

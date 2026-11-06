@@ -8,8 +8,9 @@ import { InitAppType } from './lib';
 export const dAppConfig: InitAppType['dAppConfig'] = {
   // Every wallet signs a login token when connecting: a message for this site,
   // not a transaction. MetaMask's MultiversX Snap logs in with nothing less (it
-  // cancelled before MetaMask was asked, devnet, 5 Nov 2026), and the signature
-  // proves the address instead of taking the wallet's word for it. sdk-dapp's
+  // cancelled before MetaMask was asked, devnet, 5 Nov 2026). sdk-dapp does not
+  // check that signature: helpers/provenSignIn does, after every sign-in, and
+  // ends a session whose address the signature does not prove (SIN-01). sdk-dapp's
   // defaults: the token names this site's origin, lasts 24 hours, and a toast
   // warns 5 minutes before the session ends. It stays in the browser; nothing
   // here sends it anywhere.
