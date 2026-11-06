@@ -15,7 +15,8 @@
 
 import { Address } from '@multiversx/sdk-core';
 import { codeHashOf } from './legacyCalls';
-import { api } from './network';
+import { api, networkName } from './network';
+import { keyIdentifier, mvxvestFor, readVestingCall } from './vesting';
 
 const DO_NOT_SIGN = 'Do not sign without checking it in the explorer.';
 
@@ -637,6 +638,45 @@ const describeOwnEndpoint = (
   }
 };
 
+/**
+ * A vesting action in one sentence; the card lists every vesting under it.
+ * Null when it is not one, or names another contract than the pinned mvxvest.
+ */
+const describeVesting = async (
+  call: ReturnType<typeof readVestingCall>
+): Promise<string | null> => {
+  const pin = mvxvestFor(networkName);
+  if (!call || !pin || call.contract !== pin.address) return null;
+  if (call.kind === 'cancel') {
+    const keys = call.keys.map((key) =>
+      visible(keyIdentifier(key.token, key.nonce))
+    );
+    return `Cancel ${keys.length === 1 ? `the mvxvest vesting of the cancel key ${keys[0]}` : `${keys.length} mvxvest vestings, with the cancel keys ${keys.join(', ')}`}: this safe sends the key to mvxvest (${pin.address}), what has not vested yet comes back to this safe, and what has vested stays the beneficiary's`;
+  }
+  const batch = call.batch;
+  if ('error' in batch)
+    return `An mvxvest vesting whose vestings cannot be read. ${DO_NOT_SIGN}`;
+  const payment = call.payments.find((paid) => paid.token !== 'EGLD-000000');
+  const fee = call.payments.find((paid) => paid.token === 'EGLD-000000');
+  if (!payment || payment.token === 'EGLD') return null;
+  const tokenBytes = new TextEncoder().encode(payment.token);
+  const sum = batch.entries.reduce((total, entry) => total + entry.total, 0n);
+  const count = batch.entries.length;
+  const tokenFee = payment.amount - sum;
+  const fees = [
+    tokenFee > 0n
+      ? `${await tokenAmount(tokenBytes, tokenFee)} of token fee`
+      : '',
+    fee ? `${formatUnits(fee.amount, 18)} EGLD of fee` : ''
+  ].filter(Boolean);
+  return (
+    `Create ${count} ${batch.cancelable ? 'cancelable ' : ''}vesting${count === 1 ? '' : 's'} of ${await tokenAmount(tokenBytes, sum)} in all on mvxvest (${pin.address})` +
+    (batch.label ? `, labelled "${visible(batch.label)}"` : '') +
+    (fees.length ? `, paying ${fees.join(' and ')} on top` : '') +
+    `. ${batch.cancelable ? 'Its cancel keys come to this safe.' : 'Nobody will be able to cancel them.'} Each vesting is listed below`
+  );
+};
+
 const describeCall = async (
   data: any,
   safe: string,
@@ -653,6 +693,13 @@ const describeCall = async (
       ? `Send ${formatUnits(egld, 18)} EGLD to ${to}`
       : `Unreadable call to ${to}: no amount and no function. ${DO_NOT_SIGN}`;
   }
+
+  // A vesting on the pinned mvxvest, said for what it does. One that names
+  // any other contract keeps the plain sentence below, and its card is red.
+  const vesting = await describeVesting(
+    readVestingCall({ to, egld, endpoint: name, args, safe })
+  );
+  if (vesting) return vesting;
 
   // A token leaving the safe: ESDTTransfer, run for the recipient.
   if (name === 'ESDTTransfer' && args.length >= 2) {

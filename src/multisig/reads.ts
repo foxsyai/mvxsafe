@@ -26,6 +26,7 @@ import {
   normalizeCodeHash
 } from './legacyCalls';
 import { api, cached, chainId, isTransient, networkProvider } from './network';
+import type { VestingDetails } from './vestingCard';
 
 const contracts = new SmartContractController({
   chainID: chainId,
@@ -89,6 +90,8 @@ export interface PendingAction {
   checks?: Check[];
   /** For an upgrade: the code hashes and shards the card shows. */
   upgrade?: UpgradeFacts;
+  /** For a vesting action: what the card lists under its sentence. */
+  vesting?: VestingDetails;
   /** How carrying it out gets its gas: simulated, or a budget the performer sees. */
   perform?: PerformPlan;
   /**

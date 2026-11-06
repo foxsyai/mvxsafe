@@ -619,6 +619,7 @@ const SafeView = ({ address }: { address: string }) => {
           ...listed,
           checks: [...answer.checks, ...(listed.checks ?? [])],
           upgrade: answer.upgrade,
+          vesting: answer.vesting,
           perform: answer.perform
         }
       : listed;

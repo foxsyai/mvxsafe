@@ -1,0 +1,83 @@
+{
+  "hashes": [
+    {
+      "label": "deploy a copy of mvxvest v4",
+      "hash": "a8cb9cfc23bcf97ee087f27726ef8fb9939953214f50201dd6ccd76753b8f041",
+      "gasLimit": "117117896",
+      "ok": true
+    },
+    {
+      "label": "issueClaimKey",
+      "hash": "3a3003315933f0d1b8a2241a33459090b15dd58ca5a0b8ac19e118adee2038d0",
+      "gasLimit": "75000000",
+      "ok": true
+    },
+    {
+      "label": "issueCancelKey",
+      "hash": "90edf84ff7051ce2e141af36c50aa85e25bb9c1bed8fd525aa00369dfcd4912a",
+      "gasLimit": "75000000",
+      "ok": true,
+      "note": "waited in the mempool until frank was funded (e02518493225a4ef9a07880635df8842ad6240f7727c06b27c09d132909d7d1f); the script gave up first"
+    },
+    {
+      "label": "propose createBatch of 2 cancelable vestings",
+      "hash": "0420e4228b43f8cf103bedd1dcac78c53b368cba8250595d9c8ddab4d57ee330",
+      "gasLimit": "11022158",
+      "ok": true
+    },
+    {
+      "label": "sign createBatch of 2 cancelable vestings (#31)",
+      "hash": "35e4eb196967528845e1c92674be5ffc610f13da3f5841ed0755f96af41e1832",
+      "gasLimit": "5172336",
+      "ok": true
+    },
+    {
+      "label": "carry out createBatch of 2 cancelable vestings (#31)",
+      "hash": "56d485a3c51a7bc77342ad898cfc91576833f14ad93ae863e4234115a53422d7",
+      "gasLimit": "38900000",
+      "ok": true
+    },
+    {
+      "label": "erin claims with VESTKEY-bf5b96-01",
+      "hash": "155cfb07e65b9092605cbfe9d7f2616ecf5e5b4aed85ea772abe077d244463ab",
+      "gasLimit": "10566294",
+      "ok": true
+    },
+    {
+      "label": "propose cancel vesting 1",
+      "hash": "c4c18b3dc2ff18d01a588ea3484ec4efc61b985e03810f8b54bf85e75c1325e3",
+      "gasLimit": "7294000",
+      "ok": true
+    },
+    {
+      "label": "sign cancel vesting 1 (#32)",
+      "hash": "8f40fc8bfdd49bff39c371c149f9b8ee8e8139870004bd1e397702c8650145b6",
+      "gasLimit": "5103310",
+      "ok": true
+    },
+    {
+      "label": "carry out cancel vesting 1 (#32)",
+      "hash": "5d02330efc3f18e37d396b8ed5fe617b7177caca4915f94ec16281ce665e1284",
+      "gasLimit": "22100000",
+      "ok": true
+    }
+  ],
+  "vest": "erd1qqqqqqqqqqqqqpgqunhaauldrd4sr73ks7a93tmmkyuxaj0mmg8sshugvn",
+  "claimKey": "VESTKEY-bf5b96",
+  "cancelKey": "VESTCANCEL-22a1f8",
+  "created": {
+    "action": 31,
+    "perform": "56d485a3c51a7bc77342ad898cfc91576833f14ad93ae863e4234115a53422d7",
+    "first": 1793964545,
+    "ids": [
+      1,
+      2
+    ]
+  },
+  "cancelled": {
+    "action": 32,
+    "perform": "5d02330efc3f18e37d396b8ed5fe617b7177caca4915f94ec16281ce665e1284",
+    "vesting": 1,
+    "key": "VESTCANCEL-22a1f8-01"
+  }
+}
