@@ -295,6 +295,55 @@ describe('a toast sdk-dapp cannot settle', () => {
   });
 });
 
+describe('a session the settler took back to processing', () => {
+  // After a laptop's sleep or a discarded tab, the clock in the session's id
+  // may say it is past the age the settler looks at. One it moved to
+  // processing must not spin for ever there: sdk-dapp never follows that
+  // status (review of PR #29).
+  const takenBack = async () => {
+    const hash = newHash();
+    const made = newSession([hash]);
+    await timeOutInSdkDapp(made.sessionId);
+    network.set(hash, { status: 'pending' });
+    await settler.tick();
+    expect(getIsTransactionPending(statusOf(made.sessionId))).toBe(true);
+    return { hash, ...made };
+  };
+
+  it('is timed out again once it is past that age, still unanswered', async () => {
+    const { sessionId } = await takenBack();
+    wall += SESSION_MAX_AGE_MS + 1;
+    clock += LOOK_EVERY_MS;
+    await settler.tick();
+    expect(statusOf(sessionId)).toBe('timedOut');
+  });
+
+  it('takes a last look first, and settles it if the network has answered', async () => {
+    const { hash, sessionId, onSuccess } = await takenBack();
+    network.set(hash, { status: 'success' });
+    wall += SESSION_MAX_AGE_MS + 1;
+    clock += 1;
+    await settler.tick();
+    expect(statusOf(sessionId)).toBe('success');
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('after a reload, when it is already old', async () => {
+    const { sessionId } = await takenBack();
+    // A new page: a settler that never saw it, and a session long past the age.
+    settler.stop();
+    settler = createSettler({
+      read,
+      now: () => clock,
+      wallNow: () => wall,
+      soon
+    });
+    wall += 2 * SESSION_MAX_AGE_MS;
+    await settler.tick();
+    expect(statusOf(sessionId)).toBe('timedOut');
+  });
+});
+
 describe('what the settler leaves alone', () => {
   it('a transaction the network never heard of stays timed out, and is let go after ten minutes', async () => {
     const hash = newHash();
@@ -404,9 +453,9 @@ describe('readTransaction', () => {
     });
   });
 
-  it('asks the API when the nodes have no final answer, and takes its own', async () => {
+  it('asks the API when the nodes give no answer, and takes its own', async () => {
     const hash = newHash();
-    nodesSay('pending');
+    nodes.mockRejectedValueOnce(new Error('/transaction answered 500'));
     index.mockResolvedValueOnce({
       txHash: hash,
       status: 'fail',
@@ -420,8 +469,28 @@ describe('readTransaction', () => {
       returnMessage: 'action does not exist'
     });
     expect(index).toHaveBeenCalledWith(
-      `/transactions/${hash}?fields=txHash,status,results`
+      `/transactions/${hash}?fields=txHash,status,results,pendingResults`
     );
+  });
+
+  it("never lets the API overrule the nodes' own pending (review of PR #29)", async () => {
+    const hash = newHash();
+    nodesSay('pending');
+    index.mockResolvedValueOnce({ txHash: hash, status: 'success' });
+    expect(await readTransaction(hash)).toEqual({ status: 'pending' });
+  });
+
+  it('takes a success with results still in flight as pending (review of PR #29)', async () => {
+    // A perform that calls a contract in another shard: the API may say
+    // success before the call there has run, and it can still fail.
+    const hash = newHash();
+    nodes.mockRejectedValueOnce(new Error('/transaction answered 500'));
+    index.mockResolvedValueOnce({
+      txHash: hash,
+      status: 'success',
+      pendingResults: true
+    });
+    expect(await readTransaction(hash)).toEqual({ status: 'pending' });
   });
 
   it('says pending when either does and neither has more', async () => {

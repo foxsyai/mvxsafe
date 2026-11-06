@@ -84,9 +84,15 @@ const fromIndex = async (hash: string): Promise<NetworkAnswer | null> => {
       txHash?: string;
       status?: string;
       results?: { returnMessage?: string }[];
-    }>(`/transactions/${hash}?fields=txHash,status,results`);
+      pendingResults?: boolean;
+    }>(`/transactions/${hash}?fields=txHash,status,results,pendingResults`);
     if (answer?.txHash !== hash || !ANSWERS.has(String(answer.status))) {
       return null;
+    }
+    // A call to a contract in another shard may still be on its way, and can
+    // still fail there (review of PR #29).
+    if (answer.status === 'success' && answer.pendingResults) {
+      return { status: 'pending' };
     }
     const returnMessage = (answer.results ?? []).find(
       (result) => result?.returnMessage
@@ -101,19 +107,16 @@ const fromIndex = async (hash: string): Promise<NetworkAnswer | null> => {
 };
 
 /**
- * What the network says about one transaction: the nodes' answer when it is
- * final, else the API's, else whichever says it is still pending; null when
- * neither gave a usable answer (not found yet, or refused after the retries).
+ * What the network says about one transaction: the nodes' answer, pending or
+ * final, which the API never overrules (review of PR #29); the API's only when
+ * the nodes give none; null when neither does (not found yet, or refused after
+ * the retries).
  */
 export const readTransaction = async (
   hash: string
 ): Promise<NetworkAnswer | null> => {
   if (!HASH.test(hash)) return null;
-  const nodes = await fromNodes(hash);
-  if (nodes && FINAL.has(nodes.status)) return nodes;
-  const index = await fromIndex(hash);
-  if (index && FINAL.has(index.status)) return index;
-  return nodes ?? index;
+  return (await fromNodes(hash)) ?? (await fromIndex(hash));
 };
 
 interface Watch {
@@ -201,7 +204,8 @@ export const createSettler = ({
     }
   };
 
-  const look = async (sessionId: string, watch: Watch) => {
+  /** `last`: the final look at a session taken back to processing. */
+  const look = async (sessionId: string, watch: Watch, last = false) => {
     watch.looking = true;
     try {
       const asked = unsettled(sessions()[sessionId]);
@@ -234,6 +238,12 @@ export const createSettler = ({
         await settle(sessionId, outcome, before, watch.errorMessage);
         return;
       }
+      if (last) {
+        // Taken back to processing and never finished: as sdk-dapp had it.
+        watch.done = true;
+        if (before === PROCESSING) write(sessionId, timedOut);
+        return;
+      }
       // sdk-dapp gave up, but the network holds the transaction and is still
       // at work on it: the toast goes back to processing.
       if (before === timedOut && answers.some((answer) => answer !== null)) {
@@ -255,14 +265,13 @@ export const createSettler = ({
     for (const [sessionId, session] of Object.entries(all)) {
       const status = String(session?.status ?? '');
       const born = Number(sessionId);
-      if (
-        !isOpen(status) ||
-        !Number.isFinite(born) ||
-        wallNow() - born > SESSION_MAX_AGE_MS ||
-        unsettled(session).length === 0
-      ) {
-        continue;
-      }
+      const old =
+        !Number.isFinite(born) || wallNow() - born > SESSION_MAX_AGE_MS;
+      if (!isOpen(status) || unsettled(session).length === 0) continue;
+      // An old one is history, unless mvxsafe took it back to processing:
+      // sdk-dapp never follows that status, so it would spin for ever, after
+      // a laptop's sleep or a reload (review of PR #29).
+      if (old && status !== PROCESSING) continue;
       let watch = watches.get(sessionId);
       if (!watch) {
         watch = {
@@ -279,10 +288,9 @@ export const createSettler = ({
         watch.sawTimedOut = true;
         watch.nextLook = at;
       }
-      if (at - watch.firstSeen >= GIVE_UP_MS) {
-        watch.done = true;
-        // Taken back to processing and never finished: as sdk-dapp had it.
-        if (status === PROCESSING) write(sessionId, timedOut);
+      if (old || at - watch.firstSeen >= GIVE_UP_MS) {
+        if (status === PROCESSING) looks.push(look(sessionId, watch, true));
+        else watch.done = true;
         continue;
       }
       if (at >= watch.nextLook) looks.push(look(sessionId, watch));
