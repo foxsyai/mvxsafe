@@ -16,3 +16,4 @@ export { trimUsernameDomain } from '@multiversx/sdk-dapp/out/utils/account/trimU
 export { getNetworkConfig } from '@multiversx/sdk-dapp/out/methods/network/getNetworkConfig';
 export { ToastManager } from '@multiversx/sdk-dapp/out/managers/ToastManager';
 export { getLoginInfo } from '@multiversx/sdk-dapp/out/methods/loginInfo/getLoginInfo';
+export { logoutAction } from '@multiversx/sdk-dapp/out/store/actions/sharedActions/sharedActions';
