@@ -15,5 +15,6 @@ export {
   TransactionsFactoryConfig,
   TransferTransactionsFactory,
   UserSecretKey,
-  UserSigner
+  UserSigner,
+  UserVerifier
 } from '@multiversx/sdk-core';

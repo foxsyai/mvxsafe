@@ -26,3 +26,16 @@
 * {
   font-family: 'Satoshi', sans-serif;
 }
+
+/* The MetaMask Snap's page, in a frame sdk-dapp adds to the body with no size
+   or style: a blank 300 by 150 box at the foot of every page that took clicks
+   (audit of 6 Nov 2026, SNP-03). It shows nothing a signer needs: MetaMask
+   asks in its own window. Kept laid out, not display: none, so it still loads. */
+#mx-iframe-wallet {
+  position: fixed;
+  width: 0;
+  height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}

@@ -71,18 +71,31 @@ const FIELD_NAMES: Record<string, string> = {
 };
 
 /**
+ * A wallet may raise the gas price (sdk-dapp's Fast and Faster options, the
+ * network's own advice), but not without bound: the signer pays the price times
+ * the gas, and a thousandfold price emptied a signer's EGLD in the audit of
+ * 6 Nov 2026 (SNP-01). Ten times what was built stays far above any honest
+ * option and caps a signature's cost at about a thousandth of an EGLD.
+ */
+export const GAS_PRICE_CEILING = 10n;
+
+/**
  * What differs between what was built and what the wallet returned, if anything.
  * A transaction comes back through a browser extension, a wallet's window, the
  * guardian's two-factor page or a relay, and was sent as it came (tx audit
- * TXB-02, 1 Nov 2026). The nonce may differ, since sdk-dapp sets it itself, and
- * so may the gas price, the version, the options and the signatures: a guardian
- * added on the way is the wallet doing its work, one replaced is not. So may the
- * gas limit go up, as a guardian's does. Down it may not: a perform with less than
- * it was given runs out where it runs, and the action is used up.
+ * TXB-02, 1 Nov 2026). The version, the options and the signatures may differ:
+ * a guardian added on the way is the wallet doing its work, one replaced is not.
+ * So may the gas limit go up, as a guardian's does. Down it may not: a perform
+ * with less than it was given runs out where it runs, and the action is used up.
+ * The gas price may go up to the ceiling above. The nonce may not change at all:
+ * sdk-dapp sets it before the wallet sees the transaction, and one moved ahead
+ * waits in the pool and runs when the gap fills, at a moment nobody chose (SNP-02).
  */
 const differenceFrom = (
   built: ReturnType<typeof builtFields>[],
   gasLimits: bigint[],
+  gasPrices: bigint[],
+  nonces: bigint[],
   signed: Transaction[]
 ): string => {
   if (signed.length !== built.length) return 'not the same number of them';
@@ -93,6 +106,10 @@ const differenceFrom = (
       if (back[field] !== value) return FIELD_NAMES[field];
     }
     if (BigInt(signed[at].gasLimit) < gasLimits[at]) return 'its gas limit';
+    if (BigInt(signed[at].gasPrice) > gasPrices[at] * GAS_PRICE_CEILING) {
+      return 'its gas price';
+    }
+    if (BigInt(signed[at].nonce) !== nonces[at]) return 'its nonce';
   }
   return '';
 };
@@ -101,8 +118,11 @@ const differenceFrom = (
 export const signOnly = async (transactions: Transaction[]) => {
   const built = transactions.map(builtFields);
   const gasLimits = transactions.map(({ gasLimit }) => BigInt(gasLimit));
+  const gasPrices = transactions.map(({ gasPrice }) => BigInt(gasPrice));
   const signed = await getAccountProvider().signTransactions(transactions);
-  const different = differenceFrom(built, gasLimits, signed);
+  // sdk-dapp has set the nonces on what it was given by now.
+  const nonces = transactions.map(({ nonce }) => BigInt(nonce));
+  const different = differenceFrom(built, gasLimits, gasPrices, nonces, signed);
   if (different) {
     // sdk-dapp sets the nonces on what it was given, so these say where it began.
     windNonceBack(transactions);

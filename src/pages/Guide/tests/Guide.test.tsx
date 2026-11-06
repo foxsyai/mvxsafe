@@ -121,9 +121,13 @@ describe('The guide', () => {
 
   it('tells a MetaMask signer what the Snap shows and what it does not', () => {
     const text = guide().textContent;
-    expect(text).toContain(
-      'MetaMask asks you to connect to snap.multiversx.com'
+    // Each site names its own Snap page and its own address (WRD-01).
+    expect(text).toContain('Each time you sign in, MetaMask shows');
+    expect(text).toContain('snap.multiversx.com');
+    expect(text).toMatch(
+      /What must be true is that your address bar reads (devnet\.)?mvxsafe\.io/
     );
+    expect(text).not.toContain('The first time, MetaMask asks');
     expect(text).toContain(
       'MetaMask shows the safe address cut short, the name of the call and its raw data'
     );
@@ -131,8 +135,9 @@ describe('The guide', () => {
     expect(text).toContain('the number in hex');
     expect(text).toContain('The card shows the same @0a next to #10');
     expect(text).toContain(
-      'begins and ends like the safe address at the top of its page'
+      'ends with the same five characters as the safe address at the top of its page'
     );
+    expect(text).toContain('a few thousandths of an EGLD for a signature');
     expect(text).toContain('It does not say what the action does');
     expect(text).not.toContain('check that the number matches');
   });
@@ -180,8 +185,9 @@ describe("The signer's guide", () => {
       'MetaMask shows only the call, such as sign@0a for action #10'
     );
     expect(signerGuide()).toContain(
-      'match the @0a with the card and the shortened address with the safe'
+      'match the @0a with the card and the last five characters of the address with the safe'
     );
+    expect(signerGuide()).toContain('Your address bar must read mvxsafe.io.');
   });
 
   it('tells a signer to stop at a red warning', () => {
@@ -260,9 +266,8 @@ describe("The proposer's guide", () => {
 describe('The three one-page guides', () => {
   it('say that connecting asks for a sign-in message, not a transaction', () => {
     [signerGuide(), creatorGuide(), proposerGuide()].forEach((text) => {
-      expect(text).toContain(
-        'You sign in with a message, not a transaction: it moves nothing.'
-      );
+      expect(text).toContain('You sign in with a message');
+      expect(text).toContain('moves nothing');
       expect(text).not.toContain('Connecting only proves who you are');
     });
   });

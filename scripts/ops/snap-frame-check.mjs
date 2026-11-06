@@ -16,7 +16,8 @@
 //   SITE=https://devnet.mvxsafe.io node scripts/ops/snap-frame-check.mjs
 //   SITE=https://mvxsafe.io node scripts/ops/snap-frame-check.mjs
 //
-// SNAP overrides the origin the frame must come from; by default it is the
+// SNAP_ORIGIN overrides the origin the frame must come from (not SNAP: Ubuntu
+// sets that to the snap package's path in a snap-packaged terminal); by default it is the
 // devnet Snap for a devnet site and the mainnet Snap otherwise. CHROMIUM points
 // at a browser binary when Chrome itself is not installed. Exit 0 when all of
 // the above holds, 1 otherwise.
@@ -24,7 +25,7 @@ import { chromium } from '@playwright/test';
 
 const SITE = process.env.SITE || 'https://mvxsafe.io';
 const SNAP =
-  process.env.SNAP ||
+  process.env.SNAP_ORIGIN ||
   (new URL(SITE).hostname.startsWith('devnet.')
     ? 'https://devnet-snap.multiversx.com'
     : 'https://snap.multiversx.com');
