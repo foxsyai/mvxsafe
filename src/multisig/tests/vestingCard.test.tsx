@@ -254,6 +254,65 @@ describe('a batch to the pinned mvxvest', () => {
   });
 });
 
+describe('arguments mvxvest would read differently (review of PR #26)', () => {
+  it('a schedule with one byte too many is red, not green', async () => {
+    const action = actionOf(await batch());
+    const args = action.fields[0].arguments;
+    // ESDTTransfer's token, amount, createBatch, cancelable, label, then the
+    // entries: beneficiary, total, schedule. One byte after the first schedule.
+    args[7] = Buffer.concat([args[7], Buffer.from([0])]);
+    const inspection = await inspectAction(action, SAFE);
+    expect(texts(red(inspection.checks))).toMatch(/could not be read/);
+    expect(inspection.vesting).toBeUndefined();
+  });
+
+  it('a create with an extra argument is red, not green', async () => {
+    const one = await batch({ entries: [entries[0]] });
+    const parts = Buffer.from(one.data).toString().split('@');
+    // Rebuild it as create(beneficiary, total, schedule, cancelable, label, extra).
+    const action = actionOf(one);
+    const [token, amount, , cancelable, label, beneficiary, total, schedule] =
+      action.fields[0].arguments;
+    action.fields[0].arguments = [
+      token,
+      amount,
+      Buffer.from('create'),
+      beneficiary,
+      total,
+      schedule,
+      cancelable,
+      label,
+      Buffer.from('extra')
+    ];
+    expect(parts.length).toBeGreaterThan(8);
+    expect(texts(red((await inspectAction(action, SAFE)).checks))).toMatch(
+      /could not be read/
+    );
+  });
+
+  it('control: the same create without the extra argument is read', async () => {
+    const action = actionOf(await batch({ entries: [entries[0]] }));
+    const [token, amount, , cancelable, label, beneficiary, total, schedule] =
+      action.fields[0].arguments;
+    action.fields[0].arguments = [
+      token,
+      amount,
+      Buffer.from('create'),
+      beneficiary,
+      total,
+      schedule,
+      cancelable,
+      label
+    ];
+    const inspection = await inspectAction(action, SAFE);
+    expect(texts(red(inspection.checks))).not.toMatch(/could not be read/);
+    expect(inspection.vesting).toMatchObject({
+      kind: 'create',
+      label: 'Grants 2026'
+    });
+  });
+});
+
 describe('the same call to any other contract', () => {
   it('keeps the plain sentence and is red', async () => {
     const other = predictSafeAddress(CAROL, 40);
@@ -436,6 +495,30 @@ describe('a key leaving the safe any other way (review of PR #26)', () => {
     );
     expect(texts((await inspectAction(action, SAFE)).checks)).not.toMatch(
       /Whoever holds it/
+    );
+  });
+
+  it('a cancel key in a MultiESDTNFTTransfer to anyone but mvxvest with cancel is red', async () => {
+    mockVesting.current = keyState;
+    const multi = {
+      name: 'SendAsyncCall',
+      fields: [
+        {
+          to: SAFE,
+          egld_amount: 0n,
+          endpoint_name: Buffer.from('MultiESDTNFTTransfer'),
+          arguments: [
+            Buffer.from(Address.newFromBech32(ALICE).getPublicKey()),
+            Buffer.from([1]),
+            Buffer.from(pin.cancelKey),
+            Buffer.from([5]),
+            Buffer.from([1])
+          ]
+        }
+      ]
+    };
+    expect(texts(red((await inspectAction(multi, SAFE)).checks))).toMatch(
+      new RegExp(`${KEY}, the cancel key of vesting #7 .*to ${ALICE}`)
     );
   });
 

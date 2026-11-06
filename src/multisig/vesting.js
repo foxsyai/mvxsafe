@@ -215,6 +215,41 @@ const entryOf = (address, total, schedule) => ({
   schedule: scheduleFromNative(schedule)
 });
 
+/**
+ * The decoder reads more loosely than mvxvest: it ignores bytes after a
+ * struct or an address, and arguments past the last. So what it read is
+ * encoded again, and kept only when that gives back exactly the bytes stored
+ * (review of PR #26): anything else, mvxvest would refuse or read otherwise.
+ */
+const sameBytes = (again, args) =>
+  again.length === args.length &&
+  again.every(
+    (bytes, at) =>
+      bytes.length === args[at].length &&
+      bytes.every((byte, index) => byte === args[at][index])
+  );
+
+const NOT_EXACT =
+  'These arguments are not exactly what mvxvest reads: it would refuse them or read them otherwise. Do not sign it.';
+
+/** create(beneficiary, total, schedule, cancelable, label) as the bytes of each argument. */
+export const encodeCreateArgs = ({ cancelable, label, entries }) => {
+  const [entry] = entries;
+  const typed = NativeSerializer.nativeToTypedValues(
+    [
+      Address.newFromBech32(entry.beneficiary),
+      entryTotal(entry),
+      scheduleArg(entry.schedule),
+      Boolean(cancelable),
+      String(label ?? '')
+    ],
+    mvxvestAbi.getEndpoint('create')
+  );
+  return serializer
+    .valuesToBuffers(typed)
+    .map((buffer) => Uint8Array.from(buffer));
+};
+
 /** createBatch's arguments back as a batch, or { error } when they are not one. */
 export const decodeCreateBatchArgs = (args) => {
   try {
@@ -223,13 +258,16 @@ export const decodeCreateBatchArgs = (args) => {
       mvxvestAbi.getEndpoint('createBatch').input
     );
     const [cancelable, label, entries] = values.map((value) => value.valueOf());
-    return {
+    const batch = {
       cancelable: Boolean(cancelable),
       label: textOf(label),
       entries: entries.map(([address, total, schedule]) =>
         entryOf(address, total, schedule)
       )
     };
+    if (!sameBytes(encodeCreateBatchArgs(batch), args))
+      return { error: NOT_EXACT };
+    return batch;
   } catch (error) {
     return {
       error: `These arguments could not be read as a createBatch: ${error?.message ?? error}`
@@ -247,11 +285,13 @@ export const decodeCreateArgs = (args) => {
     const [address, total, schedule, cancelable, label] = values.map((value) =>
       value.valueOf()
     );
-    return {
+    const batch = {
       cancelable: Boolean(cancelable),
       label: textOf(label),
       entries: [entryOf(address, total, schedule)]
     };
+    if (!sameBytes(encodeCreateArgs(batch), args)) return { error: NOT_EXACT };
+    return batch;
   } catch (error) {
     return {
       error: `These arguments could not be read as a create: ${error?.message ?? error}`

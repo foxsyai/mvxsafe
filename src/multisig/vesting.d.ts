@@ -129,6 +129,11 @@ export declare const encodeCreateBatchArgs: (batch: {
   label: string;
   entries: NewVesting[];
 }) => Uint8Array[];
+export declare const encodeCreateArgs: (batch: {
+  cancelable: boolean;
+  label: string;
+  entries: NewVesting[];
+}) => Uint8Array[];
 export declare const decodeCreateBatchArgs: (
   args: Uint8Array[]
 ) => VestingBatch & { error?: string };
