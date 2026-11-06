@@ -37,6 +37,13 @@ import {
   TypedArgument
 } from './legacyCalls';
 import { api, chainId, forget, networkProvider } from './network';
+import {
+  buildProposeCancelVesting,
+  buildProposeVestings,
+  VestingFacts,
+  VestingInput,
+  VestingPin
+} from './vesting';
 
 export interface Signer {
   address: string;
@@ -293,6 +300,33 @@ export const proposeCall = async (
   send(
     await buildProposeCall(await contextOf(signer, safe), call),
     `Proposing a call to ${call.functionName}`
+  );
+
+/** "Create vestings": the safe pays mvxvest and becomes the creator. */
+export const proposeVestings = async (
+  signer: Signer,
+  safe: string,
+  input: VestingInput
+) =>
+  send(
+    await buildProposeVestings(await contextOf(signer, safe), input),
+    'Proposing vestings'
+  );
+
+/** "Cancel a vesting": the safe sends one of its cancel keys back to mvxvest. */
+export const proposeCancelVesting = async (
+  signer: Signer,
+  safe: string,
+  input: {
+    pin: VestingPin | null;
+    facts: VestingFacts;
+    collection: string;
+    nonce: number;
+  }
+) =>
+  send(
+    await buildProposeCancelVesting(await contextOf(signer, safe), input),
+    'Proposing to cancel a vesting'
   );
 
 export const proposeUpgrade = async (

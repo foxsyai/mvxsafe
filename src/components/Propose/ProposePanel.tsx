@@ -22,9 +22,12 @@ import {
   TokenBalance,
   tokensNotReadLine
 } from 'multisig/reads';
+import { pinnedMvxvest } from 'multisig/vestingReads';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import { CallForm } from './CallForm';
+import { CancelVestingForm } from './CancelVestingForm';
 import { UpgradeForm } from './UpgradeForm';
+import { VestingForm } from './VestingForm';
 
 /** A problem with what was typed, found before the wallet was asked anything. */
 class FormError extends Error {}
@@ -41,7 +44,9 @@ type Kind =
   | 'remove'
   | 'quorum'
   | 'call'
-  | 'upgrade';
+  | 'upgrade'
+  | 'vest'
+  | 'vestCancel';
 
 const TABS: { kind: Kind; label: string }[] = [
   { kind: 'token', label: 'Send tokens' },
@@ -51,8 +56,13 @@ const TABS: { kind: Kind; label: string }[] = [
   { kind: 'remove', label: 'Remove member' },
   { kind: 'quorum', label: 'Change quorum' },
   { kind: 'call', label: 'Call a contract' },
-  { kind: 'upgrade', label: 'Upgrade a contract' }
+  { kind: 'upgrade', label: 'Upgrade a contract' },
+  { kind: 'vest', label: 'Create vestings' },
+  { kind: 'vestCancel', label: 'Cancel a vesting' }
 ];
+
+/** The kinds with a form of their own, and their own checks. */
+const OWN_FORM = new Set<Kind>(['call', 'upgrade', 'vest', 'vestCancel']);
 
 // One sentence per kind of action, shown next to the form rather than in a
 // manual nobody opens.
@@ -70,7 +80,10 @@ const EXPLAIN: Record<Kind, string> = {
     'How many signatures an action needs. Raising it makes the safe stricter, lowering it makes it easier to use. It can never be higher than the number of board members.',
   call: 'Have the safe call a function of a contract, typically one it owns: set a fee, pause, unpause. The call is tried as the safe would send it before it can be proposed.',
   upgrade:
-    "Replace the code of a contract the safe owns with the code of a source contract in the safe's shard. Its address and storage stay; only the code changes."
+    "Replace the code of a contract the safe owns with the code of a source contract in the safe's shard. Its address and storage stay; only the code changes.",
+  vest: "Have the safe create vestings on mvxvest itself: it pays the whole batch at once and becomes the creator, so it holds the cancel keys and gets back whatever a cancel returns. No token passes through anyone's own wallet.",
+  vestCancel:
+    "Stop a vesting the safe created, with the cancel key it holds. What has vested stays the beneficiary's to claim; what has not comes back to the safe."
 };
 
 const input =
@@ -313,7 +326,11 @@ export const ProposePanel = ({
       </p>
 
       <div className='mt-4 flex flex-wrap gap-2'>
-        {TABS.map((tab) => (
+        {TABS.filter(
+          (tab) =>
+            (tab.kind !== 'vest' && tab.kind !== 'vestCancel') ||
+            pinnedMvxvest()
+        ).map((tab) => (
           <Tip key={tab.kind} text={EXPLAIN[tab.kind]}>
             <button
               type='button'
@@ -334,7 +351,28 @@ export const ProposePanel = ({
         {EXPLAIN[kind]}
       </p>
 
-      {/* A call and an upgrade have forms of their own, with their own checks. */}
+      {/* Vestings, a call and an upgrade have forms of their own, with their own checks. */}
+      {kind === 'vest' && (
+        <VestingForm
+          safe={safe}
+          signer={signer}
+          tokens={tokens}
+          disabled={disabled}
+          disabledReason={disabledReason}
+          onBusyChange={onBusyChange}
+          onProposed={onProposed}
+        />
+      )}
+      {kind === 'vestCancel' && (
+        <CancelVestingForm
+          safe={safe}
+          signer={signer}
+          disabled={disabled}
+          disabledReason={disabledReason}
+          onBusyChange={onBusyChange}
+          onProposed={onProposed}
+        />
+      )}
       {(kind === 'call' || kind === 'upgrade') &&
         (kind === 'call' ? (
           <CallForm
@@ -356,7 +394,7 @@ export const ProposePanel = ({
           />
         ))}
 
-      {kind !== 'call' && kind !== 'upgrade' && (
+      {!OWN_FORM.has(kind) && (
         <>
           {kind === 'token' && (
             <div className={field}>
