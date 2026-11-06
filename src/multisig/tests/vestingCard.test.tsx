@@ -290,6 +290,21 @@ describe('arguments mvxvest would read differently (review of PR #26)', () => {
     );
   });
 
+  it('a batch with no vestings is red: mvxvest refuses it (third review of PR #26)', async () => {
+    const action = actionOf(await batch());
+    // createBatch(cancelable, label) and nothing after: no entry, paid nothing.
+    action.fields[0].arguments = [
+      Buffer.from(TOKEN),
+      Buffer.alloc(0),
+      Buffer.from('createBatch'),
+      Buffer.from([1]),
+      Buffer.from('empty')
+    ];
+    expect(texts(red((await inspectAction(action, SAFE)).checks))).toMatch(
+      /no vesting/
+    );
+  });
+
   it('control: the same create without the extra argument is read', async () => {
     const action = actionOf(await batch({ entries: [entries[0]] }));
     const [token, amount, , cancelable, label, beneficiary, total, schedule] =

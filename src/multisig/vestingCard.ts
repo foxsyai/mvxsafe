@@ -256,6 +256,13 @@ export const inspectVesting = async (
     );
 
   // The vestings themselves, held to the rules the form keeps (VCD-02, VCD-03).
+  // mvxvest takes between 1 and its most (create.rs, ERR_BATCH_SIZE).
+  if (batch.entries.length === 0)
+    checks.push(
+      bad(
+        'It creates no vesting: mvxvest refuses an empty batch. Carried out, it fails and the action is used up. Do not sign it.'
+      )
+    );
   const max = batch.cancelable
     ? VESTING_LIMITS.batchCancelable
     : VESTING_LIMITS.contractBatch;
