@@ -22,13 +22,14 @@
 import { Transaction } from '@multiversx/sdk-core';
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { big, getJson, load, query, sleep } from './chain.mjs';
 
 const TARGET = (process.env.TARGET ?? 'https://devnet.mvxsafe.io').replace(
   /\/$/,
   ''
 );
-const OUT = process.env.OUT ?? 'vest-ui';
+const OUT = process.env.OUT ?? `${tmpdir()}/mvxsafe-vest-ui`;
 const SAFE = 'erd1qqqqqqqqqqqqqpgqa36jq897x6drcq8arsumtw7tns8f98t3xezs2vdjvf';
 const TOKEN = 'TSAFED-e52b18';
 const CANCEL_KEY = 'VESTCANCEL-bd731d';
@@ -263,12 +264,21 @@ const run = async () => {
   }
 
   let created = null;
-  if (steps.includes('create') || steps.includes('form')) {
+  // The form is checked for both; only create goes on to propose.
+  formAndCreate: if (steps.includes('create') || steps.includes('form')) {
     const erin = load('erin').address.toBech32();
     const frank = load('frank').address.toBech32();
-    const first = new Date(Date.now() + 30 * 86400 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    // The first of a month a month or two ahead: the schedule's later dates
+    // then fall on the same day, which the card is checked against below.
+    const ahead = new Date();
+    const firstOf = (months) =>
+      new Date(
+        Date.UTC(ahead.getUTCFullYear(), ahead.getUTCMonth() + months, 1)
+      )
+        .toISOString()
+        .slice(0, 10);
+    const first = firstOf(2);
+    const tranche = (date, amount) => `${date} 00:00 UTC: ${amount}`;
     const keysBefore = await keysOf();
     const tokensBefore = await tokenOf(SAFE);
     const egldBefore = await egldOf(SAFE);
@@ -323,7 +333,7 @@ const run = async () => {
       path: `${OUT}/1-create-form.png`,
       fullPage: false
     });
-    if (!steps.includes('create')) return;
+    if (!steps.includes('create')) break formAndCreate;
     const propose = page.getByRole('button', { name: 'Propose', exact: true });
     await page.waitForFunction(
       (el) => !el.disabled,
@@ -349,9 +359,19 @@ const run = async () => {
         text.includes('pays exactly what mvxvest wants now'),
       "bob reads the fees and that they match mvxvest's now"
     );
+    // Each person with each date and amount, as the board agreed them.
+    const expected = [
+      `${erin}: 6 ${TOKEN}`,
+      tranche(firstOf(2), '2'),
+      tranche(firstOf(8), '2'),
+      tranche(firstOf(14), '2'),
+      `${frank}: 2.5 ${TOKEN}`,
+      tranche(firstOf(2), '2.5')
+    ];
+    const missing = expected.filter((line) => !text.includes(line));
     check(
-      text.includes(erin) && text.includes(frank) && /:\s*2\b/.test(text),
-      'bob sees each person with dates and amounts'
+      missing.length === 0,
+      `bob sees each person with each date and amount${missing.length ? `; missing: ${missing.join(' | ')}` : ''}`
     );
     check(
       (await redLines(card)).length === 0,
