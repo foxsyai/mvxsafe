@@ -6,6 +6,14 @@
 //
 //   node scripts/devnet/browser.mjs create   # TXN-01: sign, then create a safe at once
 //   node scripts/devnet/browser.mjs watch    # sign, then watch sdk-dapp's status polls
+//   node scripts/devnet/browser.mjs stuck    # the stuck toast: no websocket, every status poll refused
+//   node scripts/devnet/browser.mjs load     # signed in, with /websocket/config refused: the page still opens
+//
+// In stuck mode POLLS says how sdk-dapp's status polls are answered: 429 (the
+// default: every one refused, which kept its toast spinning) or missing (an
+// empty list, which made it call a successful transaction timed out). The run
+// passes when the session still ends as the network has the transaction. SHOT
+// names a file for a picture of the page at the end.
 //
 // TARGET is the site (https://devnet.mvxsafe.io by default, or a local
 // `vite preview` of a devnet build), SAFE a devnet safe where alice is on the
@@ -19,6 +27,7 @@ const MODE = process.argv[2] ?? 'create';
 const TARGET = (process.env.TARGET ?? 'https://devnet.mvxsafe.io').replace(/\/$/, '');
 const SAFE = process.env.SAFE ?? readFileSync('scripts/devnet/safe.txt', 'utf8').trim();
 const API = 'https://devnet-api.multiversx.com';
+const GATEWAY = 'https://devnet-gateway.multiversx.com';
 const DEPLOY_RECEIVER_END = '6gq4hu';
 // Generous: the connection to the site has been as slow as 23 KB/s.
 const LONG = 300000;
@@ -89,6 +98,25 @@ await context.addInitScript(({ address }) => {
   };
 }, { address: ADDRESS });
 
+const POLLS = process.env.POLLS ?? '429';
+const refusal = {
+  status: 429,
+  contentType: 'application/json',
+  headers: { 'access-control-allow-origin': '*' },
+  body: '{"statusCode":429,"message":"Too Many Requests"}'
+};
+if (MODE === 'load') {
+  await context.route(/\/websocket\/config/, (route) => route.fulfill(refusal));
+}
+if (MODE === 'stuck') {
+  // sdk-dapp's websocket is closed as soon as it opens, so it polls at its
+  // fastest; and it is never answered the way it needs.
+  await context.routeWebSocket(/socket-api\.multiversx\.com/, (socket) => socket.close());
+  await context.route(/\/transactions\?.*hashes=/, (route) =>
+    route.fulfill(POLLS === 'missing' ? { ...refusal, status: 200, body: '[]' } : refusal)
+  );
+}
+
 const page = await context.newPage();
 page.on('pageerror', (error) => log('page error:', String(error).slice(0, 160)));
 
@@ -115,6 +143,21 @@ page.on('requestfailed', (request) => {
 });
 
 await page.goto(`${TARGET}/safe/${SAFE}`, { waitUntil: 'domcontentloaded', timeout: LONG });
+if (MODE === 'load') {
+  // A blank page never shows it: initApp threw, and nothing rendered.
+  const opened = await page
+    .getByText(/a board member here/)
+    .waitFor({ timeout: 60000 })
+    .then(() => true, () => false);
+  const websocket = await page.evaluate(
+    () => JSON.parse(sessionStorage.getItem('sdk-dapp-store') || '{}').state?.config?.websocketStatus
+  );
+  log(opened
+    ? `OK: with /websocket/config refused, the safe page opened for alice (websocket ${websocket})`
+    : `NOT OK: with /websocket/config refused, the page stayed blank (websocket ${websocket})`);
+  await browser.close();
+  process.exit(opened ? 0 : 1);
+}
 await page.getByText(/a board member here/).waitFor({ timeout: LONG });
 log('connected as alice, a board member of', SAFE.slice(-8));
 
@@ -143,7 +186,8 @@ const storeNow = () =>
     return {
       websocket: state.config?.websocketStatus,
       session: last?.status,
-      transactions: (last?.transactions || []).map((transaction) => transaction.status)
+      transactions: (last?.transactions || []).map((transaction) => transaction.status),
+      hashes: (last?.transactions || []).map((transaction) => transaction.hash)
     };
   });
 
@@ -159,6 +203,39 @@ if (MODE === 'watch') {
   }
   const gaps = polls.slice(1).map((poll, at) => ((poll.at - polls[at].at) / 1000).toFixed(1));
   log('seconds between polls:', gaps.slice(0, 24).join(' '));
+} else if (MODE === 'stuck') {
+  const sentAt = Date.now();
+  log(`${await signSomething()} sent; status polls answered: ${POLLS}`);
+  let store = await storeNow();
+  const seen = [];
+  for (let i = 0; i < 24; i++) {
+    await wait(5000);
+    store = await storeNow();
+    const since = Math.round((Date.now() - sentAt) / 1000);
+    if (seen[seen.length - 1]?.session !== store.session) seen.push({ since, session: store.session });
+    log(`+${since}s: ${polls.length} polls answered ${POLLS} | websocket ${store.websocket} | session ${store.session} [${store.transactions.join(',')}]`);
+    if (['success', 'fail', 'invalid'].includes(store.session) && i >= 7) break;
+  }
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
+  // The nodes' answer: the API's index has lagged minutes behind them.
+  const chain = await Promise.all(
+    store.hashes.map(async (hash) => {
+      const answer = await (await fetch(`${GATEWAY}/transaction/${hash}/process-status`)).json();
+      return { hash, status: answer?.data?.status ?? 'not found' };
+    })
+  );
+  log('the nodes say:', chain.map(({ hash, status }) => `${hash} ${status}`).join(', '));
+  log('the session went', seen.map(({ since, session }) => `${session} (+${since}s)`).join(' -> '));
+  const statuses = chain.map(({ status }) => status);
+  const truth = statuses.every((status) => status === 'success')
+    ? 'success'
+    : statuses.some((status) => status === 'fail' || status === 'invalid')
+      ? 'fail'
+      : 'pending';
+  ok = truth !== 'pending' && store.session === truth;
+  log(ok
+    ? `OK: the toast ended as ${truth}, as the network has it, with every status poll ${POLLS === 'missing' ? 'missing the hash' : 'refused'}`
+    : `NOT OK: the toast is "${store.session}" where the network has ${truth}`);
 } else {
   const chainBefore = (await apiGet(`/accounts/${ADDRESS}`)).nonce;
   const label = await signSomething();

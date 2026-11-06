@@ -16,6 +16,15 @@ const API_BY_NETWORK: Record<string, string> = {
   testnet: 'https://testnet-api.multiversx.com'
 };
 
+// The nodes' own view, through the public gateway: what a transaction did is
+// known here the moment it is done, while the API's index has lagged minutes
+// behind (devnet, 6 Nov 2026).
+const GATEWAY_BY_NETWORK: Record<string, string> = {
+  mainnet: 'https://gateway.multiversx.com',
+  devnet: 'https://devnet-gateway.multiversx.com',
+  testnet: 'https://testnet-gateway.multiversx.com'
+};
+
 const CHAIN_ID_BY_NETWORK: Record<string, string> = {
   mainnet: '1',
   devnet: 'D',
@@ -24,6 +33,8 @@ const CHAIN_ID_BY_NETWORK: Record<string, string> = {
 
 export const networkName = String(environment);
 export const apiUrl = API_BY_NETWORK[networkName] ?? API_BY_NETWORK.mainnet;
+export const gatewayUrl =
+  GATEWAY_BY_NETWORK[networkName] ?? GATEWAY_BY_NETWORK.mainnet;
 export const chainId = CHAIN_ID_BY_NETWORK[networkName] ?? '1';
 export const explorerUrl =
   networkName === 'mainnet'
@@ -294,6 +305,35 @@ export const forget = (address: string) => {
   }
 };
 
+/** One GET and its JSON, failing with an ApiError that says whether to ask again. */
+const getJson = async <T>(base: string, path: string): Promise<T> => {
+  try {
+    return await fetchWithTimeout(`${base}${path}`, async (response) => {
+      if (!response.ok) {
+        // The gateway answers 500 for a transaction it does not hold: an
+        // answer, not a failure to retry.
+        const said = await Promise.resolve()
+          .then(() => response.text())
+          .catch(() => '');
+        throw new ApiError(
+          `${path} answered ${response.status}`,
+          response.status,
+          RETRY_STATUS.has(response.status) && !/not found/i.test(said)
+        );
+      }
+      return (await response.json()) as T;
+    });
+  } catch (failure: any) {
+    if (failure instanceof ApiError) throw failure;
+    // The request or its body never fully arrived: worth retrying.
+    throw new ApiError(
+      `${path}: ${failure?.message ?? 'network error'}`,
+      undefined,
+      true
+    );
+  }
+};
+
 /**
  * A GET on the public API, queued, retried and cached for a minute by path.
  * NEVER call it inside cached(): both queue, so the outer call holds one of
@@ -301,25 +341,23 @@ export const forget = (address: string) => {
  * every read in the app (a list of eight safes froze on 7 Oct 2026).
  */
 export const api = async <T>(path: string): Promise<T> =>
-  cached(`api:${path}`, async () => {
-    try {
-      return await fetchWithTimeout(`${apiUrl}${path}`, async (response) => {
-        if (!response.ok) {
-          throw new ApiError(
-            `${path} answered ${response.status}`,
-            response.status,
-            RETRY_STATUS.has(response.status)
-          );
-        }
-        return (await response.json()) as T;
-      });
-    } catch (failure: any) {
-      if (failure instanceof ApiError) throw failure;
-      // The request or its body never fully arrived: worth retrying.
-      throw new ApiError(
-        `${path}: ${failure?.message ?? 'network error'}`,
-        undefined,
-        true
-      );
-    }
-  });
+  cached(`api:${path}`, () => getJson<T>(apiUrl, path));
+
+/**
+ * The same GET, asked again rather than answered from the cache, and still
+ * queued, paced and retried like every other read. For what changes from one
+ * second to the next, such as a transaction's status.
+ */
+export const apiFresh = <T>(path: string): Promise<T> => {
+  cache.delete(`api:${path}`);
+  return api<T>(path);
+};
+
+/**
+ * A GET on the network's gateway, queued, paced and retried like api(), and
+ * never answered from the cache.
+ */
+export const gatewayFresh = <T>(path: string): Promise<T> => {
+  cache.delete(`gateway:${path}`);
+  return cached(`gateway:${path}`, () => getJson<T>(gatewayUrl, path));
+};
