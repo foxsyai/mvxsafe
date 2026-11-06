@@ -8,3 +8,7 @@ export const USERS_API_URL = '/users/api/v1/users/';
 export const contractAddress =
   'erd1qqqqqqqqqqqqqpgqtmcuh307t6kky677ernjj9ulk64zq74w9l5qxyhdn7';
 export const environment = EnvironmentsEnum.mainnet;
+// The host the API names at /websocket/config, which the site's content policy
+// admits. Given here, sdk-dapp opens it without asking: when that one request
+// failed, a signed-in visitor got a blank page (6 Nov 2026).
+export const websocketUrl = 'wss://socket-api-ovh.multiversx.com';

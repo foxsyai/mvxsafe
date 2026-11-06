@@ -1,4 +1,9 @@
-import { apiTimeout, environment, walletConnectV2ProjectId } from 'config';
+import {
+  apiTimeout,
+  environment,
+  walletConnectV2ProjectId,
+  websocketUrl
+} from 'config';
 import { InitAppType } from './lib';
 
 // The template also registered an "In Memory Provider", which asks for a
@@ -17,7 +22,11 @@ export const dAppConfig: InitAppType['dAppConfig'] = {
   nativeAuth: true,
   environment: environment,
   // Without it sdk-dapp gives every POST 4 s, a 47 KB deploy included (TXB-03).
-  network: { apiTimeout: String(apiTimeout) },
+  // The websocket's address is given too: sdk-dapp otherwise asks the API for
+  // it once, with no retry, and when that answer failed (a 429 or an outage)
+  // initApp threw, and a signed-in visitor got a blank page with no transaction
+  // tracking at all (6 Nov 2026).
+  network: { apiTimeout: String(apiTimeout), websocketUrl },
   theme: 'mvx:dark-theme',
   providers: {
     walletConnect: {
