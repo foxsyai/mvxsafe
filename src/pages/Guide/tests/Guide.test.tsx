@@ -159,9 +159,9 @@ describe('The guide', () => {
       'If you only have to propose',
       'If you only have to sign'
     ]);
-    const links = [...container.querySelectorAll('a[href$=".pdf"]')].map(
-      (link) => link.getAttribute('href')
-    );
+    const links = [
+      ...container.querySelectorAll('[data-one-pagers] a[href$=".pdf"]')
+    ].map((link) => link.getAttribute('href'));
     expect(links).toEqual([
       '/mvxsafe-create-a-safe.pdf',
       '/mvxsafe-propose.pdf',
@@ -170,6 +170,90 @@ describe('The guide', () => {
     links.forEach((link) => {
       expect(pagesOf(`public${link}`)).toBe(1);
     });
+  });
+
+  it('sends a MetaMask signer to one section: from a card at the top and from step 3', () => {
+    const container = guide();
+    const card = [
+      ...container.querySelectorAll('[data-one-pagers] > div')
+    ].find(
+      (box) =>
+        box.querySelector('h2')?.textContent === 'If you sign with MetaMask'
+    );
+    expect(card?.querySelector('a')?.getAttribute('href')).toBe('#metamask');
+    const section = container.querySelector('section#metamask');
+    expect(section?.querySelector('h2')?.textContent).toBe(
+      'Signing with MetaMask'
+    );
+    // Step 3's MetaMask sentence links there too.
+    const links = [...container.querySelectorAll('a[href="#metamask"]')].map(
+      (link) => link.textContent
+    );
+    expect(links).toContain('MetaMask signs through the MultiversX Snap');
+  });
+
+  it('tells a MetaMask signer the three things to know before anything else', () => {
+    const text = guide().querySelector('section#metamask')?.textContent ?? '';
+    expect(text).toMatch(/through the MultiversX Snap/);
+    expect(text).toMatch(/on a computer with Chrome only/);
+    expect(text).toMatch(/That erd1 address is the one the board uses/);
+    // This site's own Snap host and its own address: devnet here.
+    expect(text).toContain('"Connect to: https://devnet-snap.multiversx.com"');
+    expect(text).toMatch(/That screen is expected/);
+    expect(text).toMatch(/your address bar reads devnet\.mvxsafe\.io/);
+  });
+
+  it('links the MetaMask guide and plays the video, both published with the site', () => {
+    const section = guide().querySelector('section#metamask')!;
+    expect(section.querySelector('a[href$=".pdf"]')?.getAttribute('href')).toBe(
+      '/mvxsafe-metamask-guide.pdf'
+    );
+    expect(pagesOf('public/mvxsafe-metamask-guide.pdf')).toBe(5);
+    const video = section.querySelector('video')!;
+    expect(video.getAttribute('src')).toBe('/mvxsafe-metamask-walkthrough.mp4');
+    expect(video.hasAttribute('controls')).toBe(true);
+    expect(
+      statSync(
+        resolve(process.cwd(), 'public/mvxsafe-metamask-walkthrough.mp4')
+      ).size
+    ).toBeGreaterThan(1_000_000);
+    expect(section.querySelector('figcaption')?.textContent).toMatch(
+      /Recorded on devnet.*The steps are the same on mainnet\./
+    );
+  });
+
+  it('opens on the MetaMask section when the link names it, also on a fresh load', () => {
+    const scrolled: Element[] = [];
+    const scrollIntoView = jest.fn(function (this: Element) {
+      scrolled.push(this);
+    });
+    const box = jest
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ top: 900 } as DOMRect);
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      value: scrollIntoView,
+      configurable: true
+    });
+    try {
+      const { container, unmount } = render(
+        <MemoryRouter initialEntries={['/guide#metamask']}>
+          <Guide />
+        </MemoryRouter>
+      );
+      expect(scrolled[0]).toBe(container.querySelector('section#metamask'));
+      unmount();
+      scrolled.length = 0;
+      // Without a hash, the page stays at its top.
+      render(
+        <MemoryRouter initialEntries={['/guide']}>
+          <Guide />
+        </MemoryRouter>
+      ).unmount();
+      expect(scrolled).toEqual([]);
+    } finally {
+      box.mockRestore();
+      delete (Element.prototype as any).scrollIntoView;
+    }
   });
 
   it('keeps to the rule for visible copy', () => {
