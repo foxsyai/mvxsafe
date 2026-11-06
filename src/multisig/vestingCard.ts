@@ -174,7 +174,7 @@ export const inspectVesting = async (
     checks.push(
       expected.tokenFee === 0n && expected.egldFee === 0n
         ? ok(
-            `mvxvest's fees read zero now, and it pays exactly the vestings' ${amountIn(expected.sum, token, decimals)}.`
+            `mvxvest's fees read zero now: it pays exactly the vestings' ${amountIn(expected.sum, token, decimals)}.`
           )
         : ok(
             `It pays exactly what mvxvest wants now: ${amountIn(expected.sum, token, decimals)} for the vestings, ${amountIn(expected.tokenFee, token, decimals)} of token fee (${facts.tokenFeeBps / 100}% of each) and ${egldOf(expected.egldFee)} of fee (${egldOf(facts.fee)} a vesting). The fees go to mvxvest's owner.`
@@ -361,7 +361,7 @@ const inspectCancel = async (
     const outcome = cancelOutcome(vesting);
     checks.push(
       ok(
-        `${identifier} cancels vesting #${vesting.id} of ${vesting.beneficiary}${vesting.label ? `, "${visible(vesting.label)}"` : ''}. Cancelled now: ${amountIn(outcome.toBeneficiary, vesting.token, decimals)} has vested and stays theirs to claim${outcome.alreadyClaimed > 0n ? ` (they have claimed ${amountIn(outcome.alreadyClaimed, vesting.token, decimals)} already)` : ''}, and ${amountIn(outcome.toSafe, vesting.token, decimals)} not yet vested comes back to this safe. The later it is carried out, the more will have vested.`
+        `${identifier} cancels vesting #${vesting.id} of ${vesting.beneficiary}${vesting.label ? `, "${visible(vesting.label)}"` : ''}. Cancelled now: ${amountIn(outcome.toBeneficiary, vesting.token, decimals)} has vested and stays theirs to claim${outcome.alreadyClaimed > 0n ? ` (they have claimed ${amountIn(outcome.alreadyClaimed, vesting.token, decimals)} already)` : ''}. ${amountIn(outcome.toSafe, vesting.token, decimals)} not yet vested comes back to this safe. The later it is carried out, the more will have vested.`
       )
     );
   }

@@ -497,7 +497,7 @@ export const vestingProblem = ({
   const { parts } = createCall(pin, safe, id, payment, args);
   const bytes = storedBytes(parts);
   if (bytes > MAX_ARGUMENT_BYTES)
-    return `This batch is ${bytes.toLocaleString('en-US')} bytes, where the safe can only return a proposal of up to about ${MAX_ARGUMENT_BYTES.toLocaleString('en-US')}: a larger one could never be shown or carried out, and would hide every other pending action. Split it into smaller batches.`;
+    return `This batch is ${bytes.toLocaleString('en-US')} bytes, where the safe can only return a proposal of up to about ${MAX_ARGUMENT_BYTES.toLocaleString('en-US')}: a larger one could never be shown or carried out. It would hide every other pending action. Split it into smaller batches.`;
   const budget = performBudget(
     vestingGasNeed({
       entries,

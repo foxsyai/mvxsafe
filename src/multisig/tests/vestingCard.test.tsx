@@ -300,7 +300,7 @@ describe('a cancel', () => {
     expect(red(inspection.checks)).toEqual([]);
     expect(texts(inspection.checks)).toMatch(
       new RegExp(
-        `${KEY} cancels vesting #7 of ${BOB}, "Grants 2026"\\. Cancelled now: 3 ${TOKEN} has vested and stays theirs to claim \\(they have claimed 1 ${TOKEN} already\\), and 6 ${TOKEN} not yet vested comes back to this safe`
+        `${KEY} cancels vesting #7 of ${BOB}, "Grants 2026"\\. Cancelled now: 3 ${TOKEN} has vested and stays theirs to claim \\(they have claimed 1 ${TOKEN} already\\)\\. 6 ${TOKEN} not yet vested comes back to this safe`
       )
     );
     expect(inspection.vesting).toMatchObject({

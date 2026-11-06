@@ -203,7 +203,7 @@ export const VestingForm = ({
         <div className={field}>
           <label className={labelRow} htmlFor='vest-token'>
             Token
-            <Info text='The token the vestings pay out. The safe pays mvxvest the whole batch at once, and mvxvest holds it until each tranche vests.' />
+            <Info text='The token the vestings pay out. The safe pays mvxvest the whole batch at once. mvxvest holds it until each tranche vests.' />
           </label>
           <select
             id='vest-token'

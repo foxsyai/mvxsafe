@@ -85,7 +85,7 @@ export const parseVestingRows = (
       return {
         entries: [],
         tranches,
-        problem: `${where}: "${date}" is not a date. Write it as 2027-05-01, or 2027-05-01 12:00, in UTC.`
+        problem: `${where}: "${date}" is not a date. Write it as 2027-05-01 or 2027-05-01 12:00, in UTC.`
       };
     }
     let raw_amount: bigint;

@@ -40,4 +40,19 @@ for (const id of ids) {
   console.log(`\n=== #${id}\n${(await card.innerText()).trim()}`);
   await card.screenshot({ path: `${OUT}/card-${id}.png` });
 }
+// All the cards together, once the page has settled: one picture for the write-up.
+await page.waitForTimeout(3000);
+const boxes = [];
+for (const id of ids) {
+  const box = await page.locator(`div:has(> p > span:text-is("#${id}"))`).first().locator('..').boundingBox();
+  const scroll = await page.evaluate(() => window.scrollY);
+  if (box) boxes.push({ ...box, y: box.y + scroll });
+}
+if (boxes.length) {
+  const x = Math.min(...boxes.map((box) => box.x)) - 8;
+  const y = Math.min(...boxes.map((box) => box.y)) - 8;
+  const right = Math.max(...boxes.map((box) => box.x + box.width)) + 8;
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 8;
+  await page.screenshot({ path: `${OUT}/cards.png`, fullPage: true, clip: { x, y, width: right - x, height: bottom - y } });
+}
 await browser.close();
