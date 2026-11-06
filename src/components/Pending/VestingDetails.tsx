@@ -31,7 +31,7 @@ const ScheduleLines = ({
       <ul className='mt-1 space-y-0.5'>
         {curve.tranches.map((tranche) => (
           <li key={tranche.time}>
-            <span className='text-[#6B7280]'>{when(tranche.time)}</span>{' '}
+            <span className='text-[#6B7280]'>{when(tranche.time)}:</span>{' '}
             <span className='text-white'>
               {amount(tranche.amount, decimals)}
             </span>

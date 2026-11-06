@@ -354,7 +354,7 @@ describe('the card', () => {
     expect(screen.getByText(ALICE)).toBeInTheDocument();
     expect(screen.getByText(BOB)).toBeInTheDocument();
     const firstDate = `${new Date(FIRST * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-    expect(screen.getAllByText(firstDate)).toHaveLength(2);
+    expect(screen.getAllByText(`${firstDate}:`)).toHaveLength(2);
     expect(screen.getByText(/2 vestings of/)).toBeInTheDocument();
   });
 });

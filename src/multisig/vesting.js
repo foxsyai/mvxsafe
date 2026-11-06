@@ -276,17 +276,20 @@ export const vestingPayment = (entries, { fee = 0n, tokenFeeBps = 0 } = {}) => {
 
 /**
  * What createBatch needs where it runs, never less than devnet measured
- * (6 Nov 2026, scripts/devnet/vest-gas.mjs, 10-byte tranche amounts and a
- * 64-byte label): about 5.4M, plus 7.5M a cancelable vesting or 5.4M one that
- * is not, plus 0.4M a tranche, plus 1.2M when fees are paid. Each part is
- * rounded up here. The network cannot simulate the call as a safe in another
- * shard, and the perform gets this plus a fifth: under it the call runs out,
- * the tokens come back, and the action is used up.
+ * (6 Nov 2026, scripts/devnet/vest-gas.mjs). On the pinned devnet mvxvest,
+ * which has hundreds of vestings, its keys' display set and fees on, a
+ * cancelable vesting cost 9.9M, one that is not 6.8M, a tranche 0.4M, the
+ * rest about 6.8M; a fresh copy of the same code costs less. A real batch
+ * there (action #33, two vestings of two tranches) used 25.1M. Each part is
+ * rounded up by about a third here, and the perform gets a fifth on top: the
+ * network cannot simulate the call as a safe in another shard, and under its
+ * need the call runs out, the tokens come back and the action is used up.
+ * Too much costs a thousandth of an EGLD.
  */
 export const vestingGasNeed = ({ entries, cancelable, feesPaid }) => {
-  let need = 6_000_000n + (feesPaid ? 2_000_000n : 0n);
+  let need = 7_000_000n + (feesPaid ? 3_000_000n : 0n);
   for (const entry of entries) {
-    need += cancelable ? 7_600_000n : 5_600_000n;
+    need += cancelable ? 12_000_000n : 8_500_000n;
     need += 500_000n * BigInt(releasesOf(entry));
   }
   return need;

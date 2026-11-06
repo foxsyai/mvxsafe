@@ -553,24 +553,39 @@ describe('reading a pending action back', () => {
 });
 
 describe('the gas a vesting is given', () => {
-  // Measured by simulation on devnet, 6 Nov 2026 (scripts/devnet/vest-gas.mjs),
-  // with 10-byte tranche amounts, a 64-byte label and zero fees: [vestings,
-  // tranches each, cancelable, need].
-  const MEASURED: [number, number, boolean, number][] = [
-    [1, 1, true, 13_288_502],
-    [1, 8, true, 16_215_517],
-    [2, 8, true, 26_900_242],
-    [8, 8, true, 91_295_710],
-    [16, 8, true, 177_725_254],
-    [24, 8, true, 264_487_598],
-    [32, 1, true, 257_918_262],
-    [32, 4, true, 295_871_382],
-    [12, 12, true, 157_549_442],
-    [1, 1, false, 11_104_329],
-    [8, 8, false, 74_740_419],
-    [24, 8, false, 214_746_131],
-    [32, 4, false, 229_536_827],
-    [12, 12, false, 132_697_607]
+  // Measured on devnet, 6 Nov 2026 (scripts/devnet/vest-gas.mjs): [vestings,
+  // tranches each, cancelable, fees paid, need]. A fresh copy of mvxvest v4
+  // with zero fees, 10-byte tranche amounts and a 64-byte label first, then the
+  // pinned devnet mvxvest (its keys' display set, fees on, 8-byte amounts),
+  // then what a real carry-out there used (action #33).
+  const MEASURED: [number, number, boolean, boolean, number][] = [
+    [1, 1, true, false, 13_288_502],
+    [1, 8, true, false, 16_215_517],
+    [2, 8, true, false, 26_900_242],
+    [8, 8, true, false, 91_295_710],
+    [16, 8, true, false, 177_725_254],
+    [24, 8, true, false, 264_487_598],
+    [32, 1, true, false, 257_918_262],
+    [32, 4, true, false, 295_871_382],
+    [12, 12, true, false, 157_549_442],
+    [1, 1, false, false, 11_104_329],
+    [8, 8, false, false, 74_740_419],
+    [24, 8, false, false, 214_746_131],
+    [32, 4, false, false, 229_536_827],
+    [12, 12, false, false, 132_697_607],
+    [1, 1, true, true, 17_103_442],
+    [2, 2, true, true, 27_706_366],
+    [2, 8, true, true, 32_427_706],
+    [4, 8, true, true, 57_615_524],
+    [5, 8, true, true, 70_215_733],
+    [1, 24, true, true, 28_078_027],
+    [5, 1, true, true, 56_631_158],
+    [1, 1, false, true, 13_733_031],
+    [2, 2, false, true, 21_262_785],
+    [5, 8, false, true, 54_484_512],
+    [1, 24, false, true, 24_707_616],
+    [5, 1, false, true, 40_899_937],
+    [2, 2, true, true, 25_076_346]
   ];
   const batch = (count: number, tranches: number) =>
     Array.from({ length: count }, () => ({
@@ -584,21 +599,21 @@ describe('the gas a vesting is given', () => {
     }));
 
   it.each(MEASURED)(
-    '%i vestings of %i tranches, cancelable %s: never less than devnet measured',
-    (count, tranches, cancelable, measured) => {
+    '%i vestings of %i tranches, cancelable %s, fees %s: never less than devnet measured',
+    (count, tranches, cancelable, feesPaid, measured) => {
       expect(
         Number(
           vestingGasNeed({
             entries: batch(count, tranches),
             cancelable,
-            feesPaid: false
+            feesPaid
           })
         )
       ).toBeGreaterThanOrEqual(measured);
     }
   );
 
-  it('fees add what devnet measured them to cost, about 1.2M', () => {
+  it('fees add more than devnet measured them to cost on a copy, 1.2M', () => {
     const entries = batch(8, 8);
     expect(
       vestingGasNeed({ entries, cancelable: true, feesPaid: true }) -
