@@ -5,13 +5,13 @@
 // will be given. Everything here is a read. Nothing signs.
 
 import { Address } from '@multiversx/sdk-core';
+import { AccountFacts, readAccountFacts } from './accountFacts';
 import {
   bytesOf,
   DELEGATION_MANAGER_SC,
   describeMetadata,
   ESDT_SYSTEM_SC,
   metadataChanges,
-  MetadataFlags,
   metadataOf,
   readTokenOperation,
   toBigInt,
@@ -26,14 +26,18 @@ import {
   PerformPlan
 } from './gas';
 import {
-  codeHashOf,
   isSystemContract,
   normalizeCodeHash,
   PROTOCOL_BUILTINS,
   shardOf
 } from './legacyCalls';
 import { api, cached, chainId, networkProvider } from './network';
-import { wasmFunctionExports } from './wasmExports';
+import { readVestingCall } from './vesting';
+import {
+  inspectVesting,
+  keyLeavingChecks,
+  VestingDetails
+} from './vestingCard';
 
 export type Tone = 'ok' | 'warn' | 'bad';
 
@@ -47,96 +51,9 @@ export interface Check {
   aboutSeats?: boolean;
 }
 
-export interface AccountFacts {
-  address: string;
-  shard: number;
-  ownerAddress: string;
-  /**
-   * 64 hex characters, or null when the address holds no code: the hash of
-   * the code the API returned, or the hash it states when it returned none.
-   * Then codeUnread is true, and the hash is only the API's word.
-   */
-  codeHash: string | null;
-  /** The API stated a hash that is not the hash of the code it returned. */
-  codeHashMismatch?: boolean;
-  /**
-   * The API stated a code hash but returned no code that could be hashed
-   * (missing, empty, odd length, not hex): the hash is unverified and the size
-   * unknown. Nothing may be called a match on it (found by the mvxvest side,
-   * 23 Oct 2026).
-   */
-  codeUnread: boolean;
-  /** Size of the code in bytes, 0 when unknown. */
-  codeBytes: number;
-  /**
-   * Whether the code has an `upgrade` function, which is what an upgrade from
-   * it runs. Null when the code was not read or is not well-formed wasm.
-   */
-  exportsUpgrade: boolean | null;
-  /** Null for an account without code, or when the API did not say. */
-  metadata: MetadataFlags | null;
-  balance: bigint;
-}
-
-interface AccountResponse {
-  shard?: number;
-  ownerAddress?: string;
-  codeHash?: string;
-  code?: string;
-  balance?: string;
-  isUpgradeable?: boolean;
-  isReadable?: boolean;
-  isPayable?: boolean;
-  isPayableBySmartContract?: boolean;
-}
-
-/**
- * Shard, owner, code hash (as hex: the API gives base64), code size and code
- * metadata of an address. The shard comes from the address itself, which is
- * where the network puts it; the API's own figure only has to agree.
- */
-export const readAccountFacts = async (
-  address: string
-): Promise<AccountFacts> => {
-  const account = await api<AccountResponse>(`/accounts/${address}`);
-  const stated = account?.codeHash ? normalizeCodeHash(account.codeHash) : null;
-  // The code itself, hashed here: the stated hash is only the API's word for
-  // it, and a signer compares it with the release (EXT-01, 21 Oct 2026).
-  const code =
-    typeof account?.code === 'string' &&
-    account.code.length > 0 &&
-    account.code.length % 2 === 0 &&
-    /^[0-9a-f]+$/i.test(account.code)
-      ? Uint8Array.from(account.code.match(/../g) as string[], (pair) =>
-          parseInt(pair, 16)
-        )
-      : null;
-  const hashed = stated && code ? codeHashOf(code) : null;
-  const codeHash = hashed ?? stated;
-  const exported = hashed && code ? wasmFunctionExports(code) : null;
-  return {
-    address,
-    shard: shardOf(address),
-    ownerAddress: account?.ownerAddress ?? '',
-    codeHash,
-    codeHashMismatch: Boolean(hashed && stated && hashed !== stated),
-    codeUnread: Boolean(stated && !hashed),
-    // The size of the code that was hashed, or 0 (unknown): a code never read
-    // gave a size, and with it a gas budget called measured (review of PR #17).
-    codeBytes: hashed && code ? code.length : 0,
-    exportsUpgrade: exported ? exported.includes('upgrade') : null,
-    metadata:
-      codeHash && typeof account?.isUpgradeable === 'boolean'
-        ? {
-            upgradeable: Boolean(account.isUpgradeable),
-            readable: Boolean(account.isReadable),
-            payable: Boolean(account.isPayable),
-            payableBySc: Boolean(account.isPayableBySmartContract)
-          }
-        : null,
-    balance: BigInt(account?.balance ?? '0')
-  };
-};
+// Moved to accountFacts.ts, still exported from here for what imports it here.
+export type { AccountFacts };
+export { readAccountFacts };
 
 const asAddress = (value: any): string => {
   if (!value) return '';
@@ -175,6 +92,8 @@ export interface Inspection {
   perform: PerformPlan;
   /** The checks could not be run: the card says so and holds Sign. */
   failed?: boolean;
+  /** For a vesting action: every vesting it creates, or the key it cancels with. */
+  vesting?: VestingDetails;
 }
 
 /** What a card gets when its checks could not be run: never an empty list. */
@@ -647,6 +566,28 @@ export const nestedBuiltInChecks = (
 };
 
 /**
+ * The bytes the safe stores for a call action and reads back when it is carried
+ * out: its receiver, its EGLD, then the function and each argument with its
+ * 4-byte length.
+ */
+const storedActionBytes = (
+  endpoint: Uint8Array,
+  args: Uint8Array[],
+  egld: bigint
+) => {
+  let egldBytes = 0;
+  for (let rest = egld; rest > 0n; rest >>= 8n) egldBytes++;
+  return (
+    32 +
+    4 +
+    egldBytes +
+    4 +
+    endpoint.length +
+    args.reduce((sum, arg) => sum + 4 + arg.length, 0)
+  );
+};
+
+/**
  * A call that leaves the safe: whom it goes to, whether it works when the safe
  * sends it, and the gas a perform gets from that.
  */
@@ -677,11 +618,43 @@ export const inspectCall = async (
   checks.push(...nestedBuiltInChecks(called, args));
   if (to === safe) checks.push(...selfCallChecks(called, egld));
 
+  // A vesting: createBatch or create paid by the safe, or a cancel key sent
+  // back with cancel() (brief of 6 Nov 2026). Its own checks, and its own gas,
+  // since the network cannot try it as a safe in another shard.
+  const vestingCall = to
+    ? readVestingCall({ to, egld, endpoint: called, args, safe })
+    : null;
+  const vesting = vestingCall
+    ? await inspectVesting(vestingCall, safe, undefined, {
+        egld,
+        actionBytes: storedActionBytes(endpoint, args, egld)
+      })
+    : null;
+  const pinnedVesting = Boolean(vesting?.details);
+
   let callNeed: bigint | null = null;
   if (to && hasFunction) {
     const trial = await trialAsSafe(safe, to, egld, callData(endpoint, args));
-    checks.push(trialCheck(trial, { to, safe }));
+    if (pinnedVesting && trial.how === 'unmeasured') {
+      checks.push({
+        tone: 'ok',
+        text: `The network cannot try it as the safe from another shard. Carrying it out is given what devnet measured for vestings of these sizes, ${(Number(vesting!.need) / 1e6).toLocaleString('en-US', { maximumFractionDigits: 1 })}M, plus a fifth.`
+      });
+    } else {
+      checks.push(trialCheck(trial, { to, safe }));
+    }
     callNeed = trial.need;
+  }
+  // A key of mvxvest sent away by any other call (review of PR #26).
+  if (!pinnedVesting)
+    checks.push(
+      ...(await keyLeavingChecks({ to, endpoint: called, args, safe }))
+    );
+  if (vesting) {
+    checks.push(...vesting.checks);
+    // Never less than devnet measured: a trial from the safe's shard can see
+    // only the part that runs there.
+    if (vesting.need > (callNeed ?? 0n)) callNeed = vesting.need;
   }
 
   if (to && isSystemContract(to)) {
@@ -691,6 +664,7 @@ export const inspectCall = async (
   // Who owns a contract it calls, which is what makes an owner's endpoint work.
   if (
     to &&
+    !pinnedVesting &&
     Address.newFromBech32(to).isSmartContract() &&
     to !== safe &&
     !isSystemContract(to)
@@ -730,7 +704,9 @@ export const inspectCall = async (
       text: `A call to ${contract} needs about ${(Number(perform.need) / 1e6).toLocaleString('en-US')}M gas where it runs, so carrying this out is given that contract's default, ${perform.gasLimit.toLocaleString('en-US')}. With much less it runs out and the action is used up.`
     });
   }
-  return { checks, perform };
+  return vesting?.details
+    ? { checks, perform, vesting: vesting.details }
+    : { checks, perform };
 };
 
 /**

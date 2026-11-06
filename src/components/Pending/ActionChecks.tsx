@@ -11,6 +11,7 @@ import {
 import type { PerformPlan } from 'multisig/gas';
 import { expectedHashCheck } from 'multisig/inspect';
 import { PendingAction } from 'multisig/reads';
+import { VestingDetails } from './VestingDetails';
 
 // Under the sentence of a pending action: what was checked on chain, and for an
 // upgrade the two code hashes side by side with a field for the release's own,
@@ -94,7 +95,12 @@ export const ActionChecks = ({
     : null;
   const typed = performGas(plan, gasText);
 
-  if (checks.length === 0 && !upgrade && !(showGas && plan && !plan.simulate))
+  if (
+    checks.length === 0 &&
+    !upgrade &&
+    !action.vesting &&
+    !(showGas && plan && !plan.simulate)
+  )
     return null;
 
   return (
@@ -123,6 +129,8 @@ export const ActionChecks = ({
           {hashCheck && <CheckLine check={hashCheck} />}
         </div>
       )}
+
+      {action.vesting && <VestingDetails details={action.vesting} />}
 
       {checks.map((check) => (
         <CheckLine key={check.text} check={check} />

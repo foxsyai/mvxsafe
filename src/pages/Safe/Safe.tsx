@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AddressLine } from 'components/Address';
 import { Info, Tip } from 'components/Info';
 import { ActionChecks, performGas } from 'components/Pending/ActionChecks';
+import { HeldCancelKeys } from 'components/Pending/HeldCancelKeys';
 import { ProposePanel } from 'components/Propose';
 import { useGetAccount, useGetIsLoggedIn } from 'lib';
 import {
@@ -619,6 +620,7 @@ const SafeView = ({ address }: { address: string }) => {
           ...listed,
           checks: [...answer.checks, ...(listed.checks ?? [])],
           upgrade: answer.upgrade,
+          vesting: answer.vesting,
           perform: answer.perform
         }
       : listed;
@@ -1377,6 +1379,9 @@ const SafeView = ({ address }: { address: string }) => {
                 <span className='text-[#9AA0A6]'>NFTs</span>
                 <span className='text-white'>{overview.nftCount}</span>
               </li>
+            )}
+            {overview && (
+              <HeldCancelKeys safe={address} nftCount={overview.nftCount} />
             )}
           </ul>
         </section>
