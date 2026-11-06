@@ -45,10 +45,18 @@ what was read on chain at that moment:
     Every safe made with mvxsafe is.
 - **The vestings:**
   - one fungible token, never EGLD;
-  - at most 32 vestings when cancelable, 49 when not;
+  - at most 32 vestings when cancelable, 48 when not. mvxvest takes 49, but each vesting mints and
+    sends a key, a built-in call each. The network allows 100 in a transaction. From a safe in
+    mvxvest's shard the safe's own transfer counts too, so 49 with a token fee would be exactly 100;
   - at most 120 tranches each, every one more than zero;
-  - dates in the future and strictly increasing, the last within 30 years;
-  - no beneficiary that is the safe itself, mvxvest or the zero address.
+  - dates in whole seconds, in the future and strictly increasing, the last within 30 years;
+  - each schedule starts at its first tranche and ends at its last, with nothing released at a
+    cliff on top of the tranches;
+  - no beneficiary that is the safe itself, mvxvest or the zero address;
+  - a beneficiary that is a contract only when the network says it accepts tokens from contracts.
+    Otherwise mvxvest's claim key fails or is stranded where only mvxvest's owner can move it. Even
+    then the form warns that a contract can claim only if its own code can send the key back to
+    mvxvest: a safe made with mvxsafe cannot.
 - **The payment:**
   - mvxvest wants it exactly: the sum of the vestings, plus each vesting's token fee in the token,
     plus each vesting's EGLD fee in EGLD;
@@ -85,7 +93,8 @@ A vesting action is **green only when** it goes to the pinned mvxvest running an
 
 - one sentence: how many vestings of what in all, the label, the fees on top and whether the
   cancel keys come to the safe;
-- every vesting with each date and amount, and what the action pays;
+- every vesting with each date and amount;
+- what the action pays;
 - the checks:
   - the code hash;
   - the payment against mvxvest's fees now. A fee changed since the proposal is **red**: carried
@@ -93,43 +102,63 @@ A vesting action is **green only when** it goes to the pinned mvxvest running an
   - the safe's balances and whether it can receive the keys;
   - a tranche date that has passed, in **amber**: it vests at once;
   - a batch that cannot be cancelled, in **amber**;
+  - in **red**, every rule of the form a batch built by hand breaks: a release at a cliff on top of
+    the tranches (also listed as a line of its own), another curve, a label, limit, date or total
+    mvxvest refuses, a beneficiary that is a contract not known to accept the key;
+  - in **red**, EGLD stored next to the call: the network refuses a token transfer that carries
+    EGLD, so it fails and the action is used up;
+  - in **red**, a payment in any other shape than one transfer of one token plus one of EGLD for
+    the fee. The payments are added up per token, as mvxvest adds them;
+  - in **amber**, a beneficiary that is a contract: it can claim only if its own code can send the
+    key back (in **red** when the batch cannot be cancelled);
 - for a cancel: the key, the vesting it stops, what has vested and stays the beneficiary's, and
   what comes back to the safe now;
 - **red** for the same call to any other contract.
+
+The sentence is used only for the shapes mvxsafe proposes. With EGLD next to it, a payment in other
+transfers or a key of another collection, the card keeps the plain sentence, which names everything
+the call sends.
 
 ![A batch and a cancel pending on the devnet rehearsal safe](vestings-devnet.png)
 
 ## Gas
 
-The network cannot simulate the call as a safe in another shard. So the carry-out gets what
-devnet measured, plus a fifth, plus the safe's 7.5M and the callback's 7M. The card takes the larger
-of that and a trial as the safe, when the network gives one.
+The network cannot simulate the call as a safe in another shard. So the carry-out gets what devnet
+measured, plus a fifth, plus the safe's 7.5M and the callback's 7M. The card takes the larger of that
+and a trial as the safe, when the network gives one.
 
-Measured by simulation on 6 November (`scripts/devnet/vest-gas.mjs`):
+Measured by simulation on 6 November (`scripts/devnet/vest-gas.mjs`) and by the audit:
 
-- **On the pinned devnet mvxvest:** its keys' display is set and its fees are on. There a
-  cancelable vesting costs 9.9M, one that is not 6.8M, a tranche 0.4M and the rest about 6.8M.
-- **A fresh copy of the same code** costs less.
+- **A vesting's tranches cost more the more there are.** mvxvest decodes, checks, stores and logs the
+  list as one value. On the pinned devnet mvxvest, with fees on, one cancelable vesting cost about
+  16.8M + 0.34M × t + 0.0054M × t² for t tranches: 28.1M for 24, 69.3M for 72, 135.3M for 120.
+- **Each vesting:** 9.9M when cancelable, 6.8M when not. A fresh copy of the same code costs less.
+- **The safe itself** reads the whole action back from its storage before the call leaves: about
+  6,300 gas a byte (54.7M for a 7,827-byte batch).
+- **A cancel** loads the whole vesting, schedule included: 6.2M for one tranche, 57.3M for 120.
 - **Real carry-outs:**
 
-| Carry-out | Used by mvxvest | The formula's need |
+| Carry-out | What it used | The formula's need |
 | --- | --- | --- |
-| #33, 2 vestings of 2 tranches, fees paid (pinned contract) | 25,076,346 | 36,000,000 |
-| #34, 27 vestings of 10 tranches, no fees (copy) | 279,123,102 | 466,000,000 |
+| #33, 2 vestings of 2 tranches, fees paid (pinned contract) | 25,076,346 in mvxvest | 38,821,600 |
+| #34, 27 vestings of 10 tranches, no fees (copy) | 279,123,102 in mvxvest, 54.7M in the safe | more than one transaction may use: refused today |
+| A batch of a 120-tranche and a 1-tranche vesting (copy, audit) | 130,308,151 | 206,778,200 |
 
-**The formula:**
+**The formula** for a batch:
 
 | Part | Gas |
 | --- | --- |
 | Base | 7M |
 | Fees paid | +3M |
 | Each vesting | 12M if cancelable, 8.5M if not |
-| Each tranche | +0.5M |
+| Each vesting's t tranches | +0.45M × t + 0.0072M × t² |
+| Each byte of the stored action | +6,500 |
+
+**A cancel** of a vesting of t tranches: 8M + 0.15M × t + 0.0045M × t².
 
 Every part is rounded up by about a third. Too much costs about a thousandth of an EGLD. Too little
-uses the action up.
-
-**A cancel** of one key needed 6.3M when simulated as the safe in its own shard. It is given 10M.
+uses the action up. Since the batch must also fit in one transaction (600M), a proposal with eight
+half-yearly tranches holds about 26 vestings.
 
 ## The devnet runs
 
@@ -161,6 +190,7 @@ Both copies run version 4. Their fees are set as each test needs.
 | Copy 2, same shard: createBatch; both keys arrive | #31 | `56d485a3c51a7bc77342ad898cfc91576833f14ad93ae863e4234115a53422d7` |
 | erin claims | | `155cfb07e65b9092605cbfe9d7f2616ecf5e5b4aed85ea772abe077d244463ab` |
 | The safe cancels; its 6 unvested come back | #32 | `5d02330efc3f18e37d396b8ed5fe617b7177caca4915f94ec16281ce665e1284` |
+| Copy 2, same shard, fees on: createBatch paying 2.002 TSAFED and 0.001 EGLD in one transfer to the safe itself; the key arrives | #39 | `083f89587ec2c7ca9b2987014d8ba67521eba1af07c84d242b836f9188e33558` |
 
 The proposals of #28, #29 and #30 are rebuilt byte for byte by the shipped builders in
 `src/multisig/tests/vesting.test.ts`.
@@ -188,9 +218,27 @@ Two actions were left pending on the safe:
   2 TSAFED has vested and stays theirs to claim. 4 TSAFED not yet vested comes back to this
   safe".
 
+## The audit of 6 November
+
+Three adversarial auditors read this change before it was merged: the builders, the card and the
+forms. They found no way to make tokens go anywhere but the pinned mvxvest. They found no way to
+pay more than the vestings and fees. They found 15 things to fix, all fixed in this change, each with a test that
+failed before the fix (`src/__audit__/nov06v/`):
+
+- **Gas:** many tranches cost more than the old flat figure (a vesting of 70 or more would have been
+  used up after its signatures); a cancel was given a flat 10M where 120 tranches need 57M.
+- **The card:** a release at a cliff on top of the tranches was neither listed nor said; EGLD
+  stored next to a vesting was said nowhere; a batch built by hand that mvxvest refuses could read
+  green; a payment in several transfers was misread; a contract beneficiary got no word.
+- **The rules:** none of these was refused: a contract beneficiary that cannot accept the key, a
+  date that is not a whole second, a cancel from a safe that cannot receive the refund.
+- **The forms:** only 100 cancel keys were listed; a key whose vesting could not be read was shown as
+  having none; the keys' vestings were read in one burst; the guide's checklist left out the token
+  and whether the batch can be cancelled.
+
 ## Not covered
 
 - **A safe that is not payable by smart contracts** is refused, so what such a safe would do with
   the keys was not tried.
-- **Vesting EGLD itself, or a linear or stepped schedule,** is not proposed. A card still reads
+- **Vesting EGLD itself** is not proposed, nor is **a linear or stepped schedule**. A card still reads
   them and lists them, in amber for a schedule that is not tranches.

@@ -13,6 +13,7 @@ import {
   buildProposeCancelVesting,
   buildProposeVestings,
   CANCEL_GAS_NEED,
+  cancelGasNeed,
   decodeCreateBatchArgs,
   encodeCreateBatchArgs,
   mvxvestFor,
@@ -268,7 +269,7 @@ describe('what is refused before anything is proposed', () => {
     );
   });
 
-  it('more vestings than one transaction holds: 32 when cancelable, 49 when not', () => {
+  it('more vestings than one transaction holds: 32 when cancelable, 48 when not (mvxvest takes 49)', () => {
     const many = (count: number) =>
       Array.from({ length: count }, () => ({
         beneficiary: ERIN,
@@ -276,8 +277,8 @@ describe('what is refused before anything is proposed', () => {
       }));
     expect(problem({ entries: many(33) })).toMatch(/at most 32/);
     expect(problem({ entries: many(32) })).toBe('');
-    expect(problem({ cancelable: false, entries: many(50) })).toMatch(
-      /at most 49/
+    expect(problem({ cancelable: false, entries: many(49) })).toMatch(
+      /at most 48/
     );
     expect(problem({ entries: [] })).toMatch(/at least one/);
   });
@@ -585,7 +586,22 @@ describe('the gas a vesting is given', () => {
     [5, 8, false, true, 54_484_512],
     [1, 24, false, true, 24_707_616],
     [5, 1, false, true, 40_899_937],
-    [2, 2, true, true, 25_076_346]
+    [2, 2, true, true, 25_076_346],
+    // Many tranches, after the audit (VBD-03): the cost of a tranche grows
+    // with how many there are. The pinned devnet mvxvest, monthly tranches:
+    [1, 48, true, true, 45_555_907],
+    [1, 72, true, true, 69_254_587],
+    [1, 96, true, true, 99_174_167],
+    [1, 120, true, true, 135_314_447],
+    [2, 60, true, true, 105_948_486],
+    [1, 48, false, true, 42_185_496],
+    [1, 72, false, true, 65_884_176],
+    [1, 96, false, true, 95_803_756],
+    [1, 120, false, true, 131_944_036],
+    [2, 60, false, true, 99_504_905],
+    // and the auditor's copy, with no fees.
+    [1, 120, true, false, 127_577_292],
+    [2, 90, true, false, 164_047_156]
   ];
   const batch = (count: number, tranches: number) =>
     Array.from({ length: count }, () => ({
@@ -660,8 +676,10 @@ describe('the gas a vesting is given', () => {
     expect(count).toBeGreaterThanOrEqual(24);
   });
 
-  it('a cancel of one key: more than the 6.3M devnet measured as the safe', () => {
+  it('a cancel: more than devnet measured, for a vesting of 1 tranche and of 120 (VBD-04)', () => {
     expect(CANCEL_GAS_NEED).toBeGreaterThan(6_324_049n);
+    expect(cancelGasNeed(1)).toBeGreaterThan(6_231_306n);
+    expect(cancelGasNeed(120)).toBeGreaterThan(57_259_951n);
   });
 });
 

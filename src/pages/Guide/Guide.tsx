@@ -335,18 +335,22 @@ export const Guide = () => (
 
       <Step number={12} title='Create and cancel vestings'>
         Create vestings has the safe itself pay mvxvest for a batch of vestings,
-        so the safe is their creator: mvxvest gives it one cancel key per
-        vesting. Whatever a cancel returns comes back to the safe. No token
-        passes through anyone&apos;s own wallet. Before you sign a batch, check
-        on its card that the sentence names mvxvest at the address your board
-        agreed. Then check every vesting listed under it against the list the
-        board agreed: the beneficiary, each date (in UTC) and each amount. Last,
-        read the green line that says it pays exactly what mvxvest wants now and
-        the fees it names. mvxvest&apos;s fees go to its owner. If they change
-        after the batch is proposed, the line turns red: carried out, it would
-        fail, the tokens would come back and the action would be used up.
-        Discard it and propose it again. To pay no fees, mvxvest&apos;s owner
-        sets both to zero before the batch is proposed.
+        so the safe is their creator. When the batch is cancelable, mvxvest
+        gives the safe one cancel key per vesting. Whatever a cancel returns
+        comes back to the safe. No token passes through anyone&apos;s own
+        wallet. Before you sign a batch, check on its card that the sentence
+        names mvxvest at the address your board agreed, the token and the total.
+        Check that it says the cancel keys come to this safe: a batch the board
+        agreed as cancelable must not carry the amber line Not cancelable. Then
+        check every vesting listed under it against the list the board agreed:
+        the beneficiary, each date (in UTC) and each amount. Last, read the
+        green line that says it pays exactly what mvxvest wants now and the fees
+        it names. Any red line means do not sign it. mvxvest&apos;s fees go to
+        its owner. If they change after the batch is proposed, the line turns
+        red: carried out, it would fail, the tokens would come back and the
+        action would be used up. Discard it and propose it again. To pay no
+        fees, mvxvest&apos;s owner sets both to zero before the batch is
+        proposed.
         <Shot
           src='/shots/22-vesting-cards.jpg'
           caption='A cancel and a batch waiting on a devnet safe: what each one does now, every vesting with its dates and amounts and the fees.'

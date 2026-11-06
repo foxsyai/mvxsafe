@@ -648,6 +648,11 @@ const describeVesting = async (
   const pin = mvxvestFor(networkName);
   if (!call || !pin || call.contract !== pin.address) return null;
   if (call.kind === 'cancel') {
+    // Only the pinned collection's keys are named a cancel of mvxvest's.
+    if (
+      call.keys.some((key) => key.token !== pin.cancelKey || key.amount !== 1n)
+    )
+      return null;
     const keys = call.keys.map((key) =>
       visible(keyIdentifier(key.token, key.nonce))
     );
@@ -658,7 +663,13 @@ const describeVesting = async (
     return `An mvxvest vesting whose vestings cannot be read. ${DO_NOT_SIGN}`;
   const payment = call.payments.find((paid) => paid.token !== 'EGLD-000000');
   const fee = call.payments.find((paid) => paid.token === 'EGLD-000000');
-  if (!payment || payment.token === 'EGLD') return null;
+  const usual =
+    payment &&
+    payment.nonce === 0n &&
+    payment.token !== 'EGLD' &&
+    call.payments.filter((paid) => paid.token !== 'EGLD-000000').length === 1 &&
+    call.payments.filter((paid) => paid.token === 'EGLD-000000').length <= 1;
+  if (!usual || !payment) return null;
   const tokenBytes = new TextEncoder().encode(payment.token);
   const sum = batch.entries.reduce((total, entry) => total + entry.total, 0n);
   const count = batch.entries.length;
@@ -696,9 +707,14 @@ const describeCall = async (
 
   // A vesting on the pinned mvxvest, said for what it does. One that names
   // any other contract keeps the plain sentence below, and its card is red.
-  const vesting = await describeVesting(
-    readVestingCall({ to, egld, endpoint: name, args, safe })
-  );
+  // Only in the shapes mvxsafe proposes: with EGLD next to it, or paid in
+  // other transfers, the plain sentence below names everything (VCD-01, VCD-05).
+  const vesting =
+    egld > 0n
+      ? null
+      : await describeVesting(
+          readVestingCall({ to, egld, endpoint: name, args, safe })
+        );
   if (vesting) return vesting;
 
   // A token leaving the safe: ESDTTransfer, run for the recipient.

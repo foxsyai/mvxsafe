@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Tip } from 'components/Info';
 import { VestingDetails } from 'components/Pending/VestingDetails';
 import { proposeCancelVesting } from 'multisig/actions';
-import { formatUnits, readTokenMeta } from 'multisig/describe';
+import { formatUnits, readTokenMeta, visible } from 'multisig/describe';
+import { forget } from 'multisig/network';
 import { cancelProblem, VestingFacts } from 'multisig/vesting';
 import {
   cancelOutcome,
-  HeldCancelKey,
+  HeldCancelKeyList,
   pinnedMvxvest,
   readHeldCancelKeys,
   readVestingFacts
@@ -36,7 +37,7 @@ export const CancelVestingForm = ({
   onProposed
 }: FormProps) => {
   const pin = pinnedMvxvest();
-  const [keys, setKeys] = useState<HeldCancelKey[] | null>(null);
+  const [keys, setKeys] = useState<HeldCancelKeyList | null>(null);
   const [decimals, setDecimals] = useState<Record<string, number | null>>({});
   const [facts, setFacts] = useState<VestingFacts | null>(null);
   const [readError, setReadError] = useState('');
@@ -45,35 +46,40 @@ export const CancelVestingForm = ({
   const [error, setError] = useState('');
   const stuck = useStuck(busy);
 
-  const read = useCallback(async () => {
-    if (!pin) return;
-    setReadError('');
-    try {
-      const [held, found] = await Promise.all([
-        readHeldCancelKeys(pin, safe),
-        readVestingFacts(pin, safe)
-      ]);
-      const tokens = [
-        ...new Set(
-          held.flatMap((key) => (key.vesting ? [key.vesting.token] : []))
-        )
-      ];
-      const metas = await Promise.all(
-        tokens.map((token) => readTokenMeta(token, false))
-      );
-      setDecimals(
-        Object.fromEntries(
-          tokens.map((token, at) => [token, metas[at].decimals])
-        )
-      );
-      setKeys(held);
-      setFacts(found);
-    } catch {
-      setReadError(
-        "The safe's cancel keys could not be read just now. Try again in a moment."
-      );
-    }
-  }, [pin, safe]);
+  const read = useCallback(
+    async (fresh = false) => {
+      if (!pin) return;
+      setReadError('');
+      // "Read the keys again" means now, not the minute-old list in the cache.
+      if (fresh) forget(safe);
+      try {
+        const [held, found] = await Promise.all([
+          readHeldCancelKeys(pin, safe),
+          readVestingFacts(pin, safe)
+        ]);
+        const tokens = [
+          ...new Set(
+            held.flatMap((key) => (key.vesting ? [key.vesting.token] : []))
+          )
+        ];
+        const metas = await Promise.all(
+          tokens.map((token) => readTokenMeta(token, false))
+        );
+        setDecimals(
+          Object.fromEntries(
+            tokens.map((token, at) => [token, metas[at].decimals])
+          )
+        );
+        setKeys(held);
+        setFacts(found);
+      } catch {
+        setReadError(
+          "The safe's cancel keys could not be read just now. Try again in a moment."
+        );
+      }
+    },
+    [pin, safe]
+  );
 
   useEffect(() => {
     read();
@@ -90,15 +96,19 @@ export const CancelVestingForm = ({
           collection: pin.cancelKey,
           nonce: key.nonce
         }) ||
-        (!key.vesting
-          ? 'mvxvest knows no vesting for this key.'
-          : key.vesting.cancelledAt > 0
-            ? 'This vesting was already cancelled.'
-            : '')
+        (key.unread
+          ? 'The vesting of this key could not be read just now. Read the keys again.'
+          : !key.vesting
+            ? 'mvxvest knows no vesting for this key.'
+            : key.vesting.cancelledAt > 0
+              ? 'This vesting was already cancelled.'
+              : '')
       : '';
   const ready = Boolean(key && facts && !problem);
 
   const submit = async () => {
+    // A second press while the first waits for the wallet proposes nothing.
+    if (busy) return;
     setError('');
     if (!ready || disabled || !key || !facts) return;
     setBusy(true);
@@ -166,7 +176,8 @@ export const CancelVestingForm = ({
                       <>
                         {' '}
                         stops vesting #{vesting.id}
-                        {vesting.label ? `, "${vesting.label}"` : ''}, to{' '}
+                        {vesting.label ? `, "${visible(vesting.label)}"` : ''},
+                        to{' '}
                         <span className='font-mono text-white'>
                           {vesting.beneficiary}
                         </span>
@@ -176,6 +187,8 @@ export const CancelVestingForm = ({
                           : outcome &&
                             `Cancelled now, ${amount(outcome.toBeneficiary, vesting.token)} stays theirs to claim and ${amount(outcome.toSafe, vesting.token)} comes back to this safe.`}
                       </>
+                    ) : held.unread ? (
+                      ' its vesting could not be read just now. Read the keys again.'
                     ) : (
                       ' mvxvest knows no vesting for this key.'
                     )}
@@ -186,7 +199,16 @@ export const CancelVestingForm = ({
           })}
         </ul>
       )}
-      <button type='button' onClick={read} className={`${quietButton} mt-3`}>
+      {keys?.more && (
+        <p className={hint}>
+          The list stops at the first 10,000 keys the network lists.
+        </p>
+      )}
+      <button
+        type='button'
+        onClick={() => read(true)}
+        className={`${quietButton} mt-3`}
+      >
         Read the keys again
       </button>
 

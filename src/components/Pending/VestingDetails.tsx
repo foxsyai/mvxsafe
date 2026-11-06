@@ -1,4 +1,4 @@
-import { formatUnits } from 'multisig/describe';
+import { formatUnits, visible } from 'multisig/describe';
 import type { Schedule } from 'multisig/vesting';
 import type { VestingDetails as Details } from 'multisig/vestingCard';
 
@@ -26,9 +26,19 @@ const ScheduleLines = ({
   decimals: number | null;
 }) => {
   const { curve } = schedule;
+  // A release at the cliff, on top of the curve: listed like a tranche, and
+  // said for what it is (audit VCD-02). mvxsafe never proposes one.
+  const cliff =
+    schedule.cliffAmount > 0n ? (
+      <li className='text-[#F87171]'>
+        {when(schedule.cliff)}: {amount(schedule.cliffAmount, decimals)} at the
+        cliff, on top of the tranches
+      </li>
+    ) : null;
   if (curve.kind === 'tranches') {
     return (
       <ul className='mt-1 space-y-0.5'>
+        {cliff}
         {curve.tranches.map((tranche) => (
           <li key={tranche.time}>
             <span className='text-[#6B7280]'>{when(tranche.time)}:</span>{' '}
@@ -64,7 +74,7 @@ export const VestingDetails = ({ details }: { details: Details }) => {
                 <>
                   <p className='mt-1'>
                     Vesting #{vesting.id}
-                    {vesting.label ? `, "${vesting.label}"` : ''}, to{' '}
+                    {vesting.label ? `, "${visible(vesting.label)}"` : ''}, to{' '}
                     <span className={mono}>{vesting.beneficiary}</span>
                   </p>
                   <p className='mt-1'>
@@ -98,7 +108,7 @@ export const VestingDetails = ({ details }: { details: Details }) => {
         {details.entries.length} vesting
         {details.entries.length === 1 ? '' : 's'} of{' '}
         <span className={mono}>{details.token}</span>
-        {details.label ? `, labelled "${details.label}"` : ''},{' '}
+        {details.label ? `, labelled "${visible(details.label)}"` : ''},{' '}
         {details.cancelable ? 'cancelable' : 'not cancelable'}. Paid:{' '}
         <span className='text-white'>
           {amount(details.paidToken, details.decimals)} {details.token}

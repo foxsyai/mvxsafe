@@ -61,9 +61,17 @@ const MVXVEST = {
 /** The pinned mvxvest of a network, or null where there is none. */
 export const mvxvestFor = (network) => MVXVEST[network] ?? null;
 
-/** mvxvest's own limits (contracts/vesting/src: create.rs, schedule.rs). */
+/**
+ * mvxvest's own limits (contracts/vesting/src: create.rs, schedule.rs), and
+ * the one mvxsafe keeps lower. mvxvest takes 49 vestings that cannot be
+ * cancelled; each mints and sends a key, a built-in call each, and the network
+ * allows 100 a transaction. From a safe in mvxvest's shard the safe's own
+ * transfer counts too, so 49 with a token fee is exactly 100: mvxsafe proposes
+ * at most 48 (audit of 6 Nov 2026). `contractBatch` is what mvxvest refuses.
+ */
 export const VESTING_LIMITS = {
-  batch: 49,
+  batch: 48,
+  contractBatch: 49,
   batchCancelable: 32,
   tranches: 120,
   labelBytes: 64,
@@ -275,28 +283,64 @@ export const vestingPayment = (entries, { fee = 0n, tokenFeeBps = 0 } = {}) => {
 // --- gas ---------------------------------------------------------------------
 
 /**
- * What createBatch needs where it runs, never less than devnet measured
- * (6 Nov 2026, scripts/devnet/vest-gas.mjs). On the pinned devnet mvxvest,
- * which has hundreds of vestings, its keys' display set and fees on, a
- * cancelable vesting cost 9.9M, one that is not 6.8M, a tranche 0.4M, the
- * rest about 6.8M; a fresh copy of the same code costs less. A real batch
- * there (action #33, two vestings of two tranches) used 25.1M. Each part is
- * rounded up by about a third here, and the perform gets a fifth on top: the
- * network cannot simulate the call as a safe in another shard, and under its
- * need the call runs out, the tokens come back and the action is used up.
- * Too much costs a thousandth of an EGLD.
+ * What a vesting's list of t tranches costs mvxvest. It grows with the square
+ * of t: mvxvest decodes, checks, stores and logs the list as one value (audit
+ * VBD-03, 6 Nov 2026). On the pinned devnet mvxvest one cancelable vesting with
+ * fees cost about 16.8M + 0.34M t + 0.0054M t² (24 tranches 28.1M, 120
+ * tranches 135.3M). Rounded up by a third here.
  */
-export const vestingGasNeed = ({ entries, cancelable, feesPaid }) => {
-  let need = 7_000_000n + (feesPaid ? 3_000_000n : 0n);
+export const trancheGas = (tranches) => {
+  const t = BigInt(tranches);
+  return 450_000n * t + 7_200n * t * t;
+};
+
+/**
+ * What the safe itself spends on a carry-out before the call leaves: it reads
+ * the whole action back from its storage, about 6,300 gas a byte on devnet
+ * (54.7M for a 7,827-byte batch, audit of 6 Nov 2026). The perform's flat 7.5M
+ * covers a small action only; this is added to the need for the rest.
+ */
+export const actionReadGas = (actionBytes) => 6_500n * BigInt(actionBytes ?? 0);
+
+/**
+ * What createBatch needs, never less than devnet measured (6 Nov 2026,
+ * scripts/devnet/vest-gas.mjs and the audit). On the pinned devnet mvxvest,
+ * with hundreds of vestings, its keys' display set and fees on, a cancelable
+ * vesting cost 9.9M, one that is not 6.8M, and its tranches what `trancheGas`
+ * says; a fresh copy of the same code costs less. A real batch there (action
+ * #33, two vestings of two tranches) used 25.1M. Each part is rounded up, and
+ * the perform gets a fifth on top: the network cannot simulate the call as a
+ * safe in another shard, and under its need the call runs out, the tokens come
+ * back and the action is used up. Too much costs a thousandth of an EGLD.
+ */
+export const vestingGasNeed = ({
+  entries,
+  cancelable,
+  feesPaid,
+  actionBytes = 0
+}) => {
+  let need =
+    7_000_000n + (feesPaid ? 3_000_000n : 0n) + actionReadGas(actionBytes);
   for (const entry of entries) {
     need += cancelable ? 12_000_000n : 8_500_000n;
-    need += 500_000n * BigInt(releasesOf(entry));
+    need += trancheGas(releasesOf(entry));
   }
   return need;
 };
 
-/** A cancel of one key: devnet measured 6.3M as the safe, in its shard. */
-export const CANCEL_GAS_NEED = 10_000_000n;
+/**
+ * What cancelling one vesting of t tranches needs: mvxvest loads the whole
+ * vesting, schedule included, so it grows with t like a creation. Measured on
+ * devnet: 6.2M for 1 tranche, 57.3M for 120 (audit VBD-04). Rounded up by
+ * about a third.
+ */
+export const cancelGasNeed = (tranches) => {
+  const t = BigInt(Math.max(1, Number(tranches) || 1));
+  return 8_000_000n + 150_000n * t + 4_500n * t * t;
+};
+
+/** A cancel of one key of a one-tranche vesting, the least a cancel is given. */
+export const CANCEL_GAS_NEED = cancelGasNeed(1);
 
 // --- what is refused ---------------------------------------------------------
 
@@ -388,6 +432,196 @@ const createCall = (pin, safe, token, payment, args) => {
 const storedBytes = (parts) =>
   parts.reduce((sum, part) => sum + 4 + part.length, 0);
 
+/** True when an address is a contract: mvxvest's keys reach it only if it is payable by contracts. */
+const isContract = (address) => {
+  try {
+    return Address.newFromBech32(address).isSmartContract();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Everything wrong with one vesting of a batch, each with its kind:
+ *
+ *   'refused'   mvxvest refuses it: carried out, the batch fails and the
+ *               action is used up (create.rs, schedule.rs);
+ *   'shape'     mvxvest takes it but mvxsafe never proposes it, because the
+ *               card's list would not show what it does: a cliff release on
+ *               top of the tranches, or another curve (audit VCD-02);
+ *   'contract'  the beneficiary is a contract not known to receive tokens from
+ *               contracts: its claim key fails or is stranded (VBD-02);
+ *   'past'      a tranche date that has passed: refused in the form, amber on
+ *               a card (mvxvest takes it and it vests at once).
+ *
+ * Shared by the form, the builder and the card, so a batch built by hand is
+ * held to the rules the form keeps.
+ */
+export const entryIssues = (
+  entry,
+  at,
+  { safe, pin, now, payableContracts = [], format = (raw) => `${raw}` }
+) => {
+  const issues = [];
+  const row = `Vesting ${at + 1}`;
+  let beneficiary;
+  try {
+    beneficiary = parseAddress(entry.beneficiary, 'beneficiary').toBech32();
+  } catch (error) {
+    return [{ kind: 'refused', text: `${row}: ${error.message}` }];
+  }
+  if (beneficiary === safe)
+    issues.push({
+      kind: 'shape',
+      text: `${row}: the beneficiary is the safe itself. The safe would vest its own tokens to itself.`
+    });
+  else if (pin && beneficiary === pin.address)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: the beneficiary is mvxvest itself, which refuses it.`
+    });
+  else if (
+    Address.newFromBech32(beneficiary)
+      .getPublicKey()
+      .every((byte) => byte === 0)
+  )
+    issues.push({
+      kind: 'refused',
+      text: `${row}: the beneficiary is the zero address, which mvxvest refuses.`
+    });
+  else if (isContract(beneficiary) && !payableContracts.includes(beneficiary))
+    issues.push({
+      kind: 'contract',
+      text: `${row}: the beneficiary ${beneficiary} is a contract that is not known to accept tokens from contracts. mvxvest sends it a claim key it may refuse: the batch fails or the key is stranded where only mvxvest's owner can move it.`
+    });
+
+  const schedule = entry.schedule ?? {};
+  for (const [name, value] of [
+    ['start', schedule.start],
+    ['cliff', schedule.cliff],
+    ['end', schedule.end]
+  ]) {
+    if (!Number.isSafeInteger(value) || value < 0)
+      return [
+        ...issues,
+        {
+          kind: 'refused',
+          text: `${row}: its ${name} is not a whole number of seconds.`
+        }
+      ];
+  }
+  const cliffAmount = BigInt(schedule.cliffAmount ?? 0n);
+  const total = entryTotal(entry);
+  const isTranches = schedule.curve?.kind === 'tranches';
+  const tranches = isTranches ? schedule.curve.tranches : [];
+
+  // A list of tranches first: start and end follow from it, so its own
+  // mistakes are the ones to name.
+  if (isTranches) {
+    if (tranches.length === 0) {
+      issues.push({
+        kind: 'refused',
+        text: `${row}: add at least one tranche.`
+      });
+      return issues;
+    }
+    if (tranches.length > VESTING_LIMITS.tranches)
+      issues.push({
+        kind: 'refused',
+        text: `${row} has ${tranches.length} tranches; mvxvest takes at most ${VESTING_LIMITS.tranches} tranches a vesting.`
+      });
+    let previous = null;
+    for (const tranche of tranches) {
+      if (!Number.isSafeInteger(tranche.time) || tranche.time < 0) {
+        issues.push({
+          kind: 'refused',
+          text: `${row}: a tranche time is not a whole number of seconds.`
+        });
+        return issues;
+      }
+      if (BigInt(tranche.amount) <= 0n) {
+        issues.push({
+          kind: 'refused',
+          text: `${row}: every tranche has to be more than zero (${when(tranche.time)}).`
+        });
+        return issues;
+      }
+      if (previous !== null && tranche.time <= previous) {
+        issues.push({
+          kind: 'refused',
+          text: `${row}: each tranche date has to be strictly later than the one before (${when(tranche.time)}).`
+        });
+        return issues;
+      }
+      previous = tranche.time;
+    }
+  }
+
+  if (total <= 0n)
+    issues.push({ kind: 'refused', text: `${row}: its total is zero.` });
+  if (schedule.start > schedule.cliff || schedule.cliff > schedule.end)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: its start, cliff and end are out of order.`
+    });
+  if (cliffAmount > total)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: it releases more at its cliff than its total.`
+    });
+  if (cliffAmount > 0n)
+    issues.push({
+      kind: 'shape',
+      text: `${row}: ${format(cliffAmount)} unlocks at its cliff, ${when(schedule.cliff)}, on top of what its list shows. mvxsafe never proposes this.`
+    });
+  if (schedule.end > now + VESTING_LIMITS.horizonSeconds)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: it ends ${when(schedule.end)}, more than 30 years ahead, which mvxvest refuses.`
+    });
+
+  if (!isTranches) {
+    issues.push({
+      kind: 'shape',
+      text: `${row}: a ${schedule.curve?.kind ?? 'unknown'} schedule from ${when(schedule.start)} to ${when(schedule.end)}. mvxsafe proposes only a schedule of tranches.`
+    });
+    return issues;
+  }
+  const first = tranches[0].time;
+  const last = tranches[tranches.length - 1].time;
+  if (first < schedule.start)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: a tranche (${when(first)}) comes before its start.`
+    });
+  if (schedule.end !== last)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: its schedule does not end at its last tranche, which mvxvest refuses.`
+    });
+  const sum = tranches.reduce(
+    (added, tranche) => added + BigInt(tranche.amount),
+    0n
+  );
+  if (sum + cliffAmount !== total)
+    issues.push({
+      kind: 'refused',
+      text: `${row}: its total does not add up to its tranches.`
+    });
+  if (schedule.start !== first || schedule.cliff !== schedule.start)
+    issues.push({
+      kind: 'shape',
+      text: `${row}: its schedule does not start at its first tranche. mvxsafe never proposes this.`
+    });
+  const passed = tranches.filter((tranche) => tranche.time <= now);
+  if (passed.length > 0)
+    issues.push({
+      kind: 'past',
+      text: `${row}: ${passed.length === 1 ? `its tranche of ${when(passed[0].time)} is` : `${passed.length} of its tranches are`} in the past.`
+    });
+  return issues;
+};
+
 /**
  * Why this batch must not be proposed, or '' when it may. Checked by the form
  * and the builder alike, from what was typed and what was read on chain at
@@ -429,59 +663,20 @@ export const vestingProblem = ({
     : VESTING_LIMITS.batch;
   if (entries.length === 0) return 'Add at least one vesting.';
   if (entries.length > max)
-    return `This batch has ${entries.length} vestings; mvxvest takes at most ${max} in one transaction${cancelable ? ' when they can be cancelled' : ''}. Split it into several proposals.`;
+    return `This batch has ${entries.length} vestings; mvxsafe proposes at most ${max} in one transaction${cancelable ? ' when they can be cancelled' : ''}. Split it into several proposals.`;
 
   for (const [at, entry] of entries.entries()) {
-    const row = `Vesting ${at + 1}`;
-    let beneficiary;
-    try {
-      beneficiary = parseAddress(entry.beneficiary, 'beneficiary').toBech32();
-    } catch (error) {
-      return `${row}: ${error.message}`;
-    }
-    if (beneficiary === safe)
-      return `${row}: the beneficiary is the safe itself. The safe would vest its own tokens to itself.`;
-    if (beneficiary === pin.address)
-      return `${row}: the beneficiary is mvxvest itself, which refuses it.`;
-    if (
-      Address.newFromBech32(beneficiary)
-        .getPublicKey()
-        .every((byte) => byte === 0)
-    )
-      return `${row}: the beneficiary is the zero address, which mvxvest refuses.`;
-
-    const schedule = entry.schedule;
-    if (schedule?.curve?.kind !== 'tranches')
-      return `${row}: only a schedule of tranches can be proposed here.`;
-    const tranches = schedule.curve.tranches;
-    if (tranches.length === 0) return `${row}: add at least one tranche.`;
-    if (tranches.length > VESTING_LIMITS.tranches)
-      return `${row} has ${tranches.length} tranches; mvxvest takes at most ${VESTING_LIMITS.tranches} tranches a vesting.`;
-    let previous = null;
-    for (const tranche of tranches) {
-      if (BigInt(tranche.amount) <= 0n)
-        return `${row}: every tranche has to be more than zero (${when(tranche.time)}).`;
-      if (previous !== null && tranche.time <= previous)
-        return `${row}: each tranche date has to be strictly later than the one before (${when(tranche.time)}).`;
-      previous = tranche.time;
-    }
-    if (tranches[0].time <= now)
-      return `${row}: its first tranche, ${when(tranches[0].time)}, is in the past. Every tranche date has to be in the future.`;
-    if (schedule.end > now + VESTING_LIMITS.horizonSeconds)
-      return `${row}: it ends ${when(schedule.end)}, more than 30 years ahead, which mvxvest refuses.`;
-    if (
-      schedule.start !== tranches[0].time ||
-      schedule.cliff !== schedule.start ||
-      BigInt(schedule.cliffAmount) !== 0n ||
-      schedule.end !== tranches[tranches.length - 1].time
-    )
-      return `${row}: its schedule does not start at its first tranche and end at its last.`;
-    const sum = tranches.reduce(
-      (total, tranche) => total + BigInt(tranche.amount),
-      0n
-    );
-    if (entryTotal(entry) !== sum)
-      return `${row}: its total does not add up to its tranches.`;
+    const [first] = entryIssues(entry, at, {
+      safe,
+      pin,
+      now,
+      payableContracts: facts.payableContracts,
+      format: (raw) => `${formatRawAmount(raw, decimals)} ${id}`
+    });
+    if (first)
+      return first.kind === 'past'
+        ? `${first.text} Every tranche date has to be in the future.`
+        : first.text;
   }
 
   const payment = vestingPayment(entries, facts);
@@ -494,7 +689,7 @@ export const vestingProblem = ({
     return `mvxvest's fee is ${formatRawAmount(payment.egldFee, 18)} EGLD for these ${entries.length} vestings, paid from the safe's own EGLD; the safe holds only ${formatRawAmount(facts.safeEgld, 18)}, not enough EGLD for the fee.`;
 
   const args = encodeCreateBatchArgs({ cancelable, label, entries });
-  const { parts } = createCall(pin, safe, id, payment, args);
+  const { to, parts } = createCall(pin, safe, id, payment, args);
   const bytes = storedBytes(parts);
   if (bytes > MAX_ARGUMENT_BYTES)
     return `This batch is ${bytes.toLocaleString('en-US')} bytes, where the safe can only return a proposal of up to about ${MAX_ARGUMENT_BYTES.toLocaleString('en-US')}: a larger one could never be shown or carried out. It would hide every other pending action. Split it into smaller batches.`;
@@ -502,12 +697,43 @@ export const vestingProblem = ({
     vestingGasNeed({
       entries,
       cancelable,
-      feesPaid: payment.tokenFee > 0n || payment.egldFee > 0n
+      feesPaid: payment.tokenFee > 0n || payment.egldFee > 0n,
+      actionBytes: actionBytesOf(to, 0n, parts)
     })
   );
   if (budget > MAX_GAS)
     return `Carrying this batch out would need ${budget.toLocaleString('en-US')} gas, more than one transaction may use. Split it into smaller batches.`;
   return '';
+};
+
+/**
+ * The bytes the safe stores for a call action: its receiver, its EGLD, then
+ * the function and each argument with its 4-byte length. What it reads back
+ * when the action is carried out.
+ */
+export const actionBytesOf = (to, egld, parts) =>
+  32 + 4 + topEncode(BigInt(egld ?? 0n)).length + storedBytes(parts);
+
+/** The bytes a batch would be stored as in the safe, for its carry-out's gas. */
+export const batchActionBytes = ({
+  pin,
+  safe,
+  token,
+  cancelable,
+  label,
+  entries,
+  facts
+}) => {
+  const payment = vestingPayment(entries, facts);
+  const args = encodeCreateBatchArgs({ cancelable, label, entries });
+  const { to, parts } = createCall(
+    pin,
+    safe,
+    String(token).trim(),
+    payment,
+    args
+  );
+  return actionBytesOf(to, 0n, parts);
 };
 
 /** Why this cancel must not be proposed, or '' when it may. */
@@ -518,6 +744,10 @@ export const cancelProblem = ({ pin, facts, collection, nonce }) => {
     return `${collection} is not mvxvest's cancel key collection, ${pin.cancelKey}.`;
   if (!Number.isInteger(Number(nonce)) || Number(nonce) < 1)
     return 'A key number starts at 1.';
+  // The cancel burns the key, then pays back with a plain transfer: a safe
+  // that cannot receive it loses the refund (audit VFM-03).
+  if (!facts.safePayableBySc)
+    return 'This safe is not payable by smart contracts, so what the cancel pays back could not reach it. A safe made with mvxsafe always is.';
   return '';
 };
 

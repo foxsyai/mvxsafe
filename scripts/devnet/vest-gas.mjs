@@ -27,6 +27,8 @@ const COPY = process.argv[2] ?? 'erd1qqqqqqqqqqqqqpgqunhaauldrd4sr73ks7a93tmmkyu
 const WALLET = process.argv[3] ?? 'alice';
 const TOKEN = 'TSAFED-e52b18';
 const UNIT = BigInt(process.argv[4] ?? '1000');
+// Seconds between tranches: half a year by default, a month with SPACING=2629800.
+const SPACING = Number(process.env.SPACING ?? 15_778_800);
 const api = new ApiNetworkProvider('https://devnet-api.multiversx.com', { clientName: 'mvxsafe-devnet-test' });
 const abi = Abi.create(JSON.parse(readFileSync('src/abi/mvxvest.abi.json', 'utf8')));
 const factory = new SmartContractTransactionsFactory({ config: new TransactionsFactoryConfig({ chainID: 'D' }), abi });
@@ -56,8 +58,8 @@ const need = async (entries, tranches, cancelable, labelBytes = 64) => {
     start,
     cliff: start,
     cliff_amount: 0n,
-    end: start + (tranches - 1) * 15_778_800,
-    curve: { name: 'Tranches', fields: { 0: Array.from({ length: tranches }, (_, at) => ({ time: start + at * 15_778_800, amount: UNIT })) } }
+    end: start + (tranches - 1) * SPACING,
+    curve: { name: 'Tranches', fields: { 0: Array.from({ length: tranches }, (_, at) => ({ time: start + at * SPACING, amount: UNIT })) } }
   };
   const total = UNIT * BigInt(tranches);
   const rows = Array.from({ length: entries }, (_, at) => [people[at % people.length], total, schedule]);

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Info } from 'components/Info';
-import { formatUnits, readTokenMeta } from 'multisig/describe';
+import { formatUnits, readTokenMeta, visible } from 'multisig/describe';
 import {
-  HeldCancelKey,
+  HeldCancelKeyList,
   pinnedMvxvest,
   readHeldCancelKeys
 } from 'multisig/vestingReads';
@@ -19,7 +19,7 @@ export const HeldCancelKeys = ({
   nftCount: number;
 }) => {
   const pin = pinnedMvxvest();
-  const [keys, setKeys] = useState<HeldCancelKey[] | null>(null);
+  const [keys, setKeys] = useState<HeldCancelKeyList | null>(null);
   const [decimals, setDecimals] = useState<Record<string, number | null>>({});
   const [failed, setFailed] = useState(false);
 
@@ -71,6 +71,7 @@ export const HeldCancelKeys = ({
     <li className='border-t border-[#2A2A32] pt-2'>
       <p className='flex items-center text-[#9AA0A6]'>
         mvxvest cancel keys: {keys.length}
+        {keys.more ? ' or more' : ''}
         <Info text="One for each cancelable vesting this safe created. With a key the board can stop that vesting: what has vested stays the beneficiary's, the rest comes back to the safe. Propose it under Cancel a vesting." />
       </p>
       <ul className='mt-1 space-y-1 text-xs text-[#6B7280]'>
@@ -80,8 +81,8 @@ export const HeldCancelKeys = ({
             {key.vesting ? (
               <>
                 vesting #{key.vesting.id}
-                {key.vesting.label ? `, "${key.vesting.label}"` : ''}, to{' '}
-                <span className='font-mono'>{key.vesting.beneficiary}</span>:{' '}
+                {key.vesting.label ? `, "${visible(key.vesting.label)}"` : ''},
+                to <span className='font-mono'>{key.vesting.beneficiary}</span>:{' '}
                 <span className='text-white'>
                   {amount(key.vesting.total, key.vesting.token)}{' '}
                   {key.vesting.token}
@@ -89,6 +90,8 @@ export const HeldCancelKeys = ({
                 , {amount(key.vesting.vested, key.vesting.token)} vested
                 {key.vesting.cancelledAt > 0 ? ', cancelled' : ''}
               </>
+            ) : key.unread ? (
+              'its vesting could not be read just now'
             ) : (
               'mvxvest knows no vesting for it'
             )}

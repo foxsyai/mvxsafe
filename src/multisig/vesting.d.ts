@@ -26,6 +26,8 @@ export interface VestingFacts {
   /** The collections mvxvest reports, when read: they must be the pinned ones. */
   claimKeyCollection?: string;
   cancelKeyCollection?: string;
+  /** Beneficiaries that are contracts and were read as payable by contracts. */
+  payableContracts?: string[];
   /** Whether a contract can send the safe tokens without a call: the keys and refunds. */
   safePayableBySc: boolean;
   /** What the safe holds of the token, in base units; unchecked when absent. */
@@ -111,6 +113,7 @@ export declare const mvxvestAbi: any;
 export declare const mvxvestFor: (network: string) => VestingPin | null;
 export declare const VESTING_LIMITS: {
   batch: number;
+  contractBatch: number;
   batchCancelable: number;
   tranches: number;
   labelBytes: number;
@@ -141,12 +144,42 @@ export declare const vestingPayment: (
   entries: NewVesting[],
   fees?: { fee?: bigint; tokenFeeBps?: number }
 ) => { sum: bigint; tokenFee: bigint; egldFee: bigint; tokenAmount: bigint };
+export declare const trancheGas: (tranches: number) => bigint;
+export declare const actionReadGas: (actionBytes: number) => bigint;
 export declare const vestingGasNeed: (input: {
   entries: NewVesting[];
   cancelable: boolean;
   feesPaid: boolean;
+  actionBytes?: number;
 }) => bigint;
+export declare const cancelGasNeed: (tranches: number) => bigint;
 export declare const CANCEL_GAS_NEED: bigint;
+export type IssueKind = 'refused' | 'shape' | 'contract' | 'past';
+export declare const entryIssues: (
+  entry: NewVesting,
+  at: number,
+  context: {
+    safe: string;
+    pin: VestingPin | null;
+    now: number;
+    payableContracts?: string[];
+    format?: (raw: bigint) => string;
+  }
+) => { kind: IssueKind; text: string }[];
+export declare const batchActionBytes: (input: {
+  pin: VestingPin;
+  safe: string;
+  token: string;
+  cancelable: boolean;
+  label: string;
+  entries: NewVesting[];
+  facts: VestingFacts;
+}) => number;
+export declare const actionBytesOf: (
+  to: string,
+  egld: bigint,
+  parts: Uint8Array[]
+) => number;
 export declare const vestingProblem: (
   input: VestingInput & { safe: string }
 ) => string;

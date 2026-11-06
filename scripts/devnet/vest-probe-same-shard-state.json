@@ -60,6 +60,48 @@
       "hash": "5d02330efc3f18e37d396b8ed5fe617b7177caca4915f94ec16281ce665e1284",
       "gasLimit": "22100000",
       "ok": true
+    },
+    {
+      "label": "setFee 1000000000000000",
+      "hash": "7d81c5e3aae3fea4fac214c6c33f5dc4bd69e47dbcad59bf3f73c458f4956cd1",
+      "gasLimit": "5061594",
+      "ok": true
+    },
+    {
+      "label": "setTokenFee 10",
+      "hash": "55e0ac29ae13ac7557840a5afd0b2f2d2f7461d542320c54cf5f02d9a6748541",
+      "gasLimit": "4981872",
+      "ok": true
+    },
+    {
+      "label": "propose createBatch paying both fees",
+      "hash": "28e8087a847a040d148e30f0c015fa62237a0f9889755fbad375752c4682ae81",
+      "gasLimit": "10724675",
+      "ok": true
+    },
+    {
+      "label": "sign createBatch paying both fees (#39)",
+      "hash": "e10b29bcf5d97caa095f08646c313371e3c27b8b0df7b418523970c9e604a8fc",
+      "gasLimit": "5209323",
+      "ok": true
+    },
+    {
+      "label": "carry out createBatch paying both fees (#39)",
+      "hash": "083f89587ec2c7ca9b2987014d8ba67521eba1af07c84d242b836f9188e33558",
+      "gasLimit": "31600000",
+      "ok": true
+    },
+    {
+      "label": "setFee 0",
+      "hash": "cacbd631f72edd8e0ad3cd01e4468801271763659c3d1c76122fe687a35dd4cc",
+      "gasLimit": "4951134",
+      "ok": true
+    },
+    {
+      "label": "setTokenFee 0",
+      "hash": "d314c9b88318bddc4dc488d50d5b5c736d189f7e614bb55bf015a69a62333ec1",
+      "gasLimit": "4966092",
+      "ok": true
     }
   ],
   "vest": "erd1qqqqqqqqqqqqqpgqunhaauldrd4sr73ks7a93tmmkyuxaj0mmg8sshugvn",
@@ -79,5 +121,11 @@
     "perform": "5d02330efc3f18e37d396b8ed5fe617b7177caca4915f94ec16281ce665e1284",
     "vesting": 1,
     "key": "VESTCANCEL-22a1f8-01"
+  },
+  "createdWithFees": {
+    "action": 39,
+    "perform": "083f89587ec2c7ca9b2987014d8ba67521eba1af07c84d242b836f9188e33558",
+    "fee": "1000000000000000",
+    "bps": "10"
   }
 }

@@ -1,3 +1,4 @@
+import { Address } from '@multiversx/sdk-core';
 import { useCallback, useEffect, useState } from 'react';
 import { Info, Tip } from 'components/Info';
 import { VestingDetails } from 'components/Pending/VestingDetails';
@@ -7,6 +8,7 @@ import { feeOf, performBudget } from 'multisig/gas';
 import { forget } from 'multisig/network';
 import { TokenBalance } from 'multisig/reads';
 import {
+  batchActionBytes,
   entryTotal,
   VESTING_LIMITS,
   VestingFacts,
@@ -14,7 +16,11 @@ import {
   vestingPayment,
   vestingProblem
 } from 'multisig/vesting';
-import { pinnedMvxvest, readVestingFacts } from 'multisig/vestingReads';
+import {
+  pinnedMvxvest,
+  readPayableContracts,
+  readVestingFacts
+} from 'multisig/vestingReads';
 import { parseVestingRows, scheduleLines } from 'multisig/vestingRows';
 import { explainWalletFailure } from 'multisig/walletFailure';
 import { FormProps } from './CallForm';
@@ -98,16 +104,48 @@ export const VestingForm = ({
     read();
   }, [read]);
 
-  if (!pin) return null;
-
   const parsed = parseVestingRows(rows, decimals);
   const entries = parsed.entries;
+  // A beneficiary that is a contract must be read as payable by contracts,
+  // or mvxvest's claim key would fail or be stranded (audit VBD-02).
+  const contracts = entries
+    .map((entry) => entry.beneficiary)
+    .filter((address) => {
+      try {
+        return (
+          address !== safe && Address.newFromBech32(address).isSmartContract()
+        );
+      } catch {
+        return false;
+      }
+    });
+  const contractKey = [...new Set(contracts)].sort().join(',');
+  const [payable, setPayable] = useState<{ key: string; list: string[] }>({
+    key: '',
+    list: []
+  });
+  useEffect(() => {
+    if (!pin || !contractKey) return;
+    let alive = true;
+    readPayableContracts(pin, safe, contractKey.split(',')).then(
+      (list) => alive && setPayable({ key: contractKey, list }),
+      () => alive && setPayable({ key: contractKey, list: [] })
+    );
+    return () => {
+      alive = false;
+    };
+  }, [pin, safe, contractKey]);
+  const payableContracts = payable.key === contractKey ? payable.list : [];
+
+  if (!pin) return null;
+
+  const factsNow = facts ? { ...facts, payableContracts } : null;
   const problem =
     parsed.problem ||
-    (facts && entries.length > 0
+    (factsNow && entries.length > 0
       ? vestingProblem({
           pin,
-          facts,
+          facts: factsNow,
           safe,
           token: tokenId,
           cancelable,
@@ -119,9 +157,29 @@ export const VestingForm = ({
   const payment = facts ? vestingPayment(entries, facts) : null;
   const feesOn = Boolean(facts && (facts.fee > 0n || facts.tokenFeeBps > 0));
   const budget =
-    entries.length > 0
-      ? performBudget(vestingGasNeed({ entries, cancelable, feesPaid: feesOn }))
+    entries.length > 0 && factsNow && !problem
+      ? performBudget(
+          vestingGasNeed({
+            entries,
+            cancelable,
+            feesPaid: feesOn,
+            actionBytes: batchActionBytes({
+              pin,
+              safe,
+              token: tokenId,
+              cancelable,
+              label,
+              entries,
+              facts: factsNow
+            })
+          })
+        )
       : null;
+  // Contracts that can receive the key may still never claim it.
+  const contractNotes = [...new Set(payableContracts)].map((address) => ({
+    tone: cancelable ? ('warn' as const) : ('bad' as const),
+    text: `${address} is a contract. It can claim only if its own code can send the claim key back to mvxvest; a safe made with mvxsafe cannot.${cancelable ? '' : ' Not cancelable, its tokens would stay locked.'}`
+  }));
   const ready = Boolean(
     facts && token && entries.length > 0 && !problem && !reading
   );
@@ -145,6 +203,8 @@ export const VestingForm = ({
   };
 
   const submit = async () => {
+    // A second press while the first waits for the wallet proposes nothing.
+    if (busy) return;
     setError('');
     if (!ready || disabled || !facts) return;
     setBusy(true);
@@ -155,7 +215,12 @@ export const VestingForm = ({
       // Read again now: a fee changed since the form showed it makes the
       // vesting fail after its signatures (mvxvest wants the payment exactly).
       forget(safe);
-      const now = await readVestingFacts(pin, safe, tokenId);
+      const now = await readVestingFacts(
+        pin,
+        safe,
+        tokenId,
+        entries.map((entry) => entry.beneficiary)
+      );
       const before = vestingPayment(entries, facts);
       const after = vestingPayment(entries, now);
       setFacts(now);
@@ -235,7 +300,9 @@ export const VestingForm = ({
       <div className={field}>
         <label className={labelRow} htmlFor='vest-label'>
           Label
-          <Info text='Shown with every vesting and on its keys, for example "Grants 2027". At most 64 bytes.' />
+          <Info
+            text={`Shown with every vesting, here and on mvxvest's own site, for example "Grants 2027". At most 64 bytes.`}
+          />
         </label>
         <input
           id='vest-label'
@@ -381,6 +448,9 @@ export const VestingForm = ({
         </>
       )}
 
+      {contractNotes.map((note) => (
+        <CheckLine key={note.text} check={note} />
+      ))}
       {problem && <CheckLine check={{ tone: 'bad', text: problem }} />}
       {error && <p className='mt-3 text-xs text-[#F87171]'>{error}</p>}
 

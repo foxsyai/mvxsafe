@@ -34,6 +34,7 @@ import { describeAction } from 'multisig/describe';
 import { inspectAction } from 'multisig/inspect';
 import { predictSafeAddress } from 'multisig/legacyCalls';
 import {
+  batchActionBytes,
   buildProposeCancelVesting,
   buildProposeVestings,
   mvxvestFor,
@@ -152,7 +153,21 @@ describe('a batch to the pinned mvxvest', () => {
 
   it('is carried out with what devnet measured, not the 10M default for a call it cannot try', async () => {
     const inspection = await inspectAction(actionOf(await batch()), SAFE);
-    const need = vestingGasNeed({ entries, cancelable: true, feesPaid: false });
+    const need = vestingGasNeed({
+      entries,
+      cancelable: true,
+      feesPaid: false,
+      // The safe reads the stored action back before the call leaves.
+      actionBytes: batchActionBytes({
+        pin,
+        safe: SAFE,
+        token: TOKEN,
+        cancelable: true,
+        label: 'Grants 2026',
+        entries,
+        facts: factsWith()
+      })
+    });
     expect(inspection.perform).toMatchObject({
       simulate: false,
       known: true,
@@ -221,7 +236,7 @@ describe('a batch to the pinned mvxvest', () => {
     const later = jest.spyOn(Date, 'now').mockReturnValue((NOW + 3600) * 1000);
     try {
       expect(texts((await inspectAction(action, SAFE)).checks)).toMatch(
-        /has passed\. What they release vests the moment/
+        /is in the past\. What it releases vests the moment/
       );
     } finally {
       later.mockRestore();

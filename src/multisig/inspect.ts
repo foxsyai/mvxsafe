@@ -562,6 +562,28 @@ export const nestedBuiltInChecks = (
 };
 
 /**
+ * The bytes the safe stores for a call action and reads back when it is carried
+ * out: its receiver, its EGLD, then the function and each argument with its
+ * 4-byte length.
+ */
+const storedActionBytes = (
+  endpoint: Uint8Array,
+  args: Uint8Array[],
+  egld: bigint
+) => {
+  let egldBytes = 0;
+  for (let rest = egld; rest > 0n; rest >>= 8n) egldBytes++;
+  return (
+    32 +
+    4 +
+    egldBytes +
+    4 +
+    endpoint.length +
+    args.reduce((sum, arg) => sum + 4 + arg.length, 0)
+  );
+};
+
+/**
  * A call that leaves the safe: whom it goes to, whether it works when the safe
  * sends it, and the gas a perform gets from that.
  */
@@ -598,7 +620,12 @@ export const inspectCall = async (
   const vestingCall = to
     ? readVestingCall({ to, egld, endpoint: called, args, safe })
     : null;
-  const vesting = vestingCall ? await inspectVesting(vestingCall, safe) : null;
+  const vesting = vestingCall
+    ? await inspectVesting(vestingCall, safe, undefined, {
+        egld,
+        actionBytes: storedActionBytes(endpoint, args, egld)
+      })
+    : null;
   const pinnedVesting = Boolean(vesting?.details);
 
   let callNeed: bigint | null = null;
