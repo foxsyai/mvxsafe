@@ -2,7 +2,20 @@ import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { environment } from 'config';
+import { fallbackNetworkConfigurations } from 'lib/sdkDapp/sdkDapp.constants';
 import { Guide } from '../Guide';
+
+// The Snap's page and this site's address on the network the tests run for
+// (CI runs them for mainnet, a local build for devnet).
+const SNAP_HOST = new URL(
+  fallbackNetworkConfigurations[environment]?.iframeWalletAddress ??
+    'https://snap.multiversx.com'
+).host;
+const SITE_HOST =
+  String(environment) === 'mainnet'
+    ? 'mvxsafe.io'
+    : `${environment}.mvxsafe.io`;
 
 // The manual has to say what the app does. It fell behind once: the fixes of 1 Nov
 // 2026 and the call and upgrade tabs changed the safe page, and the guide, its
@@ -197,10 +210,10 @@ describe('The guide', () => {
     expect(text).toMatch(/through the MultiversX Snap/);
     expect(text).toMatch(/on a computer with Chrome only/);
     expect(text).toMatch(/That erd1 address is the one the board uses/);
-    // This site's own Snap host and its own address: devnet here.
-    expect(text).toContain('"Connect to: https://devnet-snap.multiversx.com"');
+    // This site's own Snap host and its own address.
+    expect(text).toContain(`"Connect to: https://${SNAP_HOST}"`);
     expect(text).toMatch(/That screen is expected/);
-    expect(text).toMatch(/your address bar reads devnet\.mvxsafe\.io/);
+    expect(text).toContain(`your address bar reads ${SITE_HOST}.`);
   });
 
   it('links the MetaMask guide and plays the video, both published with the site', () => {
@@ -250,6 +263,14 @@ describe('The guide', () => {
         </MemoryRouter>
       ).unmount();
       expect(scrolled).toEqual([]);
+      // A malformed link is ignored, never a blank page (review of PR #27).
+      expect(() =>
+        render(
+          <MemoryRouter initialEntries={['/guide#%']}>
+            <Guide />
+          </MemoryRouter>
+        ).unmount()
+      ).not.toThrow();
     } finally {
       box.mockRestore();
       delete (Element.prototype as any).scrollIntoView;

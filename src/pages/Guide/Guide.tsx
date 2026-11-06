@@ -40,7 +40,14 @@ export const METAMASK_ANCHOR = 'metamask';
 const useScrollToHash = () => {
   const { hash } = useLocation();
   useEffect(() => {
-    const id = decodeURIComponent(hash.replace(/^#/, ''));
+    // A malformed link (#%) is ignored: decoding it throws, and nothing here
+    // may take the page down (review of PR #27).
+    let id = '';
+    try {
+      id = decodeURIComponent(hash.replace(/^#/, ''));
+    } catch {
+      return;
+    }
     if (!id) return;
     let stopped = false;
     const go = () => {
