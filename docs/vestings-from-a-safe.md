@@ -113,7 +113,11 @@ A vesting action is **green only when** it goes to the pinned mvxvest running an
     key back (in **red** when the batch cannot be cancelled);
 - for a cancel: the key, the vesting it stops, what has vested and stays the beneficiary's, and
   what comes back to the safe now;
-- **red** for the same call to any other contract.
+- **red** for the same call to any other contract;
+- **red** for one of mvxvest's keys leaving the safe any other way than its own cancel on mvxvest:
+  whoever holds a cancel key can cancel that vesting and take what has not vested, and the card says
+  how much that is now. A claim key the safe holds is red too;
+- **red** for the same cancel key twice in one action.
 
 The sentence is used only for the shapes mvxsafe proposes. With EGLD next to it, a payment in other
 transfers or a key of another collection, the card keeps the plain sentence, which names everything

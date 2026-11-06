@@ -377,8 +377,25 @@ const inspectCancel = async (
 
   const keys: Extract<VestingDetails, { kind: 'cancel' }>['keys'] = [];
   let need = 0n;
+  // A key is one of a kind: the same key twice fails at carry-out (review of
+  // PR #26). Each is read once.
+  const times = new Map<string, number>();
   for (const key of call.keys as Payment[]) {
     const identifier = keyIdentifier(key.token, key.nonce);
+    times.set(identifier, (times.get(identifier) ?? 0) + 1);
+  }
+  for (const [identifier, count] of times)
+    if (count > 1)
+      checks.push(
+        bad(
+          `It sends ${visible(identifier)} ${count} times, where a key is one of a kind. Carried out, it fails and the action is used up. Do not sign it.`
+        )
+      );
+  const seen = new Set<string>();
+  for (const key of call.keys as Payment[]) {
+    const identifier = keyIdentifier(key.token, key.nonce);
+    if (seen.has(identifier)) continue;
+    seen.add(identifier);
     if (key.token !== pin.cancelKey || key.nonce < 1n) {
       checks.push(
         bad(
@@ -458,4 +475,98 @@ export const isContractAddress = (address: string) => {
   } catch {
     return false;
   }
+};
+
+const textOf = (bytes?: Uint8Array) =>
+  new TextDecoder().decode(bytes ?? new Uint8Array(0));
+const bigOf = (bytes?: Uint8Array) => {
+  let value = 0n;
+  for (const byte of bytes ?? []) value = value * 256n + BigInt(byte);
+  return value;
+};
+
+/**
+ * A key of the pinned mvxvest leaving the safe any other way than its own
+ * cancel on mvxvest: whoever then holds a cancel key can cancel that vesting
+ * and take what has not vested, and whoever holds a claim key claims what it
+ * releases (review of PR #26). Red, naming the vesting when it can be read.
+ */
+export const keyLeavingChecks = async ({
+  to,
+  endpoint,
+  args,
+  safe
+}: {
+  to: string;
+  endpoint: string;
+  args: Uint8Array[];
+  safe: string;
+}): Promise<Check[]> => {
+  const pin = mvxvestFor(networkName);
+  if (!pin || to !== safe) return [];
+  let receiver = '';
+  let after = '';
+  const sent: Payment[] = [];
+  if (
+    endpoint === 'ESDTNFTTransfer' &&
+    args.length >= 4 &&
+    args[3].length === 32
+  ) {
+    receiver = new Address(args[3]).toBech32();
+    after = textOf(args[4]);
+    sent.push({
+      token: textOf(args[0]),
+      nonce: bigOf(args[1]),
+      amount: bigOf(args[2])
+    });
+  } else if (
+    endpoint === 'MultiESDTNFTTransfer' &&
+    args.length >= 2 &&
+    args[0].length === 32
+  ) {
+    receiver = new Address(args[0]).toBech32();
+    const count = Number(bigOf(args[1]));
+    if (!Number.isInteger(count) || count < 1 || args.length < 2 + count * 3)
+      return [];
+    for (let at = 0; at < count; at++) {
+      const [token, nonce, amount] = args.slice(2 + at * 3, 5 + at * 3);
+      sent.push({
+        token: textOf(token),
+        nonce: bigOf(nonce),
+        amount: bigOf(amount)
+      });
+    }
+    after = textOf(args[2 + count * 3]);
+  } else return [];
+  const cancelsOnMvxvest = receiver === pin.address && after === 'cancel';
+  const where = `to ${receiver}${after ? `, calling ${visible(after)} there,` : ''}`;
+  const checks: Check[] = [];
+  for (const key of sent) {
+    const identifier = visible(keyIdentifier(key.token, key.nonce));
+    if (key.token === pin.cancelKey && !cancelsOnMvxvest) {
+      let vesting: VestingState | null = null;
+      try {
+        vesting = await readVestingOfCancelKey(pin, Number(key.nonce));
+      } catch {
+        // Said without the vesting.
+      }
+      const { decimals } = vesting
+        ? await readTokenMeta(vesting.token, false)
+        : { decimals: null };
+      checks.push(
+        bad(
+          vesting
+            ? `It sends ${identifier}, the cancel key of vesting #${vesting.id} (to ${vesting.beneficiary}), ${where} instead of cancelling it on mvxvest. Whoever holds it can cancel that vesting and take what has not vested: ${amountIn(cancelOutcome(vesting).toSafe, vesting.token, decimals)} now. Do not sign it.`
+            : `It sends ${identifier}, one of mvxvest's cancel keys, ${where} instead of cancelling on mvxvest. Whoever holds it can cancel that vesting and take what has not vested. Do not sign it.`
+        )
+      );
+    } else if (key.token === pin.claimKey) {
+      checks.push(
+        bad(
+          `It sends ${identifier}, a claim key of mvxvest, ${where}. Whoever holds it claims what the vesting releases. Do not sign it unless the board means to give that away.`
+        )
+      );
+    }
+  }
+  return checks;
 };

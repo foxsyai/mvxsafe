@@ -33,7 +33,11 @@ import {
 } from './legacyCalls';
 import { api, cached, chainId, networkProvider } from './network';
 import { readVestingCall } from './vesting';
-import { inspectVesting, VestingDetails } from './vestingCard';
+import {
+  inspectVesting,
+  keyLeavingChecks,
+  VestingDetails
+} from './vestingCard';
 
 export type Tone = 'ok' | 'warn' | 'bad';
 
@@ -641,6 +645,11 @@ export const inspectCall = async (
     }
     callNeed = trial.need;
   }
+  // A key of mvxvest sent away by any other call (review of PR #26).
+  if (!pinnedVesting)
+    checks.push(
+      ...(await keyLeavingChecks({ to, endpoint: called, args, safe }))
+    );
   if (vesting) {
     checks.push(...vesting.checks);
     // Never less than devnet measured: a trial from the safe's shard can see

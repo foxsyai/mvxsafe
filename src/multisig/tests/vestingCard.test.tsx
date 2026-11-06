@@ -345,6 +345,130 @@ describe('a cancel', () => {
   });
 });
 
+describe('a key leaving the safe any other way (review of PR #26)', () => {
+  const KEY = `${pin.cancelKey}-05`;
+  const keyState: VestingState = {
+    id: 7,
+    creator: SAFE,
+    beneficiary: BOB,
+    token: TOKEN,
+    total: 10n * UNIT,
+    schedule: trancheSchedule([{ time: NOW + 182 * DAY, amount: 10n * UNIT }]),
+    cancelable: true,
+    createdAt: NOW - 10 * DAY,
+    claimNonce: 9,
+    cancelNonce: 5,
+    label: 'Grants 2026',
+    claimed: 0n,
+    cancelledAt: 0,
+    vested: 0n,
+    claimable: 0n,
+    finalAmount: 0n,
+    refunded: 0n,
+    timestamp: NOW
+  };
+  const nftTransfer = (
+    collection: string,
+    receiver: string,
+    after: string[] = []
+  ) => ({
+    name: 'SendAsyncCall',
+    fields: [
+      {
+        to: SAFE,
+        egld_amount: 0n,
+        endpoint_name: Buffer.from('ESDTNFTTransfer'),
+        arguments: [
+          Buffer.from(collection),
+          Buffer.from([5]),
+          Buffer.from([1]),
+          Buffer.from(Address.newFromBech32(receiver).getPublicKey()),
+          ...after.map((part) => Buffer.from(part))
+        ]
+      }
+    ]
+  });
+
+  it('a cancel key sent to a wallet is red, naming the vesting and what could be taken', async () => {
+    mockVesting.current = keyState;
+    const checks = (
+      await inspectAction(nftTransfer(pin.cancelKey, ALICE), SAFE)
+    ).checks;
+    expect(texts(red(checks))).toMatch(
+      new RegExp(
+        `${KEY}, the cancel key of vesting #7 .*Whoever holds it can cancel that vesting and take what has not vested: 10 ${TOKEN} now`
+      )
+    );
+  });
+
+  it('a cancel key sent to mvxvest with another function, or to another contract with cancel, is red too', async () => {
+    mockVesting.current = keyState;
+    for (const action of [
+      nftTransfer(pin.cancelKey, pin.address, ['claim']),
+      nftTransfer(pin.cancelKey, predictSafeAddress(CAROL, 40), ['cancel'])
+    ])
+      expect(texts(red((await inspectAction(action, SAFE)).checks))).toMatch(
+        /cancel key of vesting #7/
+      );
+  });
+
+  it('a claim key the safe holds, sent away, is red', async () => {
+    mockVesting.current = null;
+    expect(
+      texts(
+        red(
+          (await inspectAction(nftTransfer(pin.claimKey, ALICE), SAFE)).checks
+        )
+      )
+    ).toMatch(/claim key.*Whoever holds it claims what the vesting releases/);
+  });
+
+  it('control: the cancel the app proposes is not called a key leaving', async () => {
+    mockHeld.add(KEY);
+    mockVesting.current = keyState;
+    const action = actionOf(
+      await buildProposeCancelVesting(context, {
+        pin,
+        facts: factsWith(),
+        collection: pin.cancelKey,
+        nonce: 5
+      })
+    );
+    expect(texts((await inspectAction(action, SAFE)).checks)).not.toMatch(
+      /Whoever holds it/
+    );
+  });
+
+  it('the same key twice in one cancel is red: a key is one of a kind', async () => {
+    mockHeld.add(KEY);
+    mockVesting.current = keyState;
+    const twice = {
+      name: 'SendAsyncCall',
+      fields: [
+        {
+          to: SAFE,
+          egld_amount: 0n,
+          endpoint_name: Buffer.from('MultiESDTNFTTransfer'),
+          arguments: [
+            Buffer.from(Address.newFromBech32(pin.address).getPublicKey()),
+            Buffer.from([2]),
+            Buffer.from(pin.cancelKey),
+            Buffer.from([5]),
+            Buffer.from([1]),
+            Buffer.from(pin.cancelKey),
+            Buffer.from([5]),
+            Buffer.from([1]),
+            Buffer.from('cancel')
+          ]
+        }
+      ]
+    };
+    expect(texts(red((await inspectAction(twice, SAFE)).checks))).toMatch(
+      /sends .*-05 2 times/
+    );
+  });
+});
+
 describe('the card', () => {
   it('lists every vesting with its dates and amounts', async () => {
     const inspection = await inspectAction(actionOf(await batch()), SAFE);
